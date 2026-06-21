@@ -46,6 +46,12 @@ INTEGRAL_MAX = 100.0
 # moves brisk. Set to 0 to disable.
 MIN_MOVE_PCT = 30.0
 
+# State machine: motor only runs on demand. After SET:, drive to target,
+# hold for SETTLE_MS within deadband, then release. While idle, report
+# position only when it changes by REPORT_DELTA (user moved the fader).
+SETTLE_MS = 1000
+REPORT_DELTA = 0.2
+
 # ---------------------------------------------------------------------------
 # Motor / hardware constants
 # ---------------------------------------------------------------------------
@@ -127,6 +133,12 @@ class FaderPID:
         # past DEADBAND_EXIT. Prevents buzz from ADC flicker across edge.
         self.in_deadband = False
 
+        # State machine: IDLE (motor off), MOVING (PID driving), SETTLING
+        # (PID holding, counting down to release).
+        self.state = "IDLE"
+        self.settle_start = 0
+        self.last_reported_pos = 0.0
+
     def _raw_adc(self):
         """Average 16 ADC samples to reduce noise (kills sub-% jitter)."""
         return sum(self.adc.read_u16() for _ in range(16)) // 16
@@ -184,14 +196,18 @@ class FaderPID:
         self.adc_min = lower + margin
         self.adc_max = upper - margin
 
-        # Start setpoint at current position so fader doesn't jump on boot
+        # Boot in IDLE — fader free, no torque until host sends SET:
         self.setpoint = self.read_position()
         self.last_time = ticks_ms()
+        self.state = "IDLE"
+        self.motor.stop()
+        self.last_reported_pos = self.setpoint
 
     def update(self):
         """
-        Run one PID iteration. Returns current position (0–100%).
-        Stops motor and resets PID state when fader is touched.
+        Run one state-machine iteration. Returns current position (0–100%).
+        IDLE: motor off, no PID. MOVING: PID drives to setpoint. SETTLING:
+        PID still holds, releases motor after SETTLE_MS of stillness.
         """
         now = ticks_ms()
         dt = min(ticks_diff(now, self.last_time) / 1000.0, MAX_DT_S)
@@ -199,30 +215,33 @@ class FaderPID:
 
         position = self.read_position()
 
-        if self.is_touched():
-            # User is touching fader — disengage and reset to avoid surge on release
-            self.motor.stop()
-            self.integral = 0.0
-            self.last_error = 0.0
-            self.in_deadband = False
+        if self.state == "IDLE":
             return position
 
         error = self.setpoint - position
 
-        # Hysteresis: enter deadband at DEADBAND, only leave when error
-        # exceeds DEADBAND_EXIT. Stops buzz from ADC noise across edge.
-        if self.in_deadband:
+        if self.state == "MOVING" and abs(error) < DEADBAND:
+            self.state = "SETTLING"
+            self.settle_start = now
+
+        if self.state == "SETTLING":
             if abs(error) > DEADBAND_EXIT:
-                self.in_deadband = False
+                self.state = "MOVING"
+                self.integral = 0.0
+                self.last_error = 0.0
+            elif ticks_diff(now, self.settle_start) >= SETTLE_MS:
+                self.motor.stop()
+                self.integral = 0.0
+                self.last_error = 0.0
+                self.state = "IDLE"
+                self.last_reported_pos = position
+                return position
             else:
+                # In deadband, waiting out settle timer — motor off, no PID.
                 self.motor.stop()
                 return position
-        elif abs(error) < DEADBAND:
-            self.in_deadband = True
-            self.motor.stop()
-            return position
 
-        # PID
+        # PID (MOVING only)
         if dt > 0:
             self.integral += error * dt
             self.integral = max(-INTEGRAL_MAX, min(INTEGRAL_MAX, self.integral))
@@ -241,6 +260,15 @@ class FaderPID:
         self.motor.drive(output)
         return position
 
+    def engage(self, setpoint):
+        """Set new target and arm the motor (state → MOVING)."""
+        self.setpoint = max(0.0, min(100.0, setpoint))
+        self.integral = 0.0
+        self.last_error = 0.0
+        self.last_time = ticks_ms()
+        self.in_deadband = False
+        self.state = "MOVING"
+
 
 def _delay(ms):
     """Blocking delay in milliseconds."""
@@ -256,10 +284,10 @@ def _handle_command(line, fader1, fader2):
         try:
             parts = line[4:].split(",")
             if FADER1_ENABLED:
-                fader1.setpoint = max(0.0, min(100.0, float(parts[0])))
+                fader1.engage(float(parts[0]))
                 sys.stdout.write("DBG:sp1={}\n".format(fader1.setpoint))
             if FADER2_ENABLED and len(parts) > 1:
-                fader2.setpoint = max(0.0, min(100.0, float(parts[1])))
+                fader2.engage(float(parts[1]))
         except (ValueError, IndexError) as e:
             sys.stdout.write("DBG:parse err {}\n".format(e))
 
@@ -293,13 +321,33 @@ def main():
         pos1 = fader1.update() if fader1 else 0.0
         pos2 = fader2.update() if fader2 else 0.0
 
-        # Send position at ~20Hz
-        if ticks_diff(ticks_ms(), last_pos_send) >= POS_INTERVAL_MS:
-            sys.stdout.write("POS:{:.1f},{:.1f}\n".format(pos1, pos2))
-            raw1 = fader1.read_raw() if fader1 else 0
-            raw2 = fader2.read_raw() if fader2 else 0
-            sys.stdout.write("RAW:{},{}\n".format(raw1, raw2))
-            last_pos_send = ticks_ms()
+        # Telemetry: 20Hz heartbeat while engaged (MOVING/SETTLING),
+        # on-change-only while idle (user moved fader by hand).
+        engaged = (
+            (fader1 and fader1.state != "IDLE")
+            or (fader2 and fader2.state != "IDLE")
+        )
+        now = ticks_ms()
+        if ticks_diff(now, last_pos_send) >= POS_INTERVAL_MS:
+            send = False
+            if engaged:
+                send = True
+            else:
+                delta1 = fader1 and abs(pos1 - fader1.last_reported_pos) >= REPORT_DELTA
+                delta2 = fader2 and abs(pos2 - fader2.last_reported_pos) >= REPORT_DELTA
+                if delta1 or delta2:
+                    send = True
+            if send:
+                sys.stdout.write("POS:{:.1f},{:.1f}\n".format(pos1, pos2))
+                if engaged:
+                    raw1 = fader1.read_raw() if fader1 else 0
+                    raw2 = fader2.read_raw() if fader2 else 0
+                    sys.stdout.write("RAW:{},{}\n".format(raw1, raw2))
+                if fader1:
+                    fader1.last_reported_pos = pos1
+                if fader2:
+                    fader2.last_reported_pos = pos2
+                last_pos_send = now
 
         # Non-blocking serial read
         if select.select([sys.stdin], [], [], 0)[0]:
