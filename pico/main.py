@@ -1,0 +1,316 @@
+"""
+Motorized Fader Controller — MicroPython firmware for Raspberry Pi Pico W
+Fader: Alps RS60N11M9 series (Motor N Fader, 10V DC rated motor)
+Driver: SparkFun TB6612FNG dual motor driver
+
+Wiring (RP2040 + RTL8720 board — GP4/GP5 not exposed):
+  Fader 1: wiper→GP26(ADC0), 3.3V→pin3, GND→pin1
+           motor→AO1/AO2, touch T→GP11 (pull-up, LOW when touched)
+  Fader 2: wiper→GP27(ADC1), 3.3V→pin3, GND→pin1
+           motor→BO1/BO2, touch T→GP12 (pull-up, LOW when touched)
+  Driver:  AIN1→GP2, AIN2→GP3, PWMA→GP6
+           BIN1→GP7, BIN2→GP8, PWMB→GP9
+           STBY→GP10, VCC→3.3V, VM→10V motor supply, GND→common
+
+Touch sense: The Alps RS60N11M9 has a dedicated conductive touch track.
+  The T pin is shorted to ground by the fader lever when touched.
+  Use internal pull-up → reads HIGH normally, LOW when touched.
+  No capacitive sensing or external resistors needed.
+
+Serial protocol (115200 baud, USB):
+  Pico→Host (~20Hz): POS:47.3,82.1\n
+                     RAW:31245,47102\n   (raw ADC, 0–65535, for diagnostics)
+  Host→Pico:         SET:50.0,75.0\n
+"""
+
+import sys
+import select
+from machine import ADC, Pin, PWM
+from utime import ticks_ms, ticks_diff
+
+# ---------------------------------------------------------------------------
+# PID tuning constants — adjust these to tune your faders
+# ---------------------------------------------------------------------------
+KP = 3.5          # Proportional gain — main driving force
+KI = 1.5          # Integral gain — corrects steady-state error
+KD = 0.05         # Derivative gain — damping, reduces overshoot
+
+DEADBAND = 0.2    # % — motor stops when within this distance of target
+DEADBAND_EXIT = 0.5  # % — must exceed this to leave hold state (hysteresis)
+
+# Anti-windup: integral is clamped to this range
+INTEGRAL_MAX = 100.0
+
+# Minimum motor output (%) when actively moving — below this the motor
+# crawls near stall. Floor non-zero PID output to this to keep short
+# moves brisk. Set to 0 to disable.
+MIN_MOVE_PCT = 30.0
+
+# ---------------------------------------------------------------------------
+# Motor / hardware constants
+# ---------------------------------------------------------------------------
+PWM_FREQ = 20000  # Hz — 20kHz is above hearing range, no motor whine
+# Minimum PWM duty below which motor stalls rather than moving slowly.
+# Below this threshold the output is treated as zero (coast).
+PWM_MIN = 10000
+PWM_MAX = 65535
+
+# Touch: Alps RS60N11M9 has a conductive touch track shorted to GND by the
+# fader lever. T pin uses internal pull-up — LOW = touched, HIGH = not touched.
+
+# ---------------------------------------------------------------------------
+# Hardware configuration
+# ---------------------------------------------------------------------------
+FADER1_ENABLED = True   # set to False if fader 1 is not connected
+FADER2_ENABLED = False  # set to True when fader 2 is wired up
+
+# ---------------------------------------------------------------------------
+# Serial / timing
+# ---------------------------------------------------------------------------
+POS_INTERVAL_MS = 50  # send position every 50ms (~20Hz)
+MAX_DT_S = 0.1        # cap dt to prevent derivative spike on first PID call
+
+
+class MotorDriver:
+    def __init__(self, in1, in2, pwm_pin, stby_pin):
+        self.in1 = Pin(in1, Pin.OUT)
+        self.in2 = Pin(in2, Pin.OUT)
+        self.pwm = PWM(Pin(pwm_pin))
+        self.pwm.freq(PWM_FREQ)
+        # STBY is shared between both motors; set HIGH to enable driver
+        self.stby = Pin(stby_pin, Pin.OUT)
+        self.stby.value(1)
+
+    def drive(self, power):
+        """
+        Drive motor at given power (-100.0 to +100.0).
+        Positive = forward (fader up), negative = reverse (fader down).
+        """
+        duty = int(abs(power) / 100.0 * PWM_MAX)
+        if 0 < duty < PWM_MIN:
+            # Below stall threshold — boost to PWM_MIN so motor actually moves
+            duty = PWM_MIN
+        duty = min(duty, PWM_MAX)
+
+        if power > 0:
+            self.in1.value(1)
+            self.in2.value(0)
+        elif power < 0:
+            self.in1.value(0)
+            self.in2.value(1)
+        else:
+            self.in1.value(0)
+            self.in2.value(0)  # coast
+
+        self.pwm.duty_u16(duty)
+
+    def stop(self):
+        self.drive(0)
+
+
+class FaderPID:
+    def __init__(self, adc_pin, touch_pin, motor):
+        self.adc = ADC(adc_pin)
+        self.touch = Pin(touch_pin, Pin.IN, Pin.PULL_UP)  # LOW when touched
+        self.motor = motor
+
+        # Calibrated ADC range (set by calibrate())
+        self.adc_min = 0
+        self.adc_max = 65535
+
+        # PID state
+        self.setpoint = 50.0  # will be overwritten after calibration
+        self.integral = 0.0
+        self.last_error = 0.0
+        self.last_time = ticks_ms()
+        # Hysteresis: once inside deadband, stay holding until error grows
+        # past DEADBAND_EXIT. Prevents buzz from ADC flicker across edge.
+        self.in_deadband = False
+
+    def _raw_adc(self):
+        """Average 16 ADC samples to reduce noise (kills sub-% jitter)."""
+        return sum(self.adc.read_u16() for _ in range(16)) // 16
+
+    def read_raw(self):
+        """Return raw ADC value (0–65535), uncalibrated."""
+        return self._raw_adc()
+
+    def read_position(self):
+        """Return fader position as 0.0–100.0%."""
+        raw = self._raw_adc()
+        raw = max(self.adc_min, min(self.adc_max, raw))
+        return (raw - self.adc_min) / (self.adc_max - self.adc_min) * 100.0
+
+    def is_touched(self):
+        """
+        The Alps RS60N11M9 touch track is shorted to GND by the fader lever
+        when a finger is present. Internal pull-up makes it LOW when touched.
+        """
+        return self.touch.value() == 0
+
+    def calibrate(self, motor_power=60, settle_ms=400, sweep_steps=15):
+        """
+        Auto-calibrate ADC range by driving fader to both mechanical limits.
+        Mirrors the initFaders() approach from the original Arduino sketch.
+        """
+        # Drive to top
+        self.motor.drive(motor_power)
+        _delay(settle_ms)
+        upper = self._raw_adc()
+        for _ in range(sweep_steps):
+            self.motor.drive(motor_power)
+            _delay(30)
+            v = self._raw_adc()
+            if v > upper:
+                upper = v
+        self.motor.stop()
+        _delay(100)
+
+        # Drive to bottom
+        self.motor.drive(-motor_power)
+        _delay(settle_ms)
+        lower = self._raw_adc()
+        for _ in range(sweep_steps):
+            self.motor.drive(-motor_power)
+            _delay(30)
+            v = self._raw_adc()
+            if v < lower:
+                lower = v
+        self.motor.stop()
+        _delay(100)
+
+        # Add small margin to avoid clipping at extremes
+        margin = int((upper - lower) * 0.01)
+        self.adc_min = lower + margin
+        self.adc_max = upper - margin
+
+        # Start setpoint at current position so fader doesn't jump on boot
+        self.setpoint = self.read_position()
+        self.last_time = ticks_ms()
+
+    def update(self):
+        """
+        Run one PID iteration. Returns current position (0–100%).
+        Stops motor and resets PID state when fader is touched.
+        """
+        now = ticks_ms()
+        dt = min(ticks_diff(now, self.last_time) / 1000.0, MAX_DT_S)
+        self.last_time = now
+
+        position = self.read_position()
+
+        if self.is_touched():
+            # User is touching fader — disengage and reset to avoid surge on release
+            self.motor.stop()
+            self.integral = 0.0
+            self.last_error = 0.0
+            self.in_deadband = False
+            return position
+
+        error = self.setpoint - position
+
+        # Hysteresis: enter deadband at DEADBAND, only leave when error
+        # exceeds DEADBAND_EXIT. Stops buzz from ADC noise across edge.
+        if self.in_deadband:
+            if abs(error) > DEADBAND_EXIT:
+                self.in_deadband = False
+            else:
+                self.motor.stop()
+                return position
+        elif abs(error) < DEADBAND:
+            self.in_deadband = True
+            self.motor.stop()
+            return position
+
+        # PID
+        if dt > 0:
+            self.integral += error * dt
+            self.integral = max(-INTEGRAL_MAX, min(INTEGRAL_MAX, self.integral))
+            derivative = (error - self.last_error) / dt
+        else:
+            derivative = 0.0
+
+        self.last_error = error
+        output = KP * error + KI * self.integral + KD * derivative
+        output = max(-100.0, min(100.0, output))
+
+        # Floor non-zero output so short moves don't crawl near stall
+        if 0 < abs(output) < MIN_MOVE_PCT:
+            output = MIN_MOVE_PCT if output > 0 else -MIN_MOVE_PCT
+
+        self.motor.drive(output)
+        return position
+
+
+def _delay(ms):
+    """Blocking delay in milliseconds."""
+    start = ticks_ms()
+    while ticks_diff(ticks_ms(), start) < ms:
+        pass
+
+
+def _handle_command(line, fader1, fader2):
+    line = line.strip()
+    sys.stdout.write("DBG:got '{}'\n".format(line))
+    if line.startswith("SET:"):
+        try:
+            parts = line[4:].split(",")
+            if FADER1_ENABLED:
+                fader1.setpoint = max(0.0, min(100.0, float(parts[0])))
+                sys.stdout.write("DBG:sp1={}\n".format(fader1.setpoint))
+            if FADER2_ENABLED and len(parts) > 1:
+                fader2.setpoint = max(0.0, min(100.0, float(parts[1])))
+        except (ValueError, IndexError) as e:
+            sys.stdout.write("DBG:parse err {}\n".format(e))
+
+
+def main():
+    # WiFi-disable code removed — this board uses RTL8720 (not CYW43) and
+    # importing `network` prints '[CYW43] Failed to ...' messages to stdout,
+    # corrupting the SET: command stream. If you port back to a real Pico W,
+    # re-add: wlan = network.WLAN(network.STA_IF); wlan.active(False)
+
+    # Motor drivers (both share STBY on GP10)
+    motor_a = MotorDriver(in1=2, in2=3, pwm_pin=6, stby_pin=10) if FADER1_ENABLED else None
+    motor_b = MotorDriver(in1=7, in2=8, pwm_pin=9, stby_pin=10) if FADER2_ENABLED else None
+
+    # Faders — touch T pin uses internal pull-up, reads LOW when touched
+    fader1 = FaderPID(adc_pin=26, touch_pin=11, motor=motor_a) if FADER1_ENABLED else None
+    fader2 = FaderPID(adc_pin=27, touch_pin=12, motor=motor_b) if FADER2_ENABLED else None
+
+    # Calibrate enabled faders — faders sweep to limits then hold position
+    sys.stdout.write("CAL:start\n")
+    if fader1:
+        fader1.calibrate()
+    if fader2:
+        fader2.calibrate()
+    sys.stdout.write("CAL:done\n")
+
+    last_pos_send = ticks_ms()
+    input_buf = ""
+
+    while True:
+        pos1 = fader1.update() if fader1 else 0.0
+        pos2 = fader2.update() if fader2 else 0.0
+
+        # Send position at ~20Hz
+        if ticks_diff(ticks_ms(), last_pos_send) >= POS_INTERVAL_MS:
+            sys.stdout.write("POS:{:.1f},{:.1f}\n".format(pos1, pos2))
+            raw1 = fader1.read_raw() if fader1 else 0
+            raw2 = fader2.read_raw() if fader2 else 0
+            sys.stdout.write("RAW:{},{}\n".format(raw1, raw2))
+            last_pos_send = ticks_ms()
+
+        # Non-blocking serial read
+        if select.select([sys.stdin], [], [], 0)[0]:
+            char = sys.stdin.read(1)
+            if char == '\n':
+                _handle_command(input_buf, fader1, fader2)
+                input_buf = ""
+            else:
+                input_buf += char
+                if len(input_buf) > 64:
+                    input_buf = ""  # guard against buffer overflow
+
+
+main()

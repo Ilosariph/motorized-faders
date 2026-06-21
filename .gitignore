@@ -1,0 +1,19 @@
+# Nix
+.direnv/
+.envrc.local
+result
+result-*
+.nix-gcroots/
+
+# direnv
+.envrc.cache
+
+# Python venv (nix-shell may create)
+.venv/
+__pycache__/
+*.pyc
+
+# Editor
+.idea/
+.vscode/
+*.swp
