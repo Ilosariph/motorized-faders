@@ -138,6 +138,8 @@ class FaderPID:
         self.state = "IDLE"
         self.settle_start = 0
         self.last_reported_pos = 0.0
+        # Tracks last state we emitted on serial so main loop can dedupe.
+        self._last_emitted_state = "IDLE"
 
     def _raw_adc(self):
         """Average 16 ADC samples to reduce noise (kills sub-% jitter)."""
@@ -260,6 +262,13 @@ class FaderPID:
         self.motor.drive(output)
         return position
 
+    def state_changed(self):
+        """Return new state if it changed since last call, else None."""
+        if self.state != self._last_emitted_state:
+            self._last_emitted_state = self.state
+            return self.state
+        return None
+
     def engage(self, setpoint):
         """Set new target and arm the motor (state → MOVING)."""
         self.setpoint = max(0.0, min(100.0, setpoint))
@@ -320,6 +329,17 @@ def main():
     while True:
         pos1 = fader1.update() if fader1 else 0.0
         pos2 = fader2.update() if fader2 else 0.0
+
+        # Emit STATE: edges so the host can detect "move complete" without
+        # heuristics. Additive — old hosts ignore unknown line prefixes.
+        if fader1:
+            s = fader1.state_changed()
+            if s is not None:
+                sys.stdout.write("STATE:1,{}\n".format(s))
+        if fader2:
+            s = fader2.state_changed()
+            if s is not None:
+                sys.stdout.write("STATE:2,{}\n".format(s))
 
         # Telemetry: 20Hz heartbeat while engaged (MOVING/SETTLING),
         # on-change-only while idle (user moved fader by hand).
