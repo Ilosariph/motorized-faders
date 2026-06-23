@@ -21,6 +21,8 @@ Serial protocol (115200 baud, USB):
   Pico→Host (~20Hz): POS:47.3,82.1\n
                      RAW:31245,47102\n   (raw ADC, 0–65535, for diagnostics)
   Host→Pico:         SET:50.0,75.0\n
+                     PID:3.5,1.5,0.05\n  (override KP,KI,KD at runtime; tuning)
+  Pico ack on PID:   PID:OK,3.500,1.500,0.050\n
 """
 
 import sys
@@ -287,6 +289,7 @@ def _delay(ms):
 
 
 def _handle_command(line, fader1, fader2):
+    global KP, KI, KD
     line = line.strip()
     sys.stdout.write("DBG:got '{}'\n".format(line))
     if line.startswith("SET:"):
@@ -299,6 +302,24 @@ def _handle_command(line, fader1, fader2):
                 fader2.engage(float(parts[1]))
         except (ValueError, IndexError) as e:
             sys.stdout.write("DBG:parse err {}\n".format(e))
+    elif line.startswith("PID:"):
+        try:
+            parts = line[4:].split(",")
+            KP = float(parts[0])
+            KI = float(parts[1])
+            KD = float(parts[2])
+            # Reset integrators so the new gains don't inherit windup
+            # from the previous trial — important when the tuner is
+            # sweeping aggressive candidates.
+            if fader1:
+                fader1.integral = 0.0
+                fader1.last_error = 0.0
+            if fader2:
+                fader2.integral = 0.0
+                fader2.last_error = 0.0
+            sys.stdout.write("PID:OK,{:.4f},{:.4f},{:.4f}\n".format(KP, KI, KD))
+        except (ValueError, IndexError) as e:
+            sys.stdout.write("PID:ERR {}\n".format(e))
 
 
 def main():
