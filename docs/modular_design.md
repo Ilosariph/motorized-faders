@@ -38,8 +38,8 @@ The **RP2040-Zero** (Waveshare) is the same RP2040 chip as the Pico, in a compac
 | GP5 | BIN1 (fader 2 direction) |
 | GP6 | BIN2 (fader 2 direction) |
 | GP7 | PWMB (fader 2 speed) |
-| GP9 | Touch 1 (pull-up, LOW when touched) |
-| GP10 | Touch 2 (pull-up, LOW when touched) |
+| GP9 | Touch 1 (external 1MΩ pull-down to GND; AC pickup when touched) |
+| GP10 | Touch 2 (external 1MΩ pull-down to GND; AC pickup when touched) |
 | GP20 | I2C0 SDA (2× SSD1306 OLED) |
 | GP21 | I2C0 SCL |
 | GP0 | UART0 TX (upstream toward master) |
@@ -140,9 +140,10 @@ The TB6612FNG is rated 1A continuous / 3A peak per channel at up to 13.5V — ha
 | 100µF electrolytic cap | 1 | 10V motor rail decoupling |
 | 100nF ceramic cap | 4 | Per-IC supply decoupling |
 | 10kΩ resistor | 1 | STBY pull-up to 3.3V |
+| 1MΩ resistor | 2 | Touch pull-down to GND (one per fader T pin) |
 | 5-pin magnetic connector | 2 | Upstream + downstream |
 
-No external ADC, no touch IC, no LDO — the RP2040-Zero handles everything natively.
+No external ADC, no touch IC, no LDO — the RP2040-Zero handles everything natively. The 1MΩ pull-downs on the T pins are the only passives required for the touch sense to work (see the README touch-wiring note).
 
 ---
 

@@ -5,21 +5,26 @@ Driver: SparkFun TB6612FNG dual motor driver
 
 Wiring (RP2040 + RTL8720 board — GP4/GP5 not exposed):
   Fader 1: wiper→GP26(ADC0), 3.3V→pin3, GND→pin1
-           motor→AO1/AO2, touch T→GP11 (pull-up, LOW when touched)
+           motor→AO1/AO2, touch T→GP11 (external 1MΩ to GND)
   Fader 2: wiper→GP27(ADC1), 3.3V→pin3, GND→pin1
-           motor→BO1/BO2, touch T→GP12 (pull-up, LOW when touched)
+           motor→BO1/BO2, touch T→GP12 (external 1MΩ to GND)
   Driver:  AIN1→GP2, AIN2→GP3, PWMA→GP6
            BIN1→GP7, BIN2→GP8, PWMB→GP9
            STBY→GP10, VCC→3.3V, VM→10V motor supply, GND→common
 
-Touch sense: The Alps RS60N11M9 has a dedicated conductive touch track.
-  The T pin is shorted to ground by the fader lever when touched.
-  Use internal pull-up → reads HIGH normally, LOW when touched.
-  No capacitive sensing or external resistors needed.
+Touch sense: The Alps RS60N11M9 T pin connects to a conductive track on the
+  fader cap. It does NOT short to GND when touched — instead, the user's body
+  couples 50/60Hz mains hum into the pin. An external pull-down resistor
+  (~1MΩ between T and GND) is REQUIRED to hold the line at GND when idle;
+  without it the input floats and reads noise. No internal pull-up.
+  Detection: sample the pin at main-loop rate (>>100Hz). When idle the line
+  sits at 0V; when touched, AC pickup briefly pulls it above the digital
+  threshold each mains half-cycle. Any HIGH within TOUCH_HOLD_MS = touched.
 
 Serial protocol (115200 baud, USB):
   Pico→Host (~20Hz): POS:47.3,82.1\n
                      RAW:31245,47102\n   (raw ADC, 0–65535, for diagnostics)
+                     TOUCH:1,1\n         (fader idx, 1=touched / 0=released)
   Host→Pico:         SET:50.0,75.0\n
 """
 
@@ -61,8 +66,10 @@ PWM_FREQ = 20000  # Hz — 20kHz is above hearing range, no motor whine
 PWM_MIN = 10000
 PWM_MAX = 65535
 
-# Touch: Alps RS60N11M9 has a conductive touch track shorted to GND by the
-# fader lever. T pin uses internal pull-up — LOW = touched, HIGH = not touched.
+# Touch: Alps RS60N11M9 T pin couples mains hum via the user's body when
+# touched. Requires an external 1MΩ pull-down to GND. No internal pull-up.
+# A HIGH sample within TOUCH_HOLD_MS = touched; otherwise released.
+TOUCH_HOLD_MS = 50
 
 # ---------------------------------------------------------------------------
 # Hardware configuration
@@ -117,7 +124,11 @@ class MotorDriver:
 class FaderPID:
     def __init__(self, adc_pin, touch_pin, motor):
         self.adc = ADC(adc_pin)
-        self.touch = Pin(touch_pin, Pin.IN, Pin.PULL_UP)  # LOW when touched
+        # External 1MΩ pull-down to GND on the T pin holds the line at 0V when
+        # idle. Touching the fader couples mains hum, briefly pulling it HIGH
+        # each half-cycle. No internal pull-up — that would override the
+        # external pull-down and the line would read HIGH permanently.
+        self.touch = Pin(touch_pin, Pin.IN)
         self.motor = motor
 
         # Calibrated ADC range (set by calibrate())
@@ -141,6 +152,11 @@ class FaderPID:
         # Tracks last state we emitted on serial so main loop can dedupe.
         self._last_emitted_state = "IDLE"
 
+        # Touch tracking: timestamp of the most recent HIGH sample on the T
+        # pin. Stale-by-default so is_touched() starts false.
+        self._touch_last_high = ticks_ms() - (TOUCH_HOLD_MS + 1)
+        self._last_emitted_touch = False
+
     def _raw_adc(self):
         """Average 16 ADC samples to reduce noise (kills sub-% jitter)."""
         return sum(self.adc.read_u16() for _ in range(16)) // 16
@@ -155,12 +171,27 @@ class FaderPID:
         raw = max(self.adc_min, min(self.adc_max, raw))
         return (raw - self.adc_min) / (self.adc_max - self.adc_min) * 100.0
 
+    def _sample_touch(self):
+        """
+        Poll the T pin once. With the external 1MΩ pull-down the line sits at
+        GND when idle; mains-hum pickup through the user's body pulls it
+        HIGH for brief windows each AC half-cycle. Called from update() so
+        sampling happens at the main-loop rate (well above 100Hz).
+        """
+        if self.touch.value():
+            self._touch_last_high = ticks_ms()
+
     def is_touched(self):
-        """
-        The Alps RS60N11M9 touch track is shorted to GND by the fader lever
-        when a finger is present. Internal pull-up makes it LOW when touched.
-        """
-        return self.touch.value() == 0
+        """True if a HIGH was sampled on the T pin within TOUCH_HOLD_MS."""
+        return ticks_diff(ticks_ms(), self._touch_last_high) < TOUCH_HOLD_MS
+
+    def touch_changed(self):
+        """Return current touch state if it flipped since last call, else None."""
+        touched = self.is_touched()
+        if touched != self._last_emitted_touch:
+            self._last_emitted_touch = touched
+            return touched
+        return None
 
     def calibrate(self, motor_power=60, settle_ms=400, sweep_steps=15):
         """
@@ -215,6 +246,7 @@ class FaderPID:
         dt = min(ticks_diff(now, self.last_time) / 1000.0, MAX_DT_S)
         self.last_time = now
 
+        self._sample_touch()
         position = self.read_position()
 
         if self.state == "IDLE":
@@ -311,7 +343,7 @@ def main():
     motor_a = MotorDriver(in1=2, in2=3, pwm_pin=6, stby_pin=10) if FADER1_ENABLED else None
     motor_b = MotorDriver(in1=7, in2=8, pwm_pin=9, stby_pin=10) if FADER2_ENABLED else None
 
-    # Faders — touch T pin uses internal pull-up, reads LOW when touched
+    # Faders — touch T pin needs an external 1MΩ pull-down to GND
     fader1 = FaderPID(adc_pin=26, touch_pin=11, motor=motor_a) if FADER1_ENABLED else None
     fader2 = FaderPID(adc_pin=27, touch_pin=12, motor=motor_b) if FADER2_ENABLED else None
 
@@ -340,6 +372,16 @@ def main():
             s = fader2.state_changed()
             if s is not None:
                 sys.stdout.write("STATE:2,{}\n".format(s))
+
+        # Emit TOUCH: edges (1=touched, 0=released).
+        if fader1:
+            t = fader1.touch_changed()
+            if t is not None:
+                sys.stdout.write("TOUCH:1,{}\n".format(1 if t else 0))
+        if fader2:
+            t = fader2.touch_changed()
+            if t is not None:
+                sys.stdout.write("TOUCH:2,{}\n".format(1 if t else 0))
 
         # Telemetry: 20Hz heartbeat while engaged (MOVING/SETTLING),
         # on-change-only while idle (user moved fader by hand).
