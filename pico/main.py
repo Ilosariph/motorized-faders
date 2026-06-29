@@ -68,7 +68,7 @@ PWM_MAX = 65535
 # Hardware configuration
 # ---------------------------------------------------------------------------
 FADER1_ENABLED = True   # set to False if fader 1 is not connected
-FADER2_ENABLED = False  # set to True when fader 2 is wired up
+FADER2_ENABLED = True   # set to False if fader 2 is not connected
 
 # ---------------------------------------------------------------------------
 # Serial / timing
