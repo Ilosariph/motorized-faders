@@ -25,7 +25,13 @@ Serial protocol (115200 baud, USB):
   Pico→Host (~20Hz): POS:47.3,82.1\n
                      RAW:31245,47102\n   (raw ADC, 0–65535, for diagnostics)
                      TOUCH:1,1\n         (fader idx, 1=touched / 0=released)
+                     STATE:1,USER\n      (IDLE | MOVING | SETTLING | USER)
   Host→Pico:         SET:50.0,75.0\n
+
+Touching the fader while it is MOVING or SETTLING transitions it to USER:
+the motor releases immediately and the host receives the live position via
+the engaged 20Hz heartbeat until the user lets go. On release the setpoint
+is snapped to the user's final position and the state returns to IDLE.
 """
 
 import sys
@@ -54,6 +60,11 @@ MIN_MOVE_PCT = 30.0
 # State machine: motor only runs on demand. After SET:, drive to target,
 # hold for SETTLE_MS within deadband, then release. While idle, report
 # position only when it changes by REPORT_DELTA (user moved the fader).
+# If the user touches the fader while it's MOVING or SETTLING, the state
+# machine transitions to USER: motor off, PID disengaged, position still
+# streamed at the engaged heartbeat rate so the host tracks the user's
+# hand. On release, the setpoint is snapped to wherever the user left
+# the fader and the state goes back to IDLE.
 SETTLE_MS = 1000
 REPORT_DELTA = 0.2
 
@@ -145,7 +156,9 @@ class FaderPID:
         self.in_deadband = False
 
         # State machine: IDLE (motor off), MOVING (PID driving), SETTLING
-        # (PID holding, counting down to release).
+        # (PID holding, counting down to release), USER (touch override —
+        # user has grabbed the fader mid-engagement, motor off, position
+        # streamed to host until release).
         self.state = "IDLE"
         self.settle_start = 0
         self.last_reported_pos = 0.0
@@ -241,6 +254,7 @@ class FaderPID:
         Run one state-machine iteration. Returns current position (0–100%).
         IDLE: motor off, no PID. MOVING: PID drives to setpoint. SETTLING:
         PID still holds, releases motor after SETTLE_MS of stillness.
+        USER: touch override — motor off, PID disengaged, exits on release.
         """
         now = ticks_ms()
         dt = min(ticks_diff(now, self.last_time) / 1000.0, MAX_DT_S)
@@ -248,6 +262,28 @@ class FaderPID:
 
         self._sample_touch()
         position = self.read_position()
+
+        # Touch override: any touch while the motor is engaged hands
+        # control to the user. MOVING aborts; SETTLING also aborts (the
+        # motor is already off in SETTLING, but we still want the host to
+        # see the user-driven positions, which the loopback guard
+        # otherwise suppresses until IDLE).
+        if self.state in ("MOVING", "SETTLING") and self.is_touched():
+            self.motor.stop()
+            self.integral = 0.0
+            self.last_error = 0.0
+            self.state = "USER"
+
+        if self.state == "USER":
+            if not self.is_touched():
+                # Release: snap setpoint to where the user left the fader
+                # so a re-engage doesn't immediately yank it back, then
+                # hand off to IDLE (current idle behaviour reports
+                # subsequent hand-moves on REPORT_DELTA).
+                self.setpoint = position
+                self.last_reported_pos = position
+                self.state = "IDLE"
+            return position
 
         if self.state == "IDLE":
             return position
@@ -302,8 +338,16 @@ class FaderPID:
         return None
 
     def engage(self, setpoint):
-        """Set new target and arm the motor (state → MOVING)."""
+        """
+        Set new target and arm the motor (state → MOVING). If the user is
+        currently holding the fader (state == USER) the setpoint is stored
+        but the motor stays off — on release, USER falls through to IDLE
+        with setpoint snapped to the release position, so the user's
+        override wins over a SET: that arrived during the touch.
+        """
         self.setpoint = max(0.0, min(100.0, setpoint))
+        if self.state == "USER":
+            return
         self.integral = 0.0
         self.last_error = 0.0
         self.last_time = ticks_ms()

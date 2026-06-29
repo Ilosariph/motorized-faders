@@ -3,7 +3,8 @@ FaderHost — serial transport + extension dispatch for the motorized fader rig.
 
 Talks the Pico protocol from `pico/main.py`:
     Pico -> host:  POS:f1,f2          (position, 0-100%)
-                   STATE:idx,IDLE|MOVING|SETTLING
+                   STATE:idx,IDLE|MOVING|SETTLING|USER
+                   TOUCH:idx,0|1      (currently consumed only as a state cue)
                    CAL:start | CAL:done
                    RAW:..., DBG:...   (ignored)
     host -> Pico:  SET:f1,f2          (setpoints, 0-100%)
@@ -13,10 +14,12 @@ fader physically moves (touched by a human). Extensions call
 `host.set_fader(idx, value)` to drive the motor.
 
 Loopback guard: while a fader is moving in response to a `SET:` we just sent,
-`on_position` is *not* called for that fader. Pico reports a STATE:idx,IDLE
-edge when the move + settle is complete; only then do we resume forwarding
-positions. This avoids extensions echoing their own setpoints back into the
-source (e.g. PulseAudio) and oscillating.
+`on_position` is *not* called for that fader. The Pico reports a STATE:
+edge when the user takes over (USER) or when the move + settle completes
+(IDLE); in either case the guard is released so subsequent positions are
+forwarded to extensions. This avoids extensions echoing their own
+setpoints back into the source (e.g. PulseAudio) and oscillating during
+the SET, while still tracking the user the instant they grab the fader.
 """
 
 import sys
@@ -191,8 +194,11 @@ class FaderHost:
             return
         with self._lock:
             self._states[idx] = state
-            # Move complete: release the loopback gate.
-            if state == "IDLE":
+            # Release the loopback gate when the Pico-side motion ends, either
+            # because the move completed (IDLE) or because the user grabbed
+            # the fader mid-engagement (USER). In the USER case we want the
+            # user's position stream to reach extensions immediately.
+            if state in ("IDLE", "USER"):
                 self._self_driven[idx] = False
 
     def _writer_loop(self):
