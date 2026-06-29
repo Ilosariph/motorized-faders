@@ -41,7 +41,18 @@ def main(argv=None):
 
     cfg = config_mod.load(args.config)
     port = args.port or cfg.get("port")
-    host = FaderHost(port=port, num_faders=cfg.get("num_faders", 2))
+    creases_cfg = cfg.get("creases", {}) or {}
+    host = FaderHost(
+        port=port,
+        num_faders=cfg.get("num_faders", 2),
+        crease_default_strength=creases_cfg.get("default_strength", 30.0),
+        crease_default_nudge_ms=creases_cfg.get("default_nudge_ms", 30),
+    )
+
+    # Startup crease defaults from config. Extensions can overwrite per-fader
+    # layouts later via host.set_creases().
+    for entry in creases_cfg.get("faders", []) or []:
+        host.set_creases(entry["fader"], entry.get("positions", []))
 
     modules = _discover_extension_modules()
     enabled = cfg.get("extensions", {})

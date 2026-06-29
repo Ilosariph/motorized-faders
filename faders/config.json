@@ -1,6 +1,13 @@
 {
   "port": null,
   "num_faders": 2,
+  "creases": {
+    "default_strength": 30.0,
+    "default_nudge_ms": 30,
+    "faders": [
+      {"fader": 0, "positions": [0, 20, 40, 60, 80, 100]}
+    ]
+  },
   "extensions": {
     "pulse_sink": [
       {"fader": 0, "sink": "sink-music", "min": 0, "max": 100}

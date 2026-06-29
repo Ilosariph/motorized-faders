@@ -170,6 +170,17 @@ class FaderPID:
         self._touch_last_high = ticks_ms() - (TOUCH_HOLD_MS + 1)
         self._last_emitted_touch = False
 
+        # Virtual creases — brief motor pulses against the user's motion as
+        # the fader crosses each listed position. Pure haptic feedback;
+        # never pulls the cap toward a crease and never snaps on release.
+        # Host pushes the layout via CREASES: at boot / on demand.
+        self.creases = ()           # sorted tuple of positions; empty = off
+        self.crease_strength = 30.0 # motor power % per nudge pulse
+        self.crease_nudge_ms = 30   # nudge duration
+        self._prev_user_pos = None  # last position sampled while in USER
+        self._nudge_until = ticks_ms()  # deadline; stale = no active nudge
+        self._nudge_dir = 0         # -1/+1 — direction of active nudge
+
     def _raw_adc(self):
         """Average 16 ADC samples to reduce noise (kills sub-% jitter)."""
         return sum(self.adc.read_u16() for _ in range(16)) // 16
@@ -272,17 +283,42 @@ class FaderPID:
             self.motor.stop()
             self.integral = 0.0
             self.last_error = 0.0
+            self._prev_user_pos = None
+            self._nudge_until = now
             self.state = "USER"
 
         if self.state == "USER":
             if not self.is_touched():
-                # Release: snap setpoint to where the user left the fader
-                # so a re-engage doesn't immediately yank it back, then
-                # hand off to IDLE (current idle behaviour reports
-                # subsequent hand-moves on REPORT_DELTA).
+                # Release: setpoint snaps to where the user left the fader
+                # so a re-engage doesn't yank. Creases are pure haptic
+                # feedback — they never act as snap targets.
                 self.setpoint = position
                 self.last_reported_pos = position
+                self._prev_user_pos = None
+                self.motor.stop()
                 self.state = "IDLE"
+                return position
+
+            # Crossing-nudge: while touched, watch for the position
+            # transitioning across any crease since the last sample. On a
+            # crossing, schedule a brief motor pulse opposing the user's
+            # motion — a tactile bump, not an attractor.
+            if self.creases:
+                if self._prev_user_pos is None:
+                    self._prev_user_pos = position
+                else:
+                    for c in self.creases:
+                        if (self._prev_user_pos - c) * (position - c) < 0:
+                            motion = 1 if position > self._prev_user_pos else -1
+                            self._nudge_until = ticks_ms() + self.crease_nudge_ms
+                            self._nudge_dir = -motion
+                            break
+                    self._prev_user_pos = position
+
+            if ticks_diff(self._nudge_until, ticks_ms()) > 0:
+                self.motor.drive(self.crease_strength * self._nudge_dir)
+            else:
+                self.motor.stop()
             return position
 
         if self.state == "IDLE":
@@ -337,6 +373,12 @@ class FaderPID:
             return self.state
         return None
 
+    def set_creases(self, positions, strength, nudge_ms):
+        """Replace this fader's crease layout. Called from the CREASES: handler."""
+        self.creases = tuple(sorted(float(p) for p in positions))
+        self.crease_strength = float(strength)
+        self.crease_nudge_ms = int(nudge_ms)
+
     def engage(self, setpoint):
         """
         Set new target and arm the motor (state → MOVING). If the user is
@@ -375,6 +417,24 @@ def _handle_command(line, fader1, fader2):
                 fader2.engage(float(parts[1]))
         except (ValueError, IndexError) as e:
             sys.stdout.write("DBG:parse err {}\n".format(e))
+    elif line.startswith("CREASES:"):
+        # CREASES:<idx>,<strength>,<nudge_ms>[,<p1>,<p2>,...]
+        # idx is 1-based. Empty position list disables creases on that fader.
+        try:
+            parts = line[8:].split(",")
+            idx = int(parts[0])
+            strength = float(parts[1])
+            nudge_ms = int(parts[2])
+            positions = [float(p) for p in parts[3:]] if len(parts) > 3 else []
+            target = None
+            if idx == 1 and FADER1_ENABLED:
+                target = fader1
+            elif idx == 2 and FADER2_ENABLED:
+                target = fader2
+            if target is not None:
+                target.set_creases(positions, strength, nudge_ms)
+        except (ValueError, IndexError) as e:
+            sys.stdout.write("DBG:crease parse err {}\n".format(e))
 
 
 def main():

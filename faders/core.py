@@ -43,7 +43,17 @@ def find_pico_port():
 
 
 class Extension:
-    """Base class. Override the hooks you need; defaults are no-ops."""
+    """
+    Base class. Override the hooks you need; defaults are no-ops.
+
+    Extensions may also call ``host.set_creases(idx, positions[, strength,
+    nudge_ms])`` to advertise meaningful detent levels on their fader — useful
+    when the underlying value space doesn't match 0–100 (e.g. a sink that
+    runs 0–150 %, where the matching crease positions on the 0–100 % fader
+    are different from a 0–100 % sink). Last-call-wins per fader: if two
+    extensions both manage the same fader they will fight; the host does
+    not arbitrate.
+    """
 
     def on_position(self, fader_idx, value):
         """Called when a fader moves under human control (loopback-filtered)."""
@@ -56,7 +66,8 @@ class Extension:
 
 
 class FaderHost:
-    def __init__(self, port=None, num_faders=2):
+    def __init__(self, port=None, num_faders=2,
+                 crease_default_strength=30.0, crease_default_nudge_ms=30):
         self.num_faders = num_faders
         self._port = port
         self._ser = None
@@ -73,6 +84,11 @@ class FaderHost:
         # Loopback guard: True while we drove a SET and Pico hasn't returned
         # to IDLE yet. Suppresses on_position for that fader.
         self._self_driven = [False] * num_faders
+        # Cached crease layout per fader. None = never configured. Replayed
+        # to Pico on connect and on every CAL:done (Pico forgets on reboot).
+        self._creases = [None] * num_faders
+        self._crease_default_strength = float(crease_default_strength)
+        self._crease_default_nudge_ms = int(crease_default_nudge_ms)
 
         self._lock = threading.Lock()
         self._stop = threading.Event()
@@ -93,12 +109,37 @@ class FaderHost:
             self._pending[idx] = value
             self._self_driven[idx] = True
 
+    def set_creases(self, idx, positions, strength=None, nudge_ms=None):
+        """
+        Replace the crease layout on fader ``idx``. Positions are 0–100 %
+        floats; an empty list disables creases on that fader. ``strength``
+        and ``nudge_ms`` default to the host's configured defaults.
+
+        Cached on the host so the layout can be replayed to the Pico on
+        every CAL:done (the firmware forgets on reboot). Sent immediately
+        if the serial connection is already open, otherwise queued for the
+        first send.
+        """
+        if not 0 <= idx < self.num_faders:
+            return
+        s = self._crease_default_strength if strength is None else float(strength)
+        n = self._crease_default_nudge_ms if nudge_ms is None else int(nudge_ms)
+        positions = [max(0.0, min(100.0, float(p))) for p in positions]
+        with self._lock:
+            self._creases[idx] = (positions, s, n)
+        self._send_creases(idx)
+
     def run(self):
         self._ser = self._connect()
         self._reader = threading.Thread(target=self._reader_loop, daemon=True)
         self._writer = threading.Thread(target=self._writer_loop, daemon=True)
         self._reader.start()
         self._writer.start()
+        # Push any creases the caller configured before run() — handles the
+        # case where the Pico already booted and emitted CAL:done before we
+        # were listening. Subsequent CAL:done events re-replay from cache.
+        for idx in range(self.num_faders):
+            self._send_creases(idx)
         try:
             while not self._stop.is_set():
                 time.sleep(0.2)
@@ -161,6 +202,11 @@ class FaderHost:
                     ext.on_calibration(phase)
                 except Exception as e:
                     sys.stderr.write(f"[ext cal err] {e}\n")
+            if phase == "done":
+                # Pico just (re)booted and is ready for commands — replay
+                # any cached crease layouts so they survive reboots.
+                for idx in range(self.num_faders):
+                    self._send_creases(idx)
 
     def _handle_pos(self, payload):
         parts = payload.split(",")
@@ -200,6 +246,30 @@ class FaderHost:
             # user's position stream to reach extensions immediately.
             if state in ("IDLE", "USER"):
                 self._self_driven[idx] = False
+
+    def _send_creases(self, idx):
+        """
+        Format and write the cached crease layout for fader ``idx``. Bails
+        out silently if no layout is cached or the serial port isn't open
+        yet (run() replays everything once the port is up, and CAL:done
+        replays it again on every Pico reboot).
+        """
+        if self._ser is None:
+            return
+        with self._lock:
+            cached = self._creases[idx]
+        if cached is None:
+            return
+        positions, strength, nudge_ms = cached
+        # CREASES:<1-based idx>,<strength>,<nudge_ms>[,<p>,...]
+        parts = [str(idx + 1), "{:.1f}".format(strength), str(nudge_ms)]
+        parts.extend("{:.1f}".format(p) for p in positions)
+        line = "CREASES:" + ",".join(parts) + "\n"
+        try:
+            self._ser.write(line.encode("ascii"))
+        except serial.SerialException:
+            sys.stderr.write("[faders] serial write failed (creases)\n")
+            self._stop.set()
 
     def _writer_loop(self):
         while not self._stop.is_set():
