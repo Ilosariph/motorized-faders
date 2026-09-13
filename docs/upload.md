@@ -24,10 +24,22 @@ Editing in place: double-click `main.py` in the bottom pane, edit, save
 Close Thonny (or disconnect) before running `host/host.py` or
 `host/host_raw.py` — only one program can hold the serial port.
 
-## mpremote (CLI, fastest for repeated uploads)
+## pico/upload.sh (CLI, fastest for repeated uploads)
+
+Inside the nix shell (provides `mpremote`):
 
 ```
-pip install mpremote
+./pico/upload.sh        # upload + reset
+./pico/upload.sh -r     # upload + reset, then attach the REPL
+```
+
+Picks the first `/dev/ttyACM*` automatically; override with
+`PORT=/dev/ttyACM1 ./pico/upload.sh`. Stop `host.py` / `host_raw.py` /
+Thonny first — only one program can hold the serial port.
+
+Raw equivalent, if you want the steps by hand:
+
+```
 mpremote cp pico/main.py :main.py
 mpremote reset
 ```

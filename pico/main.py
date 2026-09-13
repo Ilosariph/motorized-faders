@@ -123,6 +123,9 @@ class FaderPID:
         # Calibrated ADC range (set by calibrate())
         self.adc_min = 0
         self.adc_max = 65535
+        # True when the wiper reads high at the bottom of travel; set by
+        # calibrate() from the observed sweep endpoints.
+        self.inverted = False
 
         # PID state
         self.setpoint = 50.0  # will be overwritten after calibration
@@ -150,10 +153,16 @@ class FaderPID:
         return self._raw_adc()
 
     def read_position(self):
-        """Return fader position as 0.0–100.0%."""
+        """Return fader position as 0.0–100.0%, 0 = bottom of travel."""
         raw = self._raw_adc()
         raw = max(self.adc_min, min(self.adc_max, raw))
-        return (raw - self.adc_min) / (self.adc_max - self.adc_min) * 100.0
+        span = self.adc_max - self.adc_min
+        if span <= 0:
+            # Calibration failed (collapsed range) — report 0 rather than
+            # dividing by zero and killing the control loop.
+            return 0.0
+        pct = (raw - self.adc_min) / span * 100.0
+        return 100.0 - pct if self.inverted else pct
 
     def is_touched(self):
         """
@@ -166,32 +175,36 @@ class FaderPID:
         """
         Auto-calibrate ADC range by driving fader to both mechanical limits.
         Mirrors the initFaders() approach from the original Arduino sketch.
-        """
-        # Drive to top
-        self.motor.drive(motor_power)
-        _delay(settle_ms)
-        upper = self._raw_adc()
-        for _ in range(sweep_steps):
-            self.motor.drive(motor_power)
-            _delay(30)
-            v = self._raw_adc()
-            if v > upper:
-                upper = v
-        self.motor.stop()
-        _delay(100)
 
-        # Drive to bottom
-        self.motor.drive(-motor_power)
-        _delay(settle_ms)
-        lower = self._raw_adc()
-        for _ in range(sweep_steps):
-            self.motor.drive(-motor_power)
-            _delay(30)
-            v = self._raw_adc()
-            if v < lower:
-                lower = v
-        self.motor.stop()
-        _delay(100)
+        Wiper orientation is detected rather than assumed: whichever limit
+        reads lower becomes adc_min, and self.inverted records whether the
+        ADC counts down as the fader travels up.
+        """
+        # Drive to one mechanical limit, then the other. Which limit reads
+        # higher on the ADC depends on how the wiper is wired, so don't
+        # assume: record what each end actually reads and sort afterwards.
+        def _sweep(power):
+            self.motor.drive(power)
+            _delay(settle_ms)
+            end = self._raw_adc()
+            for _ in range(sweep_steps):
+                self.motor.drive(power)
+                _delay(30)
+                end = self._raw_adc()
+            self.motor.stop()
+            _delay(100)
+            return end
+
+        end_fwd = _sweep(motor_power)
+        end_rev = _sweep(-motor_power)
+
+        lower = min(end_fwd, end_rev)
+        upper = max(end_fwd, end_rev)
+
+        # Wiper polarity: if driving forward lands on the LOW ADC end, the
+        # ADC counts down as the fader travels up, so position must be
+        # flipped to keep 0% = bottom.
+        self.inverted = end_fwd < end_rev
 
         # Add small margin to avoid clipping at extremes
         margin = int((upper - lower) * 0.01)
@@ -288,6 +301,13 @@ def _delay(ms):
 
 def _handle_command(line, fader1, fader2):
     line = line.strip()
+    if not line:
+        return
+    # Only SET: is an input command. Ignore everything else — notably our own
+    # output lines (CAL:, POS:, ...), which can arrive back on stdin as a USB
+    # CDC loopback and would otherwise be parsed as commands.
+    if not line.startswith("SET:"):
+        return
     sys.stdout.write("DBG:got '{}'\n".format(line))
     if line.startswith("SET:"):
         try:
