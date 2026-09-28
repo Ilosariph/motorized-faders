@@ -18,6 +18,8 @@ this document is the single-board version.
 | Motor driver | 2× TB6612FNG — **dual footprint**: SSOP-24 land + breakout header, same nets |
 | Display | SSD1306 128×64 **SPI** (I2C can't address 4 — only 0x3C/0x3D exist) |
 | Buttons | Resistor ladder on 2 spare MCP3208 channels — costs 0 GPIO |
+| Faders | RSA0N11M9 100 mm 10 kΩ, case-mounted, soldered wire — not on PCB |
+| Pin map | Fixed: SPI0 on GP16/18/19, PWM on 4 distinct slices, GP0/1 spare |
 | MCU | Keep the existing RP2040 module — bare RP2040 not needed |
 | Motor power | USB-C PD trigger, **jumper-set 9 V** (PD has no 10 V PDO) |
 | Rail check | Divider into spare ADC CH4 — catches silent 5 V fallback, 0 GPIO |
@@ -292,6 +294,137 @@ easy — but it constrains the map rather than being discovered after layout.
 
 ---
 
+## Pin Map
+
+Validated against both hardware constraints: SPI0 on legal pins, and the four
+PWM outputs on four distinct slices.
+
+| GPIO | Signal | Notes |
+|------|--------|-------|
+| GP2 | A_AIN1 | driver A, fader 1 direction |
+| GP3 | A_AIN2 | driver A, fader 1 direction |
+| GP6 | A_PWMA | fader 1 speed — PWM slice 3 |
+| GP7 | A_BIN1 | driver A, fader 2 direction |
+| GP8 | A_BIN2 | driver A, fader 2 direction |
+| GP9 | A_PWMB | fader 2 speed — PWM slice 4 |
+| GP10 | B_AIN1 | driver B, fader 3 direction |
+| GP11 | B_AIN2 | driver B, fader 3 direction |
+| GP12 | B_PWMA | fader 3 speed — PWM slice 6 |
+| GP13 | B_BIN1 | driver B, fader 4 direction |
+| GP14 | B_BIN2 | driver B, fader 4 direction |
+| GP15 | B_PWMB | fader 4 speed — PWM slice 7 |
+| GP16 | SPI0 MISO | from MCP3208 only |
+| GP17 | MCP3208 CS | |
+| GP18 | SPI0 SCK | shared: ADC + 4 displays |
+| GP19 | SPI0 MOSI | shared: ADC + 4 displays |
+| GP20 | DISP_DC | shared across all 4 displays |
+| GP21 | DISP_CS1 | |
+| GP22 | STBY | both drivers |
+| GP26 | DISP_CS2 | |
+| GP27 | DISP_CS3 | |
+| GP28 | DISP_CS4 | |
+
+**22 assigned. GP0 and GP1 free** — reserved for I2C (SDA/SCL) if a mux or the
+HUSB238 status read is ever added. GP4/GP5 are not broken out on this board.
+
+### Why these pins
+
+**SPI0 is forced.** The RP2040's SPI mapping is fixed silicon. Of SPI0's
+options — SCK on GP2/6/18, MOSI on GP3/7/19, MISO on GP0/16 — only the GP18/19
+pair leaves the low pins free for motor control. MISO takes GP16 so GP0/GP1
+stay open for I2C.
+
+**PWM slices are distinct.** Slice = `(n >> 1) & 7`; two outputs on one slice
+share a frequency. GP6/9/12/15 land on slices 3/4/6/7.
+
+**GP26-28 carry display CS, not analog.** They are the only ADC-capable pins,
+but all four faders read through the MCP3208, so their analog function is
+unused. CS is plain GPIO and fits there fine.
+
+### Not on the MCU
+
+| Signal | Where |
+|--------|-------|
+| Fader wipers x4 | MCP3208 CH0-CH3 |
+| General buttons (2) | MCP3208 CH6 ladder |
+| Per-fader buttons (4) | MCP3208 CH7 ladder |
+| VM rail check | MCP3208 CH4 divider |
+| MCP3208 CH5 | spare |
+| Display RES | RC power-on reset, no GPIO |
+
+---
+
+## Mechanical
+
+### Faders — RSA0N11M9, 100 mm travel
+
+**Note the part change:** the prototype used RS60N11M9 (60 mm, 5 kΩ). The
+current faders are **RSA0N11M9: 100 mm travel, 10 kΩ**, roughly 130 mm overall.
+Motor spec is unchanged — 10 V DC rated, 800 mA max — so nothing in the driver
+or power design moves.
+
+The 10 kΩ element halves wiper current versus 5 kΩ, which slightly *improves*
+the ratiometric ADC path. Source impedance rises, but 10 kΩ against the
+MCP3208's sample-and-hold is still fine at the rates used here.
+
+Alps lists RSA0N11M9 as **"Not Recommended for New Designs"** — it remains in
+production for existing designs, but buy spares rather than assuming future
+availability.
+
+**Mounting:** M3 screws, 4 mm, into the 3D-printed case — already proven in the
+prototype. Faders are **not board-mounted**: they mount to the case and connect
+by soldered wire, so the PCB carries no fader mechanical load and its outline is
+not driven by fader pitch.
+
+### Wiring — soldered, not connectored
+
+Faders connect by soldered wire directly to PCB pads. **Five conductors per
+fader, 20 total:**
+
+| Net | To | Notes |
+|-----|----|-------|
+| Wiper | MCP3208 CHn via 10 kΩ RC filter | keep away from motor leads |
+| 3.3 V | fader terminal 3 | same net as MCP3208 VREF — ratiometric |
+| GND | fader terminal 1 | |
+| Motor + | TB6612FNG AO1 / BO1 | |
+| Motor - | TB6612FNG AO2 / BO2 | |
+
+Use **through-hole pads in a row, labelled on silkscreen**, per fader. Add a
+strain-relief hole beside each group so the wire bundle can be zip-tied to the
+board — soldered wires fail at the joint when flexed, and a fader that gets
+moved during assembly will flex them.
+
+**Route wiper wires away from motor wires.** The motor pair carries switched
+current at 20 kHz; the wiper is a high-impedance analog line. Running them in
+one bundle couples PWM straight into the ADC. Separate bundles if possible, and
+twist each motor pair.
+
+Buttons and displays likewise: through-hole pads, silkscreen-labelled.
+
+### Test points
+
+Through-hole pads or 1 mm loops, labelled:
+
+| Test point | Why |
+|------------|-----|
+| VM | confirm 9 V (or 10 V on the bench) before enabling motors |
+| 3.3 V | regulator sanity |
+| GND | x2, spread apart — scope ground for probing |
+| Wiper 1 | scope the analog path, verify RC filter effect |
+| SPI SCK | confirm the bus is clocking |
+
+Free on a PCB and the difference between diagnosing by measurement and by
+guesswork.
+
+### Board outline
+
+Not yet fixed. Since faders are case-mounted, the PCB outline is free — driven
+by component area and wherever the case has room, not by fader pitch. Include
+**M3 mounting holes** (3.2 mm drill) at the corners, and a keepout past the
+RP2040 module's header end for its USB connector.
+
+---
+
 ## Bill of Materials
 
 ### ICs
@@ -332,7 +465,7 @@ downside at this density.
 far above fader mechanical bandwidth.
 
 The series resistor must stay well below the MCP3208's sample-and-hold input
-requirement — 10 kΩ against the fader's own 5 kΩ wiper impedance settles fine
+requirement — 10 kΩ against the fader's own 10 kΩ wiper impedance settles fine
 at the rates used here. Do not scale R up further to shrink C.
 
 X7R rather than C0G: **100 nF C0G does not exist in 0805** (C0G tops out near
@@ -358,11 +491,11 @@ barrel jack or fuse needed. PD boards current-limit at the source.
 
 | Part | Qty |
 |------|-----|
-| Alps RS60N11M9 fader | 4 |
+| Alps RSA0N11M9 fader (100 mm, 10 kΩ) | 4 |
 | Tactile button (per-fader) | 4 |
 | Tactile button (general) | 2 |
 | Display headers, 7-pin | 4 |
-| Motor + fader terminals (JST or screw) | as needed |
+| Fader wire pads, 5 per fader | 20 nets | soldered wire, no connectors |
 
 ---
 
@@ -383,7 +516,7 @@ the TB6612FNG's logic inputs have no valid reference to its motor rail.
 
 ### 9 V, not 10 V — USB PD has no 10 V PDO
 
-The Alps RS60N11M9 motor is rated **10 V DC, 800 mA max**. USB PD fixed PDOs
+The Alps RSA0N11M9 motor is rated **10 V DC, 800 mA max**. USB PD fixed PDOs
 are 5 / 9 / 12 / 15 / 20 V — **10 V does not exist** in the spec. 12 V would be
 20% over rated on a continuously driven part; 9 V is 10% under, which is the
 safe direction to miss.
@@ -477,6 +610,24 @@ It fits, but only just, and it buys less than the divider:
 The 2 GPIO are only available by first freeing the display RES pin (below).
 Since the voltage is jumper-set anyway, I2C's remaining role is status
 readback — which the divider does more directly.
+
+### Reverse-polarity protection — one part, worth fitting
+
+Not needed for the PD path (USB-C cannot be reversed), but the **bench supply
+used during bring-up can be**, and that is the higher-risk phase. One part:
+
+**P-channel MOSFET in the VM high side.** Source to supply +, drain to VM, gate
+to GND through a 100 kΩ resistor. Correct polarity turns it on with a few tens
+of milliohms drop; reversed, it stays off and nothing downstream sees voltage.
+Better than a series diode, which would burn ~0.5 V and a watt at 3.2 A.
+
+Sizing: needs Vds >= 20 V, Id >= 5 A, low Rds(on). Plenty of choices in SOT-223
+or DPAK around CHF 0.50. An alternative is a **Schottky across VM reverse-biased
+plus a fuse** — cheaper still, but it protects by blowing the fuse rather than
+by staying off.
+
+At 1.5 A bench limit the risk is modest; at the 10 A the supply can deliver, a
+reversed lead into 470 uF and two H-bridges is destructive. Fit the FET.
 
 ### Free a GPIO: RC reset on display RES
 
@@ -754,6 +905,27 @@ solder-jumper version this design needs: *"cut the 5V jumper and solder close
 the 9V, 12V, 15V, 18V or 20V jumper"*. I2C remains available on the same board
 if it is ever wanted.
 
+### Panel-mounting the USB ports
+
+Both USB-C ports (Pico and HUSB238) sit on modules inside the case, so each
+needs to reach a panel cutout.
+
+**Recommended: short USB-C extension cables**, male-to-female, 0.3-0.5 m, run
+from the module to a panel cutout and secured with a printed bracket or
+P-clip. Cheap, no special parts, and the printed case can hold the female end
+directly.
+
+**Feedthrough connectors exist but are poor value here.** Cliff's DUALSLIM
+range (e.g. `CP30701MB3`, 4654-CP30701MB3-ND) is a proper panel-mount USB-C
+receptacle-to-receptacle feedthrough with a screw flange — but it is
+**CHF 16.53 each and out of stock** at DigiKey, with a 6-week lead time. Two of
+them would cost more than every semiconductor in this design.
+
+Since the case is 3D printed, a cutout sized to a cable's moulded shell plus a
+printed retaining clip does the same job for nothing. If PD current matters,
+check the extension is rated for it — many cheap USB-C cables are 3 A, which
+covers 9 V x 3 A = 27 W comfortably.
+
 ### Future expansion — not needed now
 
 | Part | MPN / DK# | CHF ea | Note |
@@ -787,6 +959,9 @@ either add the displays, stock up on passives, or accept the CHF 23 shipping.
 
 ## Open Items
 
-- **Write the concrete pin map** for all 22 nets, honouring the hardware-SPI
-  pin table and one-PWM-slice-per-output. This is the last item before
-  schematic capture.
+- Fix the board outline and M3 hole positions once the case layout is decided.
+  Faders are case-mounted, so the PCB outline is otherwise unconstrained.
+- Pick a reverse-polarity P-FET (Vds >= 20 V, Id >= 5 A, SOT-223/DPAK) if
+  fitting one — not yet in the basket.
+- Firmware, deferred: MCP3208 driver, `FaderPID` ADC injection, button-ladder
+  decode, VM rail check at boot, display output.
