@@ -195,7 +195,7 @@ module's regulator for powering external parts — leave it unconnected.
 | Data | GP19 (SPI0 MOSI) |
 | Clk | GP18 (SPI0 SCK) |
 | A0 | GP20 (DISP_DC) — `A0` is this board's label for DC |
-| Rst | RC reset net |
+| Rst | `DISP_RES` — shared RC net, see [RC reset](#free-a-gpio-rc-reset-on-display-res) |
 | CS | GP21 / GP26 / GP27 / GP28 |
 | **3Vo** | **no connect** |
 | VIN | 5 V (see below) |
@@ -420,7 +420,7 @@ the faders — see [Ratiometric reference](#ratiometric-reference--do-not-skip-t
 | Per-fader buttons (4) | MCP3208 CH7 ladder |
 | VM rail check | MCP3208 CH4 divider |
 | MCP3208 CH5 | spare |
-| Display RES | RC power-on reset, no GPIO |
+| Display RES | `DISP_RES` — shared RC power-on reset, no GPIO |
 
 ---
 
@@ -527,7 +527,7 @@ from the Pico's USB. 100 nF decoupling is sufficient at these currents.
 | 2.2 kΩ | 1 | button ladder (SW_F2) |
 | 10 kΩ | 1 | VM divider, top leg (counted in the 9 above) |
 | 3.3 kΩ | 1 | VM divider, bottom leg |
-| 10 kΩ + 100 nF | 1 ea | display RES, RC power-on reset (frees a GPIO) |
+| 10 kΩ + 100 nF | 1 ea | `DISP_RES` RC power-on reset, shared by all 4 displays |
 | 10 nF X7R | 4 | RC filter on each wiper |
 | 100 nF | 2 | button ladder debounce |
 
@@ -709,12 +709,39 @@ reversed lead into 470 uF and two H-bridges is destructive. Fit the FET.
 ### Free a GPIO: RC reset on display RES
 
 SSD1306 reset is a power-on pulse: low briefly at startup, high forever after.
-Firmware never asserts it again, so it does not need a GPIO. Use an **RC
-reset** on the shared RES net — 10 kΩ to 3.3 V, 100 nF to GND — which generates
-the pulse passively.
+Firmware never asserts it again, so it does not need a GPIO.
+
+**Net name: `DISP_RES`.** One RC network on the PCB, shared by all four
+displays — each module's `Rst` pin connects to this same net.
+
+```
+         3.3 V
+           |
+         [10k]
+           |
+           +-------> DISP_RES ----+---> display 1 Rst
+           |                      +---> display 2 Rst
+        [100nF]                   +---> display 3 Rst
+           |                      +---> display 4 Rst
+          GND
+```
+
+At power-up the capacitor holds the net near 0 V, then it charges through the
+resistor and the net rises to 3.3 V, releasing reset.
+
+**Timing:** tau = 10 kΩ x 100 nF = 1 ms; the net crosses a 0.7 x VDD logic HIGH
+at ~1.2 ms. The SSD1306 needs the pulse low for **3 us minimum** — a ~400x
+margin, so component tolerance is irrelevant here.
+
+Firmware must **wait ~5 ms after power-up before the first display command**.
+That is free in practice: calibration sweeps run first and take far longer.
+
+**Why not tie Rst straight to 3.3 V?** It usually works, but leaves the
+controller's reset state dependent on how fast the rail rises. Two passives
+remove the question.
 
 This drops the GPIO total from 23 to **22**, leaving 2 spare. One resistor and
-one capacitor, both already in the BOM, shared across all four displays.
+one capacitor total, both already in the BOM.
 
 ---
 
