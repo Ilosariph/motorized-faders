@@ -97,3 +97,4 @@ python host/host.py COM3              # Windows
 | `docs/upload.md` | How to flash firmware to the Pico (Thonny + mpremote) |
 | `docs/pid_tuning.md` | How to tune the PID controller |
 | `docs/modular_design.md` | Future modular expansion plan (RP2040-Zero modules) |
+| `docs/pcb_design.md` | 4-fader PCB design — ADC choice, TB6612FNG, BOM |
