@@ -739,7 +739,7 @@ later.
 
 | Part | MPN / DK# | Qty | CHF ea |
 |------|-----------|-----|--------|
-| USB-C PD trigger, jumper or I2C | Adafruit HUSB238 (5807) | 1 | ~16 |
+| USB-C PD trigger, jumper or I2C | Adafruit **5807** (1528-5807-ND) | 1 | 4.77 |
 | VM divider, top leg | `RC0805FR-0710KL` | 1 | 0.014 |
 | VM divider, bottom leg | `RC0805FR-073K3L` | 1 | 0.018 |
 
@@ -747,9 +747,12 @@ The divider uses 10 kΩ and 3.3 kΩ — **both already in the basket**, so the r
 check adds no new line item. (The 3.3 kΩ was left over from the abandoned 3+3
 button ladder; this gives it a purpose.)
 
-The HUSB238 is not a DigiKey stock item — order from Adafruit, Pi-Shop, or any
-Adafruit reseller. Any HUSB238-based breakout works; the requirement is
-jumper-selectable fixed voltage, set to **9 V**.
+**In stock at DigiKey** (2,256 units), so this stays a single order.
+
+Order **5807** specifically, not 5991 — both use the HUSB238, but 5807 is the
+solder-jumper version this design needs: *"cut the 5V jumper and solder close
+the 9V, 12V, 15V, 18V or 20V jumper"*. I2C remains available on the same board
+if it is ever wanted.
 
 ### Future expansion — not needed now
 
