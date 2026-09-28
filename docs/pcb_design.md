@@ -370,6 +370,47 @@ share a frequency. GP6/9/12/15 land on slices 3/4/6/7.
 but all four faders read through the MCP3208, so their analog function is
 unused. CS is plain GPIO and fits there fine.
 
+### SPI net naming — three names per net
+
+Each device labels the same two signals differently. **Name the nets, not the
+pins**, and let each symbol attach to the net:
+
+| Net | Pico | MCP3208 (PDIP-16) | Adafruit 938 |
+|-----|------|-------------------|--------------|
+| `SPI_SCK` | GP18 | **CLK** (pin 13) | **Clk** |
+| `SPI_MOSI` | GP19 | **DIN** (pin 11) | **Data** |
+| `SPI_MISO` | GP16 | **DOUT** (pin 12) | — (write-only) |
+| `MCP_CS` | GP17 | **CS/SHDN** (pin 10) | — |
+| `DISP_DC` | GP20 | — | **A0** |
+
+MCP3208 DIN/DOUT are named from the *chip's* perspective: DIN is an input, so
+it receives the Pico's MOSI; DOUT drives the Pico's MISO. The display has no
+MISO at all, which is why sharing the bus with the ADC is safe — only the
+MCP3208 ever drives that line.
+
+**The failure to avoid:** DIN and DOUT swapped on the MCP3208 damages nothing
+and gives no hardware symptom — the ADC simply reads garbage, presenting as
+"the ADC does not work" with nothing pointing at the wiring. Matching pin
+*labels* between parts is how that happens; matching net names is how it does
+not.
+
+### MCP3208 full pinout (PDIP-16)
+
+| Pin | Name | Connects to |
+|-----|------|-------------|
+| 1-8 | CH0-CH7 | see *Not on the MCU* below |
+| 9 | DGND | GND |
+| 10 | CS/SHDN | GP17 |
+| 11 | DIN | GP19 (`SPI_MOSI`) |
+| 12 | DOUT | GP16 (`SPI_MISO`) |
+| 13 | CLK | GP18 (`SPI_SCK`) |
+| 14 | AGND | GND |
+| 15 | VREF | 3.3 V — **same net as fader terminal 3** (ratiometric) |
+| 16 | VDD | 3.3 V |
+
+Tie AGND and DGND together at the ADC, and keep VREF on the same net that feeds
+the faders — see [Ratiometric reference](#ratiometric-reference--do-not-skip-this).
+
 ### Not on the MCU
 
 | Signal | Where |
