@@ -447,8 +447,11 @@ downside at this density.
 |------|-----|---------|
 | 100 uF >=25 V electrolytic | 2 | VM bulk, one per TB6612FNG |
 | 470 uF >=25 V electrolytic | 1 | 10 V rail input bulk |
-| 10 uF ceramic | 2 | 3.3 V and 5 V rail bulk |
-| 100 nF X7R | ~12 | VM x2, VCC x2, MCP3208 VDD + VREF, MCU, per display |
+| 100 nF X7R | ~13 | VM x2, VCC x2, MCP3208 VDD + VREF, MCU, per display, RES |
+
+No separate 3.3 V or 5 V bulk capacitor: the Pico regulates 3.3 V on-module
+with its own bulk, and there is no 5 V rail on this PCB — logic power comes
+from the Pico's USB. 100 nF decoupling is sufficient at these currents.
 | 10 kΩ | 9 | 2x STBY pull-up, 4x ADC filter, 2x ladder top, 1x ladder |
 | 4.7 kΩ | 2 | button ladder (SW_G2, SW_F3) |
 | 2.2 kΩ | 1 | button ladder (SW_F2) |
