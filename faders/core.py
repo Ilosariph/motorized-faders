@@ -169,6 +169,11 @@ class FaderHost:
             with self._lock:
                 self._positions[idx] = value
                 suppressed = self._self_driven[idx]
+                if not suppressed:
+                    # Human moved this fader. Track it as the current setpoint
+                    # so the next SET: (which broadcasts every slot) doesn't
+                    # command this fader back to a stale value.
+                    self._setpoints[idx] = value
             if suppressed:
                 continue
             for ext in self._extensions:
@@ -201,11 +206,18 @@ class FaderHost:
             with self._lock:
                 if all(p is None for p in self._pending):
                     continue
+                # Only fill slots an extension actually requested this tick.
+                # Empty slots tell the Pico to leave that fader alone, so we
+                # never re-command a fader the user is holding.
+                slots = []
                 for idx, val in enumerate(self._pending):
-                    if val is not None:
+                    if val is None:
+                        slots.append("")
+                    else:
                         self._setpoints[idx] = val
                         self._pending[idx] = None
-                line = "SET:" + ",".join(f"{v:.1f}" for v in self._setpoints) + "\n"
+                        slots.append(f"{val:.1f}")
+                line = "SET:" + ",".join(slots) + "\n"
             try:
                 self._ser.write(line.encode("ascii"))
             except serial.SerialException:

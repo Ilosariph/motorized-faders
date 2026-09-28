@@ -21,6 +21,10 @@ Serial protocol (115200 baud, USB):
   Pico→Host (~20Hz): POS:47.3,82.1\n
                      RAW:31245,47102\n   (raw ADC, 0–65535, for diagnostics)
   Host→Pico:         SET:50.0,75.0\n
+  An empty SET: slot means "leave this fader unchanged":
+                     SET:50.0,\n     (moves fader 1 only)
+                     SET:,75.0\n     (moves fader 2 only)
+
 """
 
 import sys
@@ -312,10 +316,14 @@ def _handle_command(line, fader1, fader2):
     if line.startswith("SET:"):
         try:
             parts = line[4:].split(",")
-            if FADER1_ENABLED:
+            # An empty slot means "leave this fader alone" — the host only
+            # fills slots something actually asked to move. Engaging every
+            # slot on every SET: would re-command a fader the user is
+            # currently holding, or drive it back to a stale setpoint.
+            if FADER1_ENABLED and len(parts) > 0 and parts[0].strip():
                 fader1.engage(float(parts[0]))
                 sys.stdout.write("DBG:sp1={}\n".format(fader1.setpoint))
-            if FADER2_ENABLED and len(parts) > 1:
+            if FADER2_ENABLED and len(parts) > 1 and parts[1].strip():
                 fader2.engage(float(parts[1]))
         except (ValueError, IndexError) as e:
             sys.stdout.write("DBG:parse err {}\n".format(e))

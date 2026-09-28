@@ -3,7 +3,8 @@
   "num_faders": 2,
   "extensions": {
     "pulse_sink": [
-      {"fader": 0, "sink": "sink-music", "min": 0, "max": 100}
+      {"fader": 0, "sink": "sink-music", "min": 0, "max": 100},
+      {"fader": 1, "sink": "sink-apps", "min": 0, "max": 100}
     ]
   }
 }
