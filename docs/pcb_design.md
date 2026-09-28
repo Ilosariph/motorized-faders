@@ -177,28 +177,58 @@ write first on the slower bus.
 **Identifying which variant a module is:** count the pins.
 4 pins (GND/VCC/SCL/SDA) = I2C. 7 pins (GND/VCC/D0/D1/RES/DC/CS) = SPI.
 
+### PCB footprint: fit the 7-pin SPI header regardless
+
+Displays are panel-mounted in the case and wired back with jumpers, so the
+module never sits on the PCB. Put a **7-pin SPI header footprint** on the board
+anyway — it is the superset:
+
+- A 7-pin SPI module wires straight in.
+- A 4-pin I2C module also works from the same header: SDA -> D1 (MOSI),
+  SCL -> D0 (SCK), leave CS/DC/RES unconnected.
+- The reverse is not true — a 4-pin I2C header cannot drive an SPI module.
+
+This defers the display decision to assembly time, which is when the variant in
+hand is actually known. Label the pads on silkscreen
+(`GND VCC D0 D1 RES DC CS`) since that is what gets read with jumpers in hand.
+
+**Flying-lead caution:** SPI over long leads is more fragile than I2C — faster
+clock, no acknowledgement. Keep display leads under ~15 cm. If glitches appear,
+drop the bus to ~500 kHz before suspecting anything else.
+
 ---
 
 ## Buttons: resistor ladder on spare ADC channels
 
-6 buttons (4 per-fader + 2 general) on 2 spare MCP3208 channels, 3 per channel.
+6 buttons on 2 spare MCP3208 channels, split **2 general + 4 per-fader**.
 Costs **zero GPIO**.
 
+Grouping by function rather than 3+3 keeps the mapping obvious when reading the
+firmware or probing the board, and gives the 2-button channel wider margins.
+
 ```
-3.3V --[10k]--+--------------------> MCP3208 CH6
-              +--[SW1]--[GND]            pressed: 0.00 V
-              +--[SW2]--[3.3k]--[GND]    pressed: 0.82 V
-              +--[SW3]--[10k]---[GND]    pressed: 1.65 V
+Channel 6 -- 2 general buttons
+3.3V --[10k]--+--------------------> CH6
+              +--[SW_G1]--[GND]          pressed: 0.00 V
+              +--[SW_G2]--[4.7k]--[GND]  pressed: 1.06 V
+                                         idle:    3.30 V
+
+Channel 7 -- 4 per-fader buttons
+3.3V --[10k]--+--------------------> CH7
+              +--[SW_F1]--[GND]          pressed: 0.00 V
+              +--[SW_F2]--[2.2k]--[GND]  pressed: 0.60 V
+              +--[SW_F3]--[4.7k]--[GND]  pressed: 1.06 V
+              +--[SW_F4]--[10k]---[GND]  pressed: 1.65 V
                                          idle:    3.30 V
 ```
 
-Four bands ~800 mV apart — trivially discriminated at 12 bits. Add 100 nF to
-GND at the node for debounce. Buttons are slow, so ADC-rate polling is ample.
+Bands are 600 mV or wider — trivially discriminated at 12 bits (1 LSB =
+0.8 mV). Add 100 nF to GND at each node for debounce. Buttons are slow, so
+ADC-rate polling is ample.
 
-Simultaneous presses on one channel read as the lowest-value button. If true
-multi-press is wanted on the 2 general buttons, put those two on their own
-channel (2 buttons = 3 bands, more margin) and the 4 per-fader buttons on the
-other.
+Simultaneous presses on one channel read as the lowest-value button. The 2+4
+split means the two general buttons can never mask each other's neighbours,
+which is the case most likely to be pressed together.
 
 ---
 
@@ -231,6 +261,31 @@ never every loop, and PID timing is unaffected.
 **Touch sense is not in this budget.** The T terminal is unused; move
 completion comes from the PID state machine (deadband + settle timer).
 
+### Pin assignment is constrained, not free
+
+The count fits, but *which* physical pin carries which signal is not arbitrary.
+
+**SPI must land on hardware-SPI pins.** The RP2040 mapping is fixed silicon,
+not a routing matrix (GP4/GP5 omitted — not broken out on this board):
+
+| | SPI0 | SPI1 |
+|---|------|------|
+| SCK | GP2, GP6, GP18 | GP10, GP14 |
+| MOSI (TX) | GP3, GP7, GP19 | GP11, GP15 |
+| MISO (RX) | GP0, GP16 | GP8, GP12 |
+
+The 2-fader prototype puts motor control on **GP2/GP3/GP6**, which collides
+with SPI0's only usable SCK/MOSI options. Motor control must move off those
+pins. Cleanest fix: run the bus on **SPI0 at GP18 (SCK) / GP19 (MOSI) /
+GP16 (MISO)**, inside the otherwise lightly used GP16-22 block.
+
+CS lines are ordinary GPIO — not fixed — so they go wherever is left.
+
+**PWM outputs want separate slices.** GPn maps to PWM slice `(n >> 1) & 7`, and
+two outputs on the same slice share a frequency. The 4 PWM pins (PWMA/PWMB on
+each driver) should land on 4 different slices. Eight slices exist, so this is
+easy — but it constrains the map rather than being discovered after layout.
+
 ---
 
 ## Bill of Materials
@@ -257,11 +312,9 @@ downside at this density.
 | 470 uF >=25 V electrolytic | 1 | 10 V rail input bulk |
 | 10 uF ceramic | 2 | 3.3 V and 5 V rail bulk |
 | 100 nF X7R | ~12 | VM x2, VCC x2, MCP3208 VDD + VREF, MCU, per display |
-| 10 kΩ | 2 | STBY pull-ups |
-| 10 kΩ | 2 | button ladder top resistors |
-| 3.3 kΩ | 2 | button ladder |
-| 10 kΩ | 2 | button ladder |
-| 10 kΩ | 4 | series into each ADC input (RC filter) |
+| 10 kΩ | 9 | 2x STBY pull-up, 4x ADC filter, 2x ladder top, 1x ladder |
+| 4.7 kΩ | 2 | button ladder (SW_G2, SW_F3) |
+| 2.2 kΩ | 1 | button ladder (SW_F2) |
 | 10 nF X7R | 4 | RC filter on each wiper |
 | 100 nF | 2 | button ladder debounce |
 
@@ -375,24 +428,23 @@ Treat socketed operation as the **test configuration, not the final one**. It
 works, but soldered SSOP with proper copper pours is the better long-term motor
 path.
 
-### Measure before laying out footprints
+### Footprint measurements — taken
 
-Two measurements are **required** and cannot be taken from any datasheet here,
-because the boards in hand are not reference designs:
+Both boards were measured directly rather than trusted to datasheets, since
+neither is a reference design. Both came back Pico-standard:
 
-**RP2040 module (RP2040+RTL8720 clone).** Row spacing is **confirmed identical
-to a stock Pico**: 17.78 mm (7 x 0.1in) between the two 20-pin rows, so a
-standard KiCad Pico footprint fits. Still worth checking total board length and
-whether the USB connector overhangs the end — a keepout is needed there so a
-tall capacitor does not foul it.
+**RP2040 module (RP2040+RTL8720 clone).** Row spacing is **identical to a stock
+Pico**: 17.78 mm (7 x 0.1in) between the two 20-pin rows, so a standard KiCad
+Pico footprint fits. The board runs slightly longer than the 20-pin rows with
+only minor USB overhang — a small keepout past the header end is enough.
 
 **TB6612FNG breakout.** The SparkFun board is 27 x 19 x 3 mm with pins on two
-0.1in headers, inputs one side and outputs the other. Pin count is **8 per side,
-16 total** — measured from the board in hand, since SparkFun's hookup guide
-states pin functions but not the physical row layout. Row spacing still needs
-measuring before drawing the footprint.
+0.1in headers, inputs one side and outputs the other. Measured from the board
+in hand: **8 pins per side (16 total)**, row spacing **identical to the Pico's
+17.78 mm**. SparkFun's hookup guide states pin functions but not the physical
+row layout, hence measuring.
 
-Getting either wrong is unfixable after fab.
+Both footprints can therefore use standard 2.54 mm / 17.78 mm geometry.
 
 ---
 
@@ -437,10 +489,18 @@ uses ~12 with more wanted for rework.
 
 Yageo RC0805 series, pattern `RC0805FR-07<value>L`:
 
-| Value | MPN | Qty | Purpose |
-|-------|-----|-----|---------|
-| 10 kΩ | `RC0805FR-0710KL` | 25 | STBY pull-ups, button ladder, ADC filter |
-| 3.3 kΩ | `RC0805FR-073K3L` | 10 | button ladder |
+| Value | MPN | Per board | Purpose |
+|-------|-----|-----------|---------|
+| 10 kΩ | `RC0805FR-0710KL` | 9 | 2x STBY pull-up, 4x ADC filter, 2x ladder top, 1x ladder |
+| 4.7 kΩ | `RC0805FR-074K7L` | 2 | button ladder (general SW_G2, per-fader SW_F3) |
+| 2.2 kΩ | `RC0805FR-072K2L` | 1 | button ladder (per-fader SW_F2) |
+
+The 4.7 kΩ and 2.2 kΩ come from the **2 general + 4 per-fader** ladder split;
+the earlier 3.3 kΩ belonged to the abandoned 3+3 grouping and is not needed.
+
+Ladder values are not critical — the bands are 600 mV or wider against a 0.8 mV
+LSB, so anything close works. Substitute from stock rather than reordering for
+these two lines alone.
 
 A 0805 resistor assortment book is often better value than reels if you do not
 have one — it covers rework and future revisions.
@@ -528,11 +588,6 @@ either add the displays, stock up on passives, or accept the CHF 23 shipping.
 
 ## Open Items
 
-- Check RP2040 module board length and USB overhang for the keepout. Row
-  spacing is confirmed as stock Pico (17.78 mm).
-- **Measure the TB6612FNG breakout row spacing.** Pin count is confirmed at
-  8 per side (16 total); the distance between the two rows still needs calipers.
-- Confirm which SSD1306 variant is on hand (4-pin I2C vs 7-pin SPI) — design
-  assumes SPI.
-- Assign concrete GPIO numbers to the 23 nets above before schematic capture.
-- Decide button grouping: 3+3, or 2 general + 4 per-fader.
+- **Write the concrete pin map** for all 23 nets, honouring the hardware-SPI
+  pin table and one-PWM-slice-per-output. This is the last item before
+  schematic capture.
