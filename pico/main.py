@@ -5,17 +5,12 @@ Driver: SparkFun TB6612FNG dual motor driver
 
 Wiring (RP2040 + RTL8720 board — GP4/GP5 not exposed):
   Fader 1: wiper→GP26(ADC0), 3.3V→pin3, GND→pin1
-           motor→AO1/AO2, touch T→GP11 (pull-up, LOW when touched)
+           motor→AO1/AO2
   Fader 2: wiper→GP27(ADC1), 3.3V→pin3, GND→pin1
-           motor→BO1/BO2, touch T→GP12 (pull-up, LOW when touched)
+           motor→BO1/BO2
   Driver:  AIN1→GP2, AIN2→GP3, PWMA→GP6
            BIN1→GP7, BIN2→GP8, PWMB→GP9
            STBY→GP10, VCC→3.3V, VM→10V motor supply, GND→common
-
-Touch sense: The Alps RS60N11M9 has a dedicated conductive touch track.
-  The T pin is shorted to ground by the fader lever when touched.
-  Use internal pull-up → reads HIGH normally, LOW when touched.
-  No capacitive sensing or external resistors needed.
 
 Serial protocol (115200 baud, USB):
   Pico→Host (~20Hz): POS:47.3,82.1\n
@@ -64,9 +59,6 @@ PWM_FREQ = 20000  # Hz — 20kHz is above hearing range, no motor whine
 # Below this threshold the output is treated as zero (coast).
 PWM_MIN = 10000
 PWM_MAX = 65535
-
-# Touch: Alps RS60N11M9 has a conductive touch track shorted to GND by the
-# fader lever. T pin uses internal pull-up — LOW = touched, HIGH = not touched.
 
 # ---------------------------------------------------------------------------
 # Hardware configuration
@@ -119,9 +111,8 @@ class MotorDriver:
 
 
 class FaderPID:
-    def __init__(self, adc_pin, touch_pin, motor):
+    def __init__(self, adc_pin, motor):
         self.adc = ADC(adc_pin)
-        self.touch = Pin(touch_pin, Pin.IN, Pin.PULL_UP)  # LOW when touched
         self.motor = motor
 
         # Calibrated ADC range (set by calibrate())
@@ -167,13 +158,6 @@ class FaderPID:
             return 0.0
         pct = (raw - self.adc_min) / span * 100.0
         return 100.0 - pct if self.inverted else pct
-
-    def is_touched(self):
-        """
-        The Alps RS60N11M9 touch track is shorted to GND by the fader lever
-        when a finger is present. Internal pull-up makes it LOW when touched.
-        """
-        return self.touch.value() == 0
 
     def calibrate(self, motor_power=60, settle_ms=400, sweep_steps=15):
         """
@@ -339,9 +323,8 @@ def main():
     motor_a = MotorDriver(in1=2, in2=3, pwm_pin=6, stby_pin=10) if FADER1_ENABLED else None
     motor_b = MotorDriver(in1=7, in2=8, pwm_pin=9, stby_pin=10) if FADER2_ENABLED else None
 
-    # Faders — touch T pin uses internal pull-up, reads LOW when touched
-    fader1 = FaderPID(adc_pin=26, touch_pin=11, motor=motor_a) if FADER1_ENABLED else None
-    fader2 = FaderPID(adc_pin=27, touch_pin=12, motor=motor_b) if FADER2_ENABLED else None
+    fader1 = FaderPID(adc_pin=26, motor=motor_a) if FADER1_ENABLED else None
+    fader2 = FaderPID(adc_pin=27, motor=motor_b) if FADER2_ENABLED else None
 
     # Calibrate enabled faders — faders sweep to limits then hold position
     sys.stdout.write("CAL:start\n")

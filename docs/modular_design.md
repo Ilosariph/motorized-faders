@@ -20,7 +20,7 @@ Modules connect together magnetically and can be added or removed without tools.
 The **RP2040-Zero** (Waveshare) is the same RP2040 chip as the Pico, in a compact 23×18mm form factor. It is the natural choice for modules because:
 
 - **4 ADC channels** — covers 2 fader wipers with no external ADC IC
-- **30 GPIO pins** — plenty for motor driver, touch, I2C, UART
+- **30 GPIO pins** — plenty for motor driver, I2C, UART
 - **5V tolerant VIN** — onboard 3.3V regulator, powered directly from the 5V bus
 - **Same MicroPython** as the Pico — the `main.py` firmware ports with pin number changes only
 - **No WiFi radio** — no ADC noise, no unnecessary complexity (WiFi not needed; Pico W is the network bridge)
@@ -38,8 +38,6 @@ The **RP2040-Zero** (Waveshare) is the same RP2040 chip as the Pico, in a compac
 | GP5 | BIN1 (fader 2 direction) |
 | GP6 | BIN2 (fader 2 direction) |
 | GP7 | PWMB (fader 2 speed) |
-| GP9 | Touch 1 (pull-up, LOW when touched) |
-| GP10 | Touch 2 (pull-up, LOW when touched) |
 | GP20 | I2C0 SDA (2× SSD1306 OLED) |
 | GP21 | I2C0 SCL |
 | GP0 | UART0 TX (upstream toward master) |
@@ -142,7 +140,7 @@ The TB6612FNG is rated 1A continuous / 3A peak per channel at up to 13.5V — ha
 | 10kΩ resistor | 1 | STBY pull-up to 3.3V |
 | 5-pin magnetic connector | 2 | Upstream + downstream |
 
-No external ADC, no touch IC, no LDO — the RP2040-Zero handles everything natively.
+No external ADC, no LDO — the RP2040-Zero handles everything natively.
 
 ---
 

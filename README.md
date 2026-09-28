@@ -39,8 +39,9 @@ If the fader moves in the wrong direction, swap A and B.
 |----------------|----------|-------|
 | Terminal 2 (wiper) | GP26 (fader 1) | ADC position feedback |
 | Terminal 2 (wiper) | GP27 (fader 2) | ADC position feedback |
-| Terminal T (touch) | GP11 (fader 1) | Internal pull-up in firmware |
-| Terminal T (touch) | GP12 (fader 2) | Internal pull-up in firmware |
+
+Terminal T (touch) is unused — the firmware detects move completion from the
+PID state machine (deadband + settle timer), not from touch.
 
 ---
 
@@ -64,7 +65,7 @@ If the fader moves in the wrong direction, swap A and B.
 
 If you only have one fader connected, the firmware still works — fader 2 will sit at its default setpoint (50%) but won't move since nothing is connected. No code changes needed.
 
-Just leave BIN1, BIN2, PWMB, BO1, BO2, GP27, and GP12 unconnected.
+Just leave BIN1, BIN2, PWMB, BO1, BO2, and GP27 unconnected.
 
 ---
 

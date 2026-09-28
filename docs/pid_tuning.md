@@ -147,7 +147,7 @@ Adjust `DEADBAND` in 0.5% increments.
 | Fader vibrates rapidly at rest | Kd too high or ADC noise | Reduce Kd; ensure WiFi is disabled on Pico |
 | Fader stops just short of target | Ki too low or DEADBAND too large | Increase Ki by 0.01 or reduce DEADBAND |
 | Fader oscillates slowly (long period) | Ki too high | Reduce Ki by 0.01 |
-| Fader surges after touch release | Integral windup | Reduce INTEGRAL_MAX |
+| Fader surges after being released | Integral windup | Reduce INTEGRAL_MAX |
 | Fader doesn't move at all | PWM_MIN too high or STBY low | Check wiring; reduce PWM_MIN |
 | Fader moves in wrong direction | Motor wires swapped | Swap AO1/AO2 connections |
 
