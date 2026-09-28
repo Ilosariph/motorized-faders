@@ -181,20 +181,49 @@ write first on the slower bus.
 **Identifying which variant a module is:** count the pins.
 4 pins (GND/VCC/SCL/SDA) = I2C. 7 pins (GND/VCC/D0/D1/RES/DC/CS) = SPI.
 
-### PCB footprint: fit the 7-pin SPI header regardless
+### Actual module: Adafruit 938 (1.3in, 8-pin)
+
+The displays in hand are **Adafruit 938** — 1.3in 128x64, SSD1306, with an
+onboard 3.3 V regulator and level shifters. Larger than the 0.96in this
+document originally assumed, which suits a 100 mm fader better.
+
+**8 pins, but only 7 are wired.** The extra pin is `3Vo`, an *output* from the
+module's regulator for powering external parts — leave it unconnected.
+
+| Module pin | Connects to |
+|------------|-------------|
+| Data | GP19 (SPI0 MOSI) |
+| Clk | GP18 (SPI0 SCK) |
+| A0 | GP20 (DISP_DC) — `A0` is this board's label for DC |
+| Rst | RC reset net |
+| CS | GP21 / GP26 / GP27 / GP28 |
+| **3Vo** | **no connect** |
+| VIN | 5 V (see below) |
+| GND | GND |
+
+**Ships in I2C mode — cut two jumpers per board to enable SPI.** Adafruit:
+*"the default interface is now I2C, not SPI"*. Do all four before assembly
+rather than debugging a silent display later.
+
+**Power VIN from 5 V (Pico VBUS), not 3.3 V.** Each module draws ~40 mA, so
+four is ~160 mA — over half the Pico's 300 mA 3.3 V regulator budget, which
+also feeds the faders and both TB6612FNG VCC pins. The module regulates its own
+3.3 V from VIN and its level shifters handle the 5 V/3.3 V boundary, so feeding
+VIN from VBUS offloads the Pico regulator entirely. This is what the onboard
+regulator is for.
+
+### PCB footprint: fit the 8-pin header
 
 Displays are panel-mounted in the case and wired back with jumpers, so the
-module never sits on the PCB. Put a **7-pin SPI header footprint** on the board
-anyway — it is the superset:
+module never sits on the PCB. Fit an **8-pin header footprint** matching the
+Adafruit 938 pinout, with the `3Vo` position present but no-connect.
 
-- A 7-pin SPI module wires straight in.
-- A 4-pin I2C module also works from the same header: SDA -> D1 (MOSI),
-  SCL -> D0 (SCK), leave CS/DC/RES unconnected.
-- The reverse is not true — a 4-pin I2C header cannot drive an SPI module.
+Label the pads on silkscreen in module order
+(`Data Clk A0 Rst CS 3Vo VIN GND`) — that is what gets read with jumpers in
+hand, so matching the module's own labels beats using generic SPI names.
 
-This defers the display decision to assembly time, which is when the variant in
-hand is actually known. Label the pads on silkscreen
-(`GND VCC D0 D1 RES DC CS`) since that is what gets read with jumpers in hand.
+An 8-pin footprint still accepts a generic 7-pin SPI module or a 4-pin I2C one;
+only the pad count changes, not the signals.
 
 **Flying-lead caution:** SPI over long leads is more fragile than I2C — faster
 clock, no acknowledgement. Keep display leads under ~15 cm. If glitches appear,
@@ -436,7 +465,7 @@ RP2040 module's header end for its USB connector.
 | RP2040 module (existing) | 1 | headers | GP4/GP5 not exposed |
 | Female header, 20-pos, 2.54 mm | 2 | THT | RP2040 module |
 | Female header, 8-pos, 2.54 mm | 4 | THT | driver breakouts, 2 per TB6612FNG |
-| SSD1306 128x64 SPI | 4 | 7-pin module | one per fader |
+| Adafruit 938 OLED 1.3in SSD1306 | 4 | 8-pin module | one per fader; cut jumpers for SPI |
 
 ### Passives — 0805 throughout
 
@@ -497,7 +526,7 @@ barrel jack or fuse needed. PD boards current-limit at the source.
 | Alps RSA0N11M9 fader (100 mm, 10 kΩ) | 4 |
 | Tactile button (per-fader) | 4 |
 | Tactile button (general) | 2 |
-| Display headers, 7-pin | 4 |
+| Display wire pads, 8-pin | 4 |
 | Fader wire pads, 5 per fader | 20 nets | soldered wire, no connectors |
 
 ---
@@ -506,12 +535,16 @@ barrel jack or fuse needed. PD boards current-limit at the source.
 
 | Rail | Source | Feeds |
 |------|--------|-------|
-| 5 V logic | Pico USB-C from the PC | RP2040 module |
+| 5 V logic | Pico USB-C from the PC | RP2040 module, **display VIN x4** |
 | 3.3 V | Pico onboard regulator | fader wipers, TB6612FNG VCC, MCP3208, displays |
 | 9 V motor | USB-C PD trigger board | TB6612FNG VM only |
 
 3.3 V draw is negligible: TB6612FNG VCC is ~1 mA each and four faders at 3.3 V
 into 10 kΩ is ~1.3 mA total, against the Pico regulator's 300 mA.
+
+**Displays are deliberately not on the 3.3 V rail.** Four Adafruit 938 modules
+draw ~160 mA, which would consume over half that budget. They have their own
+regulators, so their VIN goes to 5 V (Pico VBUS) instead.
 
 **Common ground is mandatory.** With two independent USB sources, the PD
 ground and the Pico's USB ground must be tied together on the PCB. Without it
