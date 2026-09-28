@@ -100,24 +100,39 @@ Two chips: faders 1-2 on the first, faders 3-4 on the second.
 
 ### Pinout (SSOP-24)
 
-| Pin | Name | | Pin | Name |
-|-----|------|---|-----|------|
-| 1, 2 | AO1 | | 13 | VM2 |
-| 3, 4 | PGND1 | | 14 | VM3 |
-| 5, 6 | AO2 | | 15 | PWMB |
-| 7, 8 | BO2 | | 16 | BIN2 |
-| 9, 10 | PGND2 | | 17 | BIN1 |
-| 11, 12 | BO1 | | 18 | GND (signal) |
-| | | | 19 | STBY |
-| | | | 20 | VCC |
-| | | | 21 | AIN1 |
-| | | | 22 | AIN2 |
-| | | | 23 | PWMA |
-| | | | 24 | VM1 |
+Names below match the **KiCad symbol** (`TB6612FNG`), so schematic pin names and
+this table agree.
 
-**Doubled pins are not optional.** Pairs 1/2, 3/4, 5/6, 7/8, 9/10, 11/12 are
-the same net doubled for current capacity — tie each pair together with wide
-copper. Likewise VM1/VM2/VM3 (24, 13, 14) are one net.
+| KiCad pin | Pin(s) | Connects to |
+|-----------|--------|-------------|
+| AO1 | 1 *(+2)* | fader 1 motor + |
+| AO2 | 5 *(+6)* | fader 1 motor - |
+| BO1 | 11 *(+12)* | fader 2 motor + |
+| BO2 | 7 *(+8)* | fader 2 motor - |
+| PGND1 | 3 *(+4)* | power ground |
+| PGND2 | 9 *(+10)* | power ground |
+| GND | 18 | signal ground |
+| VM1 / VM2 / VM3 | 24 / 13 / 14 | 9 V motor rail — one net |
+| VCC | 20 | 3.3 V logic |
+| STBY | 19 | GP22 (both chips) |
+| AIN1 | 21 | driver A: GP2 / driver B: GP10 |
+| AIN2 | 22 | driver A: GP3 / driver B: GP11 |
+| PWMA | 23 | driver A: GP6 / driver B: GP12 |
+| BIN1 | 17 | driver A: GP7 / driver B: GP13 |
+| BIN2 | 16 | driver A: GP8 / driver B: GP14 |
+| PWMB | 15 | driver A: GP9 / driver B: GP15 |
+
+**The KiCad symbol merges the doubled pins.** The physical SSOP-24 doubles
+AO1 (1,2), PGND1 (3,4), AO2 (5,6), BO2 (7,8), PGND2 (9,10) and BO1 (11,12) for
+current capacity, but the symbol exposes one pin each — the second number is in
+parentheses above. Nothing extra is needed in the schematic; the **footprint**
+must connect both pads of each pair, and layout must carry them on wide copper.
+Likewise VM1/VM2/VM3 are one net, which the symbol does show as three pins.
+
+**Check the footprint, not the symbol.** If the KiCad footprint assigns pads 2,
+4, 6, 8, 10 and 12 to the same nets as their partners, this is handled. If it
+leaves them unassigned, the doubled pads will not be connected — halving the
+current path on the motor outputs and grounds.
 
 ### External components, per chip
 
