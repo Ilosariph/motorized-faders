@@ -19,6 +19,8 @@ this document is the single-board version.
 | Display | SSD1306 128×64 **SPI** (I2C can't address 4 — only 0x3C/0x3D exist) |
 | Buttons | Resistor ladder on 2 spare MCP3208 channels — costs 0 GPIO |
 | MCU | Keep the existing RP2040 module — bare RP2040 not needed |
+| Motor power | USB-C PD trigger, **jumper-set 9 V** (PD has no 10 V PDO) |
+| Rail check | Divider into spare ADC CH4 — catches silent 5 V fallback, 0 GPIO |
 | Assembly | Fully hand-solderable, no hot air / reflow required |
 | Build order | Socket breakouts first, prove the board, then solder SSOP — **no respin** |
 
@@ -243,11 +245,13 @@ GP26-28 are free now that faders read via the MCP3208.
 | STBY (shared between both chips) | 1 |
 | SPI bus, shared (SCK, MOSI, MISO) | 3 |
 | MCP3208 CS | 1 |
-| Display DC + RES (shared across all 4) | 2 |
+| Display DC (shared across all 4) | 1 |
 | Display CS x 4 | 4 |
-| **Total** | **23** |
+| **Total** | **22** |
 
-One pin spare.
+Two pins spare. Display **RES needs no GPIO** — it is an RC power-on reset; see
+[Free a GPIO](#free-a-gpio-rc-reset-on-display-res). The VM rail check also
+costs no GPIO: it is a divider into spare MCP3208 channel CH4.
 
 **The SPI bus is shared** between the MCP3208 and the four displays. This is
 what makes the budget close — a separate ADC bus would need 2 more pins and put
@@ -315,6 +319,9 @@ downside at this density.
 | 10 kΩ | 9 | 2x STBY pull-up, 4x ADC filter, 2x ladder top, 1x ladder |
 | 4.7 kΩ | 2 | button ladder (SW_G2, SW_F3) |
 | 2.2 kΩ | 1 | button ladder (SW_F2) |
+| 10 kΩ | 1 | VM divider, top leg (counted in the 9 above) |
+| 3.3 kΩ | 1 | VM divider, bottom leg |
+| 10 kΩ + 100 nF | 1 ea | display RES, RC power-on reset (frees a GPIO) |
 | 10 nF X7R | 4 | RC filter on each wiper |
 | 100 nF | 2 | button ladder debounce |
 
@@ -340,11 +347,12 @@ that averaging to be reduced, buying loop rate back.
 
 | Part | Qty | Note |
 |------|-----|------|
-| 10 V / 5 A supply | 1 | 4 motors x 800 mA peak = 3.2 A + headroom |
-| Buck 10 V -> 5 V (MP1584 / LM2596) | 1 | logic rail |
-| Barrel jack | 1 | |
-| Reverse-polarity protection | 1 | SS34 series diode or P-FET |
-| Fuse, 5 A | 1 | on the 10 V input |
+| USB-C PD trigger (HUSB238) | 1 | jumper-set to 9 V, feeds VM only |
+| USB-C PD charger, >=45 W | 1 | must offer a 9 V PDO; 4 motors x 800 mA = 3.2 A peak |
+| 10 kΩ + 3.3 kΩ | 1 ea | VM divider into MCP3208 CH4 for rail verification |
+
+Logic power comes from the Pico's own USB-C to the PC — no buck converter,
+barrel jack or fuse needed. PD boards current-limit at the source.
 
 ### Mechanical / connectors
 
@@ -355,6 +363,130 @@ that averaging to be reduced, buying loop rate back.
 | Tactile button (general) | 2 |
 | Display headers, 7-pin | 4 |
 | Motor + fader terminals (JST or screw) | as needed |
+
+---
+
+## Power
+
+| Rail | Source | Feeds |
+|------|--------|-------|
+| 5 V logic | Pico USB-C from the PC | RP2040 module |
+| 3.3 V | Pico onboard regulator | fader wipers, TB6612FNG VCC, MCP3208, displays |
+| 9 V motor | USB-C PD trigger board | TB6612FNG VM only |
+
+3.3 V draw is negligible: TB6612FNG VCC is ~1 mA each and four faders at 3.3 V
+into 10 kΩ is ~1.3 mA total, against the Pico regulator's 300 mA.
+
+**Common ground is mandatory.** With two independent USB sources, the PD
+ground and the Pico's USB ground must be tied together on the PCB. Without it
+the TB6612FNG's logic inputs have no valid reference to its motor rail.
+
+### 9 V, not 10 V — USB PD has no 10 V PDO
+
+The Alps RS60N11M9 motor is rated **10 V DC, 800 mA max**. USB PD fixed PDOs
+are 5 / 9 / 12 / 15 / 20 V — **10 V does not exist** in the spec. 12 V would be
+20% over rated on a continuously driven part; 9 V is 10% under, which is the
+safe direction to miss.
+
+Exactly 10.0 V is reachable only through **PPS** (USB PD 3.0, 20 mV steps), and
+only over I2C — PPS is a different request type, not a jumper-selectable
+voltage. That requires a PPS-capable charger and 2 GPIO, for a 10% torque
+difference that firmware can absorb. Not worth it.
+
+**Firmware compensation for 9 V** — both are existing tuning constants:
+
+| Constant | 10 V | 9 V |
+|----------|------|-----|
+| `MIN_MOVE_PCT` | 30.0 | ~35 |
+| `calibrate(motor_power=)` | 60 | ~70 |
+
+PID output clamps at +/-100% and currently floors at 30%, so there is ample
+unused band. Long travels are marginally slower; short moves dominate real use.
+
+### Trigger board: HUSB238, jumper-set to 9 V
+
+Adafruit HUSB238 breakout (product 5807). Few pins, mountable at the case's
+USB-C cutout, wired back with 2 wires. Solder the **9 V jumper** closed.
+
+**Set the voltage by jumper even if I2C is added later.** Adafruit's docs:
+*"when configuring over I2C, the jumper settings are used on startup until the
+I2C commands come over."* I2C overrides the jumper, it does not replace it. So
+with a jumper left at the 5 V default, VM sits at 5 V from PD plug-in until
+firmware speaks — and if the board is powered before the Pico, VM steps
+5 V -> 9 V while the TB6612FNG is already live. Worse, the STBY pull-up goes to
+3.3 V *from the Pico*, which is absent during that window, so STBY is genuinely
+undefined with a motor rail up.
+
+Jumper-setting the target eliminates the window entirely.
+
+### Silent fallback — and how to catch it
+
+If the charger cannot supply the requested PDO, the HUSB238 **falls back
+silently**: it walks the source PDO list high-to-low and takes the first match,
+landing on 5 V. No error, no indication.
+
+At the bench this looks like a mechanical fault — faders crawl or stall, PID
+integral winds to `INTEGRAL_MAX`, output saturates, `MIN_MOVE_PCT` sits below
+stall. Identical symptoms to a stiff fader or a bad motor solder joint, so the
+wrong layer gets debugged.
+
+**Catch it with a divider into a spare ADC channel** — MCP3208 CH4 is free
+after the two button ladders, so this costs **zero GPIO**:
+
+```
+VM (9 V) --[10k]--+--------> MCP3208 CH4
+                  |
+                [3.3k]
+                  |
+                 GND
+```
+
+| VM | CH4 reads |
+|----|-----------|
+| 5 V (fallback) | 1.24 V |
+| 9 V (expected) | 2.23 V |
+| 12 V (wrong jumper) | 2.98 V |
+
+Widely separated and all inside the 3.3 V range. Firmware reads the rail at
+boot and gates on it rather than assuming:
+
+```
+boot -> read CH4
+     -> VM in expected band? -> STBY high, calibrate()
+     -> else                 -> STBY stays low, emit error, skip calibration
+```
+
+Same principle as the `STATE:` protocol line — gate on a reported state, never
+on an assumption. This also catches a sagging rail or a marginal cable, which
+an I2C status read would not: the divider measures the actual rail, whereas
+I2C only reports what was negotiated.
+
+### Why not I2C to the HUSB238
+
+It fits, but only just, and it buys less than the divider:
+
+| | I2C route | Divider route |
+|---|---|---|
+| GPIO cost | 2 | **0** |
+| Spare pins after | 0 | 1 |
+| Detects 5 V fallback | yes | yes |
+| Measures actual VM | no | **yes** |
+| Catches sagging rail / bad cable | no | **yes** |
+| Extra parts | none | 2 resistors |
+
+The 2 GPIO are only available by first freeing the display RES pin (below).
+Since the voltage is jumper-set anyway, I2C's remaining role is status
+readback — which the divider does more directly.
+
+### Free a GPIO: RC reset on display RES
+
+SSD1306 reset is a power-on pulse: low briefly at startup, high forever after.
+Firmware never asserts it again, so it does not need a GPIO. Use an **RC
+reset** on the shared RES net — 10 kΩ to 3.3 V, 100 nF to GND — which generates
+the pulse passively.
+
+This drops the GPIO total from 23 to **22**, leaving 2 spare. One resistor and
+one capacitor, both already in the BOM, shared across all four displays.
 
 ---
 
@@ -445,6 +577,39 @@ in hand: **8 pins per side (16 total)**, row spacing **identical to the Pico's
 row layout, hence measuring.
 
 Both footprints can therefore use standard 2.54 mm / 17.78 mm geometry.
+
+---
+
+## Future: I2C Expansion (TCA9548A / PCA9548A)
+
+Not needed for this design — recorded because the 2 spare GPIO make it
+available, and because it is the natural escape hatch if the display route
+changes.
+
+An 8-channel I2C switch lets multiple devices with **identical fixed addresses**
+share one bus. Mux address is 0x70 (0x70-0x77 via A0/A1/A2), and a channel is
+selected by writing a one-byte mask before each transaction.
+
+**Where it would be used here:**
+
+- **I2C displays instead of SPI.** SSD1306 has only two selectable addresses
+  (0x3C / 0x3D), so four on one bus is impossible without a mux. Costs 2 GPIO
+  total instead of 4 CS lines — a net gain of 2 pins over the SPI route.
+- **Any further I2C devices** once SDA/SCL exist — an I/O expander for more
+  buttons, sensors, a second fader bank.
+
+**Sourcing note:** the usual `TCA9548APWR` is **out of stock at DigiKey until
+December 2026**. The `PCA9548APWR` is the pin-compatible NXP-origin equivalent,
+in stock, and DigiKey lists the two as direct substitutes. Use the PCA unless
+the TCA is back.
+
+Both are **TSSOP-24 at 0.65 mm pitch** — the same pitch as the TB6612FNG, so no
+new soldering capability is needed. A breakout module is the alternative
+(Bastelgarage stocks one at CHF 5.90, though it was out of stock when checked).
+
+If the board is ever laid out with a mux in mind: it needs the two I2C nets,
+100 nF decoupling, and pull-ups (4.7 kΩ to 3.3 V on SDA and SCL) — values
+already in the BOM.
 
 ---
 
@@ -570,10 +735,41 @@ If a socket is wanted for the bring-up board anyway, DigiKey files these under
 stock lasts, but do not leave them off an order assuming they can be added
 later.
 
+### Power
+
+| Part | MPN / DK# | Qty | CHF ea |
+|------|-----------|-----|--------|
+| USB-C PD trigger, jumper or I2C | Adafruit HUSB238 (5807) | 1 | ~16 |
+| VM divider, top leg | `RC0805FR-0710KL` | 1 | 0.014 |
+| VM divider, bottom leg | `RC0805FR-073K3L` | 1 | 0.018 |
+
+The divider uses 10 kΩ and 3.3 kΩ — **both already in the basket**, so the rail
+check adds no new line item. (The 3.3 kΩ was left over from the abandoned 3+3
+button ladder; this gives it a purpose.)
+
+The HUSB238 is not a DigiKey stock item — order from Adafruit, Pi-Shop, or any
+Adafruit reseller. Any HUSB238-based breakout works; the requirement is
+jumper-selectable fixed voltage, set to **9 V**.
+
+### Future expansion — not needed now
+
+| Part | MPN / DK# | CHF ea | Note |
+|------|-----------|--------|------|
+| I2C 8-ch switch | `PCA9548APWR` (296-21775-1-ND) | 1.46 | **in stock**, 13,910 |
+| I2C 8-ch switch (alt) | `TCA9548APWR` (296-34905-1-ND) | 1.19 | **out of stock** until Dec 2026 |
+
+Pin-compatible; DigiKey lists them as direct substitutes. TSSOP-24, 0.65 mm —
+same pitch as the TB6612FNG. Only needed if the design moves to I2C displays or
+gains further I2C devices.
+
 ### Not from DigiKey
 
-Cheaper at Bastelgarage or similar: buck converter (MP1584/LM2596, ~CHF 5),
-10 V/5 A supply, barrel jack, fuse holder, pin headers.
+Cheaper at Bastelgarage or similar: pin headers, and a TCA9548A breakout module
+(CHF 5.90) if a mux is ever wanted without TSSOP soldering.
+
+**No longer needed:** the bench PSU, barrel jack, fuse holder and 10 V/5 A
+supply are all replaced by the USB-C PD trigger board. A buck converter is only
+required if the 12 V-plus-buck route is taken instead of jumper-set 9 V.
 
 If breadboarding the TB6612FNG before committing to a PCB, add 2x SSOP-24 to
 DIP adapter boards (~CHF 2 ea).
@@ -588,6 +784,6 @@ either add the displays, stock up on passives, or accept the CHF 23 shipping.
 
 ## Open Items
 
-- **Write the concrete pin map** for all 23 nets, honouring the hardware-SPI
+- **Write the concrete pin map** for all 22 nets, honouring the hardware-SPI
   pin table and one-PWM-slice-per-output. This is the last item before
   schematic capture.
