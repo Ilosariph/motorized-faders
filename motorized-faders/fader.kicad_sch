@@ -438,7 +438,7 @@
 				)
 			)
 		)
-		(property "Footprint" "Display:CR2013-MI2120"
+		(property "Footprint" "Connector_PinHeader_2.54mm:PinHeader_1x02_P2.54mm_Vertical"
 			(at 184.15 58.42 0)
 			(hide yes)
 			(show_name no)
@@ -530,7 +530,7 @@
 				)
 			)
 		)
-		(property "Footprint" "Display:CR2013-MI2120"
+		(property "Footprint" "Connector_PinHeader_2.54mm:PinHeader_1x03_P2.54mm_Vertical"
 			(at 154.94 58.42 0)
 			(hide yes)
 			(show_name no)
