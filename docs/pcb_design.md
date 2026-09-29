@@ -461,10 +461,10 @@ prototype. Faders are **not board-mounted**: they mount to the case and connect
 by soldered wire, so the PCB carries no fader mechanical load and its outline is
 not driven by fader pitch.
 
-### Wiring — soldered, not connectored
+### Wiring — 2.54 mm headers, not soldered wire
 
-Faders connect by soldered wire directly to PCB pads. **Five conductors per
-fader, 20 total:**
+Everything off-board connects through 2.54 mm pin headers with crimp housings,
+not soldered wire. **Five conductors per fader, 20 total:**
 
 | Net | To | Notes |
 |-----|----|-------|
@@ -474,17 +474,36 @@ fader, 20 total:**
 | Motor + | TB6612FNG AO1 / BO1 | |
 | Motor - | TB6612FNG AO2 / BO2 | |
 
-Use **through-hole pads in a row, labelled on silkscreen**, per fader. Add a
-strain-relief hole beside each group so the wire bundle can be zip-tied to the
-board — soldered wires fail at the joint when flexed, and a fader that gets
-moved during assembly will flex them.
+Split per fader across two headers, placed adjacent so one bundle location
+serves each fader:
 
-**Route wiper wires away from motor wires.** The motor pair carries switched
-current at 20 kHz; the wiper is a high-impedance analog line. Running them in
-one bundle couples PWM straight into the ADC. Separate bundles if possible, and
-twist each motor pair.
+| Header | Pins | Carries |
+|--------|------|---------|
+| `J_Fn_MOT` | 1x02 | motor pair |
+| `J_Fn_GEN` | 1x03 | wiper, 3.3 V, GND |
 
-Buttons and displays likewise: through-hole pads, silkscreen-labelled.
+**No strain-relief holes needed.** They existed to protect solder joints from
+flex; a header/socket pair moves the mechanical interface off the joint
+entirely — the connector body takes the strain and the board side is
+unplugging, not repair.
+
+Displays use 1x08, buttons 1x02, the PD board 1x04. Label pin 1 on silkscreen
+for every header.
+
+**Polarization:** plain 2.54 mm headers are not keyed, so a 3-pin fader plug can
+go on backwards, putting 3.3 V where GND belongs. The differing pin counts
+(2 / 3 / 4 / 8) at least prevent cross-type mistakes. JST-XH footprints solve it
+properly if the swap is made before routing — worth considering given repeated
+plugging during PID tuning.
+
+**Keep wiper and motor wires in separate bundles.** The motor pair carries
+switched current at 20 kHz; the wiper is a high-impedance analog line. Coupling
+happens over *bundled length*, not at the connector — so headers a few mm apart
+on the board are fine, but running both in one 20 cm harness is not. Twist each
+motor pair.
+
+Button wiring is slow and low-impedance, so it can share a bundle with
+anything.
 
 ### Test points
 

@@ -9043,7 +9043,7 @@
 				)
 			)
 		)
-		(property "Footprint" "Button_Switch_THT:SW_SPST_Omron_B3F-40xx"
+		(property "Footprint" "Connector_PinHeader_2.54mm:PinHeader_1x02_P2.54mm_Vertical"
 			(at 207.01 104.14 0)
 			(hide yes)
 			(show_name no)
@@ -9600,7 +9600,7 @@
 				)
 			)
 		)
-		(property "Footprint" "Button_Switch_THT:SW_SPST_Omron_B3F-40xx"
+		(property "Footprint" "Connector_PinHeader_2.54mm:PinHeader_1x02_P2.54mm_Vertical"
 			(at 161.29 97.79 0)
 			(hide yes)
 			(show_name no)
@@ -11176,26 +11176,26 @@
 		(dnp no)
 		(fields_autoplaced yes)
 		(uuid "67cb87a8-1498-44cd-8259-f52ad939398d")
-		(property "Reference" "U2"
-			(at 20.7167 44.45 0)
+		(property "Reference" "U_MOT_A1"
+			(at 41.2181 41.91 0)
 			(show_name no)
 			(do_not_autoplace no)
 			(effects
 				(font
 					(size 1.27 1.27)
 				)
-				(justify left)
+				(justify right)
 			)
 		)
 		(property "Value" "TB6612FNG"
-			(at 20.7167 41.91 0)
+			(at 41.2181 44.45 0)
 			(show_name no)
 			(do_not_autoplace no)
 			(effects
 				(font
 					(size 1.27 1.27)
 				)
-				(justify left)
+				(justify right)
 			)
 		)
 		(property "Footprint" "Package_SO:SSOP-24_5.3x8.2mm_P0.65mm"
@@ -11306,7 +11306,7 @@
 		(instances
 			(project "motorized-faders"
 				(path "/b7e3fc1e-7c8d-4632-8bd7-928f8e22b8b2"
-					(reference "U2")
+					(reference "U_MOT_A1")
 					(unit 1)
 				)
 			)
@@ -11422,7 +11422,7 @@
 				)
 			)
 		)
-		(property "Footprint" "Button_Switch_THT:SW_SPST_Omron_B3F-40xx"
+		(property "Footprint" "Connector_PinHeader_2.54mm:PinHeader_1x02_P2.54mm_Vertical"
 			(at 207.01 83.82 0)
 			(hide yes)
 			(show_name no)
@@ -12378,7 +12378,7 @@
 				)
 			)
 		)
-		(property "Footprint" "Button_Switch_THT:SW_SPST_Omron_B3F-40xx"
+		(property "Footprint" "Connector_PinHeader_2.54mm:PinHeader_1x02_P2.54mm_Vertical"
 			(at 207.01 114.3 0)
 			(hide yes)
 			(show_name no)
@@ -12597,26 +12597,26 @@
 		(dnp no)
 		(fields_autoplaced yes)
 		(uuid "992b342b-efc9-4156-a45a-62b7ad8b8229")
-		(property "Reference" "U4"
-			(at 32.1467 140.97 0)
+		(property "Reference" "U_MOT_B1"
+			(at 52.6481 138.43 0)
 			(show_name no)
 			(do_not_autoplace no)
 			(effects
 				(font
 					(size 1.27 1.27)
 				)
-				(justify left)
+				(justify right)
 			)
 		)
 		(property "Value" "TB6612FNG"
-			(at 32.1467 138.43 0)
+			(at 52.6481 140.97 0)
 			(show_name no)
 			(do_not_autoplace no)
 			(effects
 				(font
 					(size 1.27 1.27)
 				)
-				(justify left)
+				(justify right)
 			)
 		)
 		(property "Footprint" "Package_SO:SSOP-24_5.3x8.2mm_P0.65mm"
@@ -12727,7 +12727,7 @@
 		(instances
 			(project "motorized-faders"
 				(path "/b7e3fc1e-7c8d-4632-8bd7-928f8e22b8b2"
-					(reference "U4")
+					(reference "U_MOT_B1")
 					(unit 1)
 				)
 			)
@@ -13932,7 +13932,7 @@
 		(dnp no)
 		(fields_autoplaced yes)
 		(uuid "bef91057-4be3-4e7c-828f-f0baa44dabe6")
-		(property "Reference" "U1"
+		(property "Reference" "U_ADC"
 			(at 268.5481 54.61 0)
 			(show_name no)
 			(do_not_autoplace no)
@@ -14038,7 +14038,7 @@
 		(instances
 			(project "motorized-faders"
 				(path "/b7e3fc1e-7c8d-4632-8bd7-928f8e22b8b2"
-					(reference "U1")
+					(reference "U_ADC")
 					(unit 1)
 				)
 			)
@@ -14076,7 +14076,7 @@
 				)
 			)
 		)
-		(property "Footprint" "Button_Switch_THT:SW_SPST_Omron_B3F-40xx"
+		(property "Footprint" "Connector_PinHeader_2.54mm:PinHeader_1x02_P2.54mm_Vertical"
 			(at 161.29 87.63 0)
 			(hide yes)
 			(show_name no)
@@ -14711,7 +14711,7 @@
 				)
 			)
 		)
-		(property "Footprint" "Button_Switch_THT:SW_SPST_Omron_B3F-40xx"
+		(property "Footprint" "Connector_PinHeader_2.54mm:PinHeader_1x02_P2.54mm_Vertical"
 			(at 207.01 93.98 0)
 			(hide yes)
 			(show_name no)
@@ -14793,7 +14793,7 @@
 				(justify left)
 			)
 		)
-		(property "Footprint" "Module:RaspberryPi_Pico_Common_Unspecified"
+		(property "Footprint" "Module:RaspberryPi_Pico_Common_THT"
 			(at 100.33 163.83 0)
 			(hide yes)
 			(show_name no)

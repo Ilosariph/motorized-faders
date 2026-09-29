@@ -438,7 +438,7 @@
 		(dnp no)
 		(fields_autoplaced yes)
 		(uuid "5e35ced4-6242-4444-bf49-99072419dc3a")
-		(property "Reference" "J1"
+		(property "Reference" "J_DISP1"
 			(at 152.4 59.69 0)
 			(show_name no)
 			(do_not_autoplace no)
@@ -518,19 +518,19 @@
 		(instances
 			(project "motorized-faders"
 				(path "/b7e3fc1e-7c8d-4632-8bd7-928f8e22b8b2/0326868e-5350-4727-9104-7da40ae8c021"
-					(reference "J3")
+					(reference "J_DISP3")
 					(unit 1)
 				)
 				(path "/b7e3fc1e-7c8d-4632-8bd7-928f8e22b8b2/85403017-6d05-490d-9e30-efef74dcb89f"
-					(reference "J1")
+					(reference "J_DISP1")
 					(unit 1)
 				)
 				(path "/b7e3fc1e-7c8d-4632-8bd7-928f8e22b8b2/b1ac9845-4a2d-40da-b03b-ec1b21e58a45"
-					(reference "J6")
+					(reference "J_DISP4")
 					(unit 1)
 				)
 				(path "/b7e3fc1e-7c8d-4632-8bd7-928f8e22b8b2/d203f622-5b76-4971-ac77-8585991a3fe5"
-					(reference "J2")
+					(reference "J_DISP2")
 					(unit 1)
 				)
 			)

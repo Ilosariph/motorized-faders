@@ -418,7 +418,7 @@
 		(dnp no)
 		(fields_autoplaced yes)
 		(uuid "492f2928-6ab1-4597-bb10-911733e0efcb")
-		(property "Reference" "J5"
+		(property "Reference" "J_F1_MOT1"
 			(at 184.15 49.53 0)
 			(show_name no)
 			(do_not_autoplace no)
@@ -480,19 +480,19 @@
 		(instances
 			(project "motorized-faders"
 				(path "/b7e3fc1e-7c8d-4632-8bd7-928f8e22b8b2/64389fec-fb00-4186-b5b1-261536e6c62d"
-					(reference "J10")
+					(reference "J_F3_MOT1")
 					(unit 1)
 				)
 				(path "/b7e3fc1e-7c8d-4632-8bd7-928f8e22b8b2/889cac32-bfc7-4106-895c-77c1ed4d1afb"
-					(reference "J8")
+					(reference "J_F2_MOT1")
 					(unit 1)
 				)
 				(path "/b7e3fc1e-7c8d-4632-8bd7-928f8e22b8b2/bac43807-ad40-4bbd-b72a-4b10a47f3691"
-					(reference "J12")
+					(reference "J_F4_MOT1")
 					(unit 1)
 				)
 				(path "/b7e3fc1e-7c8d-4632-8bd7-928f8e22b8b2/df0197ea-43aa-4e80-8ac6-816dff1fb039"
-					(reference "J5")
+					(reference "J_F1_MOT1")
 					(unit 1)
 				)
 			)
@@ -510,7 +510,7 @@
 		(dnp no)
 		(fields_autoplaced yes)
 		(uuid "ac651fd3-f4ce-4f24-9c26-c23184702492")
-		(property "Reference" "J4"
+		(property "Reference" "J_F1_GEN1"
 			(at 154.94 49.53 0)
 			(show_name no)
 			(do_not_autoplace no)
@@ -575,19 +575,19 @@
 		(instances
 			(project "motorized-faders"
 				(path "/b7e3fc1e-7c8d-4632-8bd7-928f8e22b8b2/64389fec-fb00-4186-b5b1-261536e6c62d"
-					(reference "J9")
+					(reference "J_F3_GEN1")
 					(unit 1)
 				)
 				(path "/b7e3fc1e-7c8d-4632-8bd7-928f8e22b8b2/889cac32-bfc7-4106-895c-77c1ed4d1afb"
-					(reference "J7")
+					(reference "J_F2_GEN1")
 					(unit 1)
 				)
 				(path "/b7e3fc1e-7c8d-4632-8bd7-928f8e22b8b2/bac43807-ad40-4bbd-b72a-4b10a47f3691"
-					(reference "J11")
+					(reference "J_F4_GEN1")
 					(unit 1)
 				)
 				(path "/b7e3fc1e-7c8d-4632-8bd7-928f8e22b8b2/df0197ea-43aa-4e80-8ac6-816dff1fb039"
-					(reference "J4")
+					(reference "J_F1_GEN1")
 					(unit 1)
 				)
 			)
