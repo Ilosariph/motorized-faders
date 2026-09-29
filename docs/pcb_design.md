@@ -531,7 +531,6 @@ downside at this density.
 | Part | Qty | Purpose |
 |------|-----|---------|
 | 100 uF >=25 V electrolytic | 2 | VM bulk, one per TB6612FNG |
-| 470 uF >=25 V electrolytic | 1 | 10 V rail input bulk |
 | 100 nF X7R | ~13 | VM x2, VCC x2, MCP3208 VDD + VREF, MCU, per display, RES |
 
 No separate 3.3 V or 5 V bulk capacitor: the Pico regulates 3.3 V on-module
@@ -719,7 +718,8 @@ plus a fuse** — cheaper still, but it protects by blowing the fuse rather than
 by staying off.
 
 At 1.5 A bench limit the risk is modest; at the 10 A the supply can deliver, a
-reversed lead into 470 uF and two H-bridges is destructive. Fit the FET.
+reversed lead into the driver bulk caps and two H-bridges is destructive.
+Fit the FET.
 
 ### Free a GPIO: RC reset on display RES
 
@@ -907,9 +907,15 @@ Buy one spare of each — both are the parts a wiring mistake kills.
 | Purpose | MPN | Qty | CHF ea | Notes |
 |---------|-----|-----|--------|-------|
 | VM bulk (per driver) | `EEU-FR1E101B` | 2 | 0.38 | 100 uF 25 V, 130 mOhm ESR, 6.3x12.7 mm, 5 mm pitch |
-| 10 V rail input bulk | `EEU-FR1E471` | 1 | 0.85 | 470 uF 25 V, 43 mOhm ESR, 10x14 mm, 5 mm pitch |
+| ~~10 V rail input bulk~~ | ~~`EEU-FR1E471`~~ | — | — | **not needed** — see below |
 | Decoupling, everywhere | `CL21B104KBCNNNC` | 25 | 0.08 | 100 nF 50 V X7R 0805 |
 | Wiper RC filter | `CL21B103KBANNNC` | 10 | ~0.08 | 10 nF 50 V X7R 0805 |
+
+**The 470 uF rail-input cap was dropped.** It belonged to the original
+bench-PSU-and-barrel-jack architecture, where it buffered a long DC cable from
+a wall supply. With the PD trigger board mounted inches away and carrying its
+own output capacitance, it is redundant — the two 100 uF at the drivers are the
+ones that matter. Harmless to own, but it does not go on the board.
 
 **Why these electrolytics:** Panasonic FR series is low-ESR and 105 C rated.
 ESR is the spec that matters for a motor rail — it sets how well the cap
