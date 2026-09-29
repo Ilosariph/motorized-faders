@@ -13932,7 +13932,7 @@
 		(dnp no)
 		(fields_autoplaced yes)
 		(uuid "bef91057-4be3-4e7c-828f-f0baa44dabe6")
-		(property "Reference" "U_ADC"
+		(property "Reference" "U_ADC1"
 			(at 268.5481 54.61 0)
 			(show_name no)
 			(do_not_autoplace no)
@@ -14038,7 +14038,7 @@
 		(instances
 			(project "motorized-faders"
 				(path "/b7e3fc1e-7c8d-4632-8bd7-928f8e22b8b2"
-					(reference "U_ADC")
+					(reference "U_ADC1")
 					(unit 1)
 				)
 			)
