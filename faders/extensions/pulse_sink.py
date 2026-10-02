@@ -4,15 +4,27 @@ PulseAudio / PipeWire sink extension.
 Binds one fader to one sink:
   - fader move (human)         -> `pactl set-sink-volume <sink> NN%`
   - sink volume change (pavu)  -> `host.set_fader(idx, NN)` to move the motor
+  - fader button (mute)        -> `pactl set-sink-mute <sink> 0|1`
+  - sink mute change (pavu)    -> `host.set_mute(idx, muted)`
+
+It also owns what the fader's display shows: the sink name on line 1 and the
+live volume on line 2. That is the point of pushing display text from the host
+— the screen describes whatever the active plugin controls, so a different
+extension on the same fader labels it differently with no firmware change.
 
 Config entry shape (faders/config.json):
     "pulse_sink": [
-        {"fader": 0, "sink": "sink-music", "min": 0, "max": 100}
+        {"fader": 0, "sink": "sink-music", "min": 0, "max": 100,
+         "label": "Music"}
     ]
 
 `min`/`max` are the sink-volume bounds (percent). Fader 0% maps to `min`,
 fader 100% maps to `max`. Useful for taming a fader to e.g. 0-80% so you
 can't accidentally pin a sink to clipping.
+
+`label` is optional display text; it defaults to the sink name. Sink names are
+often long (`alsa_output.pci-0000_00_1f.3.analog-stereo`), which does not fit a
+128 px screen, so a short label is usually worth setting.
 
 Pure subprocess — no Python deps. Works on PipeWire's pactl shim too.
 """
@@ -41,6 +53,8 @@ SELF_ECHO_WINDOW_S = 0.25
 _EVENT_RE = re.compile(r"Event '(?P<ev>\w+)' on sink #(?P<idx>\d+)")
 # `pactl get-sink-volume <sink>` returns lines containing e.g. "/  80% /".
 _VOLUME_RE = re.compile(r"/\s*(\d+)%\s*/")
+# `pactl get-sink-mute <sink>` returns "Mute: yes" or "Mute: no".
+_MUTE_RE = re.compile(r"Mute:\s*(yes|no)")
 
 
 def register(host, cfg):
@@ -50,21 +64,26 @@ def register(host, cfg):
         sink=str(cfg["sink"]),
         vol_min=float(cfg.get("min", 0)),
         vol_max=float(cfg.get("max", 100)),
+        label=cfg.get("label"),
     )
     host.register(ext)
 
 
 class PulseSinkExtension(Extension):
-    def __init__(self, host, fader_idx, sink, vol_min, vol_max):
+    def __init__(self, host, fader_idx, sink, vol_min, vol_max, label=None):
         self.host = host
         self.fader_idx = fader_idx
         self.sink = sink
         self.vol_min = vol_min
         self.vol_max = vol_max
+        # Shown on line 1 of this fader's display. Defaults to the sink name,
+        # which is often too long for the screen — hence the config override.
+        self.label = label or sink
 
         self._last_written_vol = None
         self._last_write_t = 0.0
         self._last_self_write_t = 0.0
+        self._last_mute = None
         self._lock = threading.Lock()
 
         self._sink_index = self._resolve_sink_index()
@@ -79,6 +98,16 @@ class PulseSinkExtension(Extension):
         if current is not None:
             fader_value = self._sink_to_fader(current)
             host.set_fader(fader_idx, fader_value)
+            self._push_display(current)
+        else:
+            self._push_display(None)
+
+        # Seed mute state the same way, so a sink muted before startup shows
+        # as muted rather than being discovered on the first button press.
+        muted = self._read_sink_mute()
+        if muted is not None:
+            self._last_mute = muted
+            host.set_mute(fader_idx, muted)
 
         self._stop = threading.Event()
         self._sub_proc = None
@@ -103,6 +132,14 @@ class PulseSinkExtension(Extension):
     def on_position(self, fader_idx, value):
         if fader_idx != self.fader_idx:
             return
+        with self._lock:
+            muted = self._last_mute
+        if muted:
+            # A muted fader sits at the bottom, and the user may drag it
+            # around while muted to pick where it returns to. Neither is a
+            # volume change — writing them through would zero the sink and
+            # lose the volume that unmuting is supposed to restore.
+            return
         target_vol = self._fader_to_sink(value)
         now = time.monotonic()
         with self._lock:
@@ -125,6 +162,56 @@ class PulseSinkExtension(Extension):
             )
         except FileNotFoundError:
             sys.stderr.write("[pulse_sink] `pactl` not found in PATH\n")
+
+        self._push_display(target_vol)
+
+    # ----- display ---------------------------------------------------------
+
+    def _push_display(self, sink_vol):
+        """
+        Label this fader's screen. Line 1 identifies the sink, line 2 shows
+        its volume. The Pico redraws only when the text actually changes, and
+        host.set_display() drops duplicate sends, so this is cheap to call on
+        every update.
+        """
+        if sink_vol is None:
+            line2 = "--"
+        else:
+            line2 = "vol {:.0f}%".format(sink_vol)
+        self.host.set_display(self.fader_idx, self.label, line2)
+
+    # ----- mute ------------------------------------------------------------
+
+    def on_mute(self, fader_idx, muted):
+        """A fader button was pressed (or the Pico confirmed a mute) — apply
+        it to the sink."""
+        if fader_idx != self.fader_idx:
+            return
+        with self._lock:
+            if self._last_mute == muted:
+                return  # already in this state; nothing to write
+            self._last_mute = muted
+            self._last_self_write_t = time.monotonic()
+        try:
+            subprocess.Popen(
+                [PACTL, "set-sink-mute", self.sink, "1" if muted else "0"],
+                stdout=subprocess.DEVNULL,
+                stderr=subprocess.DEVNULL,
+            )
+        except FileNotFoundError:
+            sys.stderr.write("[pulse_sink] `pactl` not found in PATH\n")
+
+    def _read_sink_mute(self):
+        try:
+            out = subprocess.check_output(
+                [PACTL, "get-sink-mute", self.sink], text=True, timeout=2.0
+            )
+        except (subprocess.SubprocessError, FileNotFoundError):
+            return None
+        m = _MUTE_RE.search(out)
+        if m is None:
+            return None
+        return m.group(1) == "yes"
 
     # ----- sink -> fader (subscribe loop) ----------------------------------
 
@@ -189,8 +276,26 @@ class PulseSinkExtension(Extension):
             with self._lock:
                 if time.monotonic() - self._last_self_write_t < SELF_ECHO_WINDOW_S:
                     continue
+
+            # Mute changed elsewhere (pavucontrol, a media key): move the
+            # fader to match, so the hardware never disagrees with the mixer.
+            muted = self._read_sink_mute()
+            if muted is not None:
+                with self._lock:
+                    changed = muted != self._last_mute
+                    if changed:
+                        self._last_mute = muted
+                if changed:
+                    self.host.set_mute(self.fader_idx, muted)
+
             sink_vol = self._read_sink_volume()
             if sink_vol is None:
+                continue
+            self._push_display(sink_vol)
+            # While muted the fader belongs at the bottom; the Pico is holding
+            # it there and remembering where to return to. Driving it to the
+            # sink volume now would fight that and lose the restore position.
+            if muted:
                 continue
             fader_value = self._sink_to_fader(sink_vol)
             self.host.set_fader(self.fader_idx, fader_value)

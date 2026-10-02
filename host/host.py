@@ -11,10 +11,11 @@ Dependencies:
     pip install pyserial
 
 Setpoint input:
-    Type two numbers separated by space or comma, e.g.:
-        50 75       -> fader 1 to 50%, fader 2 to 75%
-        0 100       -> fader 1 to bottom, fader 2 to top
-        50          -> fader 1 only (fader 2 unchanged)
+    Type up to NUM_FADERS numbers separated by spaces or commas, e.g.:
+        50 75 20 90 -> all four faders
+        50 75       -> faders 1 and 2 only; 3 and 4 unchanged
+        50          -> fader 1 only
+        , , 30      -> fader 3 only (empty slots are skipped)
 """
 
 import sys
@@ -27,10 +28,15 @@ import serial.tools.list_ports
 PICO_VID = 0x2E8A
 BAUD = 115200
 
+# The 4-fader PCB reports four slots; the 2-fader breadboard reports two and
+# the extra slots simply stay at 0.
+NUM_FADERS = 4
+
 state = {
-    "f1": 0.0,
-    "f2": 0.0,
+    "positions": [0.0] * NUM_FADERS,
+    "muted": [False] * NUM_FADERS,
     "status": "connecting",  # "connecting", "calibrating", "running", "error"
+    "rail": None,            # None until the Pico reports RAIL:
 }
 state_lock = threading.Lock()
 
@@ -57,16 +63,33 @@ def connect(port=None):
 
 def parse_line(line):
     if line.startswith("POS:"):
-        try:
-            parts = line[4:].split(",")
-            f1 = float(parts[0])
-            f2 = float(parts[1])
-            with state_lock:
-                state["f1"] = f1
-                state["f2"] = f2
-                state["status"] = "running"
-        except (ValueError, IndexError):
-            pass
+        parts = line[4:].split(",")
+        with state_lock:
+            for idx, raw in enumerate(parts[:NUM_FADERS]):
+                try:
+                    state["positions"][idx] = float(raw)
+                except ValueError:
+                    continue
+            state["status"] = "running"
+    elif line.startswith("MUTE:"):
+        parts = line[5:].split(",", 1)
+        if len(parts) == 2:
+            try:
+                idx = int(parts[0]) - 1
+            except ValueError:
+                return
+            if 0 <= idx < NUM_FADERS:
+                with state_lock:
+                    state["muted"][idx] = parts[1].strip() == "1"
+    elif line.startswith("RAIL:"):
+        parts = line[5:].split(",", 1)
+        volts = parts[1].strip() if len(parts) > 1 else "?"
+        with state_lock:
+            state["rail"] = (parts[0].strip() == "ok", volts)
+    elif line.startswith("BTN:"):
+        # Buttons are handled by `faders.run`, not this bring-up tool. Print
+        # them so the ladder can be verified by pressing each one.
+        print(f"\r  [button] {line[4:].strip()}" + " " * 40)
     elif line.startswith("CAL:"):
         with state_lock:
             state["status"] = "calibrating" if "start" in line else "running"
@@ -96,42 +119,52 @@ def make_bar(pct, width=20):
     return "#" * filled + "-" * (width - filled)
 
 
-def send_setpoint(ser, f1, f2):
-    cmd = f"SET:{f1:.1f},{f2:.1f}\n"
+def send_setpoint(ser, values):
+    """`values` is a list of NUM_FADERS floats or None (leave unchanged)."""
+    slots = ["" if v is None else f"{v:.1f}" for v in values]
+    cmd = "SET:" + ",".join(slots) + "\n"
     try:
         ser.write(cmd.encode("ascii"))
     except serial.SerialException:
         print("\n[error] Failed to send — serial connection lost.")
 
 
-def parse_input(text, current_f1, current_f2):
+def parse_input(text):
     """
-    Parse user input into (f1, f2) setpoints.
-    Accepts: '50 75', '50,75', '50' (only f1).
-    Returns (f1, f2) or None if invalid.
+    Parse user input into a list of NUM_FADERS setpoints, where None means
+    "leave this fader unchanged".
+
+    Accepts: '50 75 20 90', '50,75', '50', ', , 30' (fader 3 only).
+    Returns the list, or None if nothing valid was given.
     """
-    text = text.strip().replace(",", " ")
-    parts = text.split()
-    if not parts:
-        return None
-    try:
-        values = [float(p) for p in parts]
-    except ValueError:
+    # Split on commas first so empty slots survive, then on whitespace.
+    if "," in text:
+        fields = [f.strip() for f in text.split(",")]
+    else:
+        fields = text.split()
+    if not fields:
         return None
 
-    f1 = values[0] if len(values) >= 1 else current_f1
-    f2 = values[1] if len(values) >= 2 else current_f2
-
-    # Validate range
+    values = [None] * NUM_FADERS
     errors = []
-    if not 0 <= f1 <= 100:
-        errors.append(f"F1={f1} out of range (0–100)")
-    if not 0 <= f2 <= 100:
-        errors.append(f"F2={f2} out of range (0–100)")
+    got_one = False
+    for idx, field in enumerate(fields[:NUM_FADERS]):
+        if not field:
+            continue
+        try:
+            value = float(field)
+        except ValueError:
+            errors.append(f"F{idx + 1}='{field}' is not a number")
+            continue
+        if not 0 <= value <= 100:
+            errors.append(f"F{idx + 1}={value} out of range (0-100)")
+            continue
+        values[idx] = value
+        got_one = True
+
     if errors:
         print("\n[warn] " + ", ".join(errors))
-        return None
-    return f1, f2
+    return values if got_one else None
 
 
 def display_loop(stop_event):
@@ -141,9 +174,10 @@ def display_loop(stop_event):
     """
     while not stop_event.is_set():
         with state_lock:
-            f1 = state["f1"]
-            f2 = state["f2"]
+            positions = list(state["positions"])
+            muted = list(state["muted"])
             status = state["status"]
+            rail = state["rail"]
 
         if status == "calibrating":
             status_str = "[calibrating...]"
@@ -151,16 +185,16 @@ def display_loop(stop_event):
             status_str = "[serial error]"
         elif status == "connecting":
             status_str = "[waiting for data...]"
+        elif rail is not None and not rail[0]:
+            status_str = f"[RAIL FAIL {rail[1]}V — motors disabled]"
         else:
             status_str = ""
 
-        bar1 = make_bar(f1)
-        bar2 = make_bar(f2)
-        line = (
-            f"\r  F1: {f1:5.1f}% [{bar1}]  "
-            f"F2: {f2:5.1f}% [{bar2}]  {status_str}   "
-        )
-        sys.stdout.write(line)
+        cells = []
+        for idx, pos in enumerate(positions):
+            flag = "M" if muted[idx] else " "
+            cells.append(f"F{idx + 1}{flag}{pos:5.1f}% [{make_bar(pos, 10)}]")
+        sys.stdout.write("\r  " + "  ".join(cells) + f"  {status_str}   ")
         sys.stdout.flush()
         time.sleep(0.1)
 
@@ -184,24 +218,23 @@ def main():
     display.start()
 
     print("Motorized Fader Controller")
-    print("  Enter setpoints as: F1 F2  (e.g. '50 75')")
-    print("  Or just F1 to leave F2 unchanged.")
+    print(f"  Enter up to {NUM_FADERS} setpoints, e.g. '50 75 20 90'")
+    print("  Fewer values leaves the rest unchanged; ', , 30' sets fader 3 only.")
+    print("  'M' beside a fader means muted. Press a fader button to toggle.")
     print("  Ctrl+C to exit.\n")
 
     try:
         while True:
             # Blocking input — display thread keeps updating above this line
             text = input()
-            with state_lock:
-                current_f1 = state["f1"]
-                current_f2 = state["f2"]
-
-            result = parse_input(text, current_f1, current_f2)
-            if result is not None:
-                f1, f2 = result
-                send_setpoint(ser, f1, f2)
-                # Print confirmation on a fresh line
-                print(f"\r  -> Set F1={f1:.1f}%  F2={f2:.1f}%")
+            values = parse_input(text)
+            if values is not None:
+                send_setpoint(ser, values)
+                shown = "  ".join(
+                    f"F{i + 1}={v:.1f}%" for i, v in enumerate(values)
+                    if v is not None
+                )
+                print(f"\r  -> Set {shown}" + " " * 20)
 
     except KeyboardInterrupt:
         print("\nExiting.")

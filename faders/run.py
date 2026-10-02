@@ -41,7 +41,7 @@ def main(argv=None):
 
     cfg = config_mod.load(args.config)
     port = args.port or cfg.get("port")
-    host = FaderHost(port=port, num_faders=cfg.get("num_faders", 2))
+    host = FaderHost(port=port, num_faders=cfg.get("num_faders", 4))
 
     modules = _discover_extension_modules()
     enabled = cfg.get("extensions", {})

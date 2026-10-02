@@ -3,7 +3,7 @@ from pathlib import Path
 
 DEFAULT_CONFIG = {
     "port": None,
-    "num_faders": 2,
+    "num_faders": 4,
     "extensions": {},
 }
 

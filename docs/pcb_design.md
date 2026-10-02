@@ -1101,11 +1101,36 @@ either add the displays, stock up on passives, or accept the CHF 23 shipping.
 
 ---
 
+## Firmware
+
+Implemented on branch `feat/4-fader-pcb-firmware`. The deferred items from this
+document are done; see [firmware.md](firmware.md) for the protocol and module
+layout.
+
+| Item | Where |
+|------|-------|
+| MCP3208 driver | `pico/lib/mcp3208.py` |
+| `FaderPID` ADC injection | `pico/main.py` — `FaderPID(read_raw=...)` |
+| Button-ladder decode | `pico/lib/buttons.py` |
+| VM rail check at boot | `pico/main.py` — `read_vm_rail()`, gates STBY |
+| Display output | `pico/lib/ssd1306_spi.py`, `pico/lib/fader_screen.py` |
+| 9 V compensation | `MIN_MOVE_PCT = 35`, `CAL_MOTOR_POWER = 70` |
+
+**One change to the design assumptions.** `calibrate()` no longer sweeps for a
+fixed number of steps. The prototype's 15x30 ms sweep was sized for the 60 mm
+RS60N11M9; at 100 mm the carriage does not reach the end stop in that time, and
+the result is a calibration against a mid-travel point — which then corrupts
+every position report. The sweep now runs until the wiper stops changing
+(`CAL_STALL_COUNTS` over `CAL_STALL_READS`), with a 4 s backstop that reports
+`DBG:calibration sweep timed out` rather than hanging boot on an unplugged
+motor. No hardware impact.
+
 ## Open Items
 
 - Fix the board outline and M3 hole positions once the case layout is decided.
   Faders are case-mounted, so the PCB outline is otherwise unconstrained.
 - Pick a reverse-polarity P-FET (Vds >= 20 V, Id >= 5 A, SOT-223/DPAK) if
   fitting one — not yet in the basket.
-- Firmware, deferred: MCP3208 driver, `FaderPID` ADC injection, button-ladder
-  decode, VM rail check at boot, display output.
+- Bring-up order for the firmware: verify `RAIL:ok` before trusting any PID
+  behaviour, then check each fader calibrates to a full-span `adc_min`/`adc_max`
+  before tuning. A short span means the sweep is stalling early.

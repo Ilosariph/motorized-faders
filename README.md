@@ -1,6 +1,27 @@
 # Motorized Fader Controller
 
-RP2040 board (Pico-clone with RTL8720DN WiFi — GP4/GP5 not exposed) + SparkFun TB6612FNG dual motor driver + Alps RS60N11M9 motorized faders.
+RP2040 board (Pico-clone with RTL8720DN WiFi — GP4/GP5 not exposed) + TB6612FNG
+motor drivers + Alps motorized faders.
+
+**Two builds exist:**
+
+| | 2-fader breadboard | 4-fader PCB |
+|---|---|---|
+| Faders | 2x RS60N11M9 (60 mm, 5 kΩ) | 4x RSA0N11M9 (100 mm, 10 kΩ) |
+| ADC | RP2040 internal (GP26/27) | MCP3208, 12-bit SPI |
+| Drivers | 1x TB6612FNG breakout | 2x TB6612FNG |
+| Displays | none | 4x SSD1306 128x64 SPI |
+| Buttons | none | 4 per-fader + 2 general, ADC ladder |
+| Motor rail | 10 V bench supply | 9 V USB-C PD trigger |
+| Docs | this file | [pcb_design.md](docs/pcb_design.md), [firmware.md](docs/firmware.md) |
+
+The wiring below is the **2-fader breadboard** build. For the 4-fader PCB see
+[docs/pcb_design.md](docs/pcb_design.md) (hardware) and
+[docs/firmware.md](docs/firmware.md) (protocol, mute, displays, buttons).
+
+Firmware in `pico/` is the **4-fader** version. It needs the MCP3208 and will
+report `RAIL:fail` without the PD rail; the 2-fader build is kept in git
+history.
 
 ---
 
@@ -71,6 +92,11 @@ Just leave BIN1, BIN2, PWMB, BO1, BO2, and GP27 unconnected.
 
 ## PC Software
 
+Two interfaces. The **terminal tool** is for bring-up and PID tuning; the
+**extension host** is what you actually run day to day.
+
+### Terminal tool
+
 ```bash
 pip install pyserial
 python host/host.py
@@ -85,6 +111,37 @@ python host/host.py /dev/ttyACM0      # Linux
 python host/host.py COM3              # Windows
 ```
 
+### Extension host
+
+Binds faders to things on the PC. `faders/config.json` declares which
+extension owns which fader:
+
+```bash
+python -m faders.run
+```
+
+With `pulse_sink`, each fader controls a PulseAudio/PipeWire sink: move the
+fader to change volume, change it in pavucontrol and the fader follows, and
+press the fader's button to mute. The fader's display shows that sink's label
+and volume — display content comes from whichever extension owns the fader, so
+it describes whatever that fader actually controls.
+
+```json
+{"fader": 0, "sink": "sink-music", "min": 0, "max": 100, "label": "Music"}
+```
+
+`label` is optional and defaults to the sink name — worth setting, since real
+sink names (`alsa_output.pci-0000_00_1f.3.analog-stereo`) do not fit a 128 px
+screen.
+
+### Tests
+
+No hardware needed — the fader is simulated and `machine`/`utime` are stubbed:
+
+```bash
+python3 tests/run_all.py
+```
+
 ---
 
 ## Files
@@ -92,9 +149,14 @@ python host/host.py COM3              # Windows
 | File | Description |
 |------|-------------|
 | `pico/main.py` | MicroPython firmware — copy to Pico as `main.py` |
+| `pico/lib/` | Device drivers: MCP3208, buttons, SSD1306, screen layout — **upload with `main.py`** |
 | `host/host.py` | PC terminal interface (calibrated 0–100% display) |
 | `host/host_raw.py` | Raw 16-bit ADC viewer for wiring diagnostics |
+| `faders/` | Extension host — serial transport, button/mute dispatch, plugins |
+| `faders/extensions/pulse_sink.py` | Binds a fader to a PulseAudio/PipeWire sink |
+| `tests/` | Test suites — run `python3 tests/run_all.py`, no hardware required |
 | `docs/upload.md` | How to flash firmware to the Pico (Thonny + mpremote) |
 | `docs/pid_tuning.md` | How to tune the PID controller |
-| `docs/modular_design.md` | Future modular expansion plan (RP2040-Zero modules) |
+| `docs/firmware.md` | 4-fader firmware — protocol, buttons, mute, displays |
 | `docs/pcb_design.md` | 4-fader PCB design — ADC choice, TB6612FNG, BOM |
+| `docs/modular_design.md` | Future modular expansion plan (RP2040-Zero modules) |

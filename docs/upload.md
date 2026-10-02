@@ -3,6 +3,11 @@
 The Pico runs MicroPython. `pico/main.py` must be copied to the device as
 `main.py` so it runs on boot.
 
+**The `pico/lib/` directory must be uploaded too.** `main.py` imports the
+MCP3208, button-ladder and display drivers from it. A missing or stale `lib/`
+fails at boot with an `ImportError`, not with a missing feature — so upload
+both, every time.
+
 ## Thonny (GUI, recommended for quick edits)
 
 1. Plug the Pico into USB.
@@ -15,7 +20,9 @@ The Pico runs MicroPython. `pico/main.py` must be copied to the device as
 5. In the top pane, navigate to this repo's `pico/` directory.
 6. Right-click `main.py` → **Upload to /**. The file appears in the
    bottom pane as `main.py`.
-7. Hit the red **Stop** button (or `Ctrl+F2`) to soft-reset — firmware
+7. Right-click the `lib` folder → **Upload to /**. It appears in the
+   bottom pane as `lib`, containing four `.py` files.
+8. Hit the red **Stop** button (or `Ctrl+F2`) to soft-reset — firmware
    starts. Output appears in the Shell pane.
 
 Editing in place: double-click `main.py` in the bottom pane, edit, save
@@ -29,8 +36,8 @@ Close Thonny (or disconnect) before running `host/host.py` or
 Inside the nix shell (provides `mpremote`):
 
 ```
-./pico/upload.sh        # upload + reset
-./pico/upload.sh -r     # upload + reset, then attach the REPL
+./pico/upload.sh        # upload main.py + lib/, reset
+./pico/upload.sh -r     # same, then attach the REPL
 ```
 
 Picks the first `/dev/ttyACM*` automatically; override with
@@ -40,6 +47,11 @@ Thonny first — only one program can hold the serial port.
 Raw equivalent, if you want the steps by hand:
 
 ```
+mpremote fs mkdir :lib
+mpremote fs cp pico/lib/mcp3208.py :lib/mcp3208.py
+mpremote fs cp pico/lib/buttons.py :lib/buttons.py
+mpremote fs cp pico/lib/ssd1306_spi.py :lib/ssd1306_spi.py
+mpremote fs cp pico/lib/fader_screen.py :lib/fader_screen.py
 mpremote cp pico/main.py :main.py
 mpremote reset
 ```
