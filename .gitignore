@@ -29,3 +29,7 @@ fp-info-cache
 *.kicad_pcb-bak
 *.kicad_sch-bak
 *.net
+
+# Fabrication output
+gerbers/
+*-gerbers.zip
