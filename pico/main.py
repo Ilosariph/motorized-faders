@@ -5,7 +5,7 @@ Hardware per docs/pcb_design.md:
   Faders:   4x Alps RSA0N11M9 (100 mm, 10 kOhm), wipers -> MCP3208 CH0-CH3
   ADC:      MCP3208 12-bit 8-channel SPI, VREF ratiometric with fader supply
   Drivers:  2x TB6612FNG, faders 1-2 on driver A, faders 3-4 on driver B
-  Displays: 4x SSD1306 128x64 SPI (Adafruit 938), shared SCK/MOSI/DC, own CS
+  Displays: 4x SSD1306 128x64 SPI (Adafruit 326), shared SCK/MOSI/DC, own CS
   Buttons:  resistor ladders on MCP3208 CH6 (2 general) and CH7 (4 per-fader)
   Rail:     VM divider into MCP3208 CH4, checked at boot before enabling STBY
   Motor:    9 V from a USB-C PD trigger (PD has no 10 V PDO)

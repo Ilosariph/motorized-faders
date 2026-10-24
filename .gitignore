@@ -33,3 +33,7 @@ fp-info-cache
 # Fabrication output
 gerbers/
 *-gerbers.zip
+*.3mf
+
+# Third-party CAD models, local only
+cad/*.step

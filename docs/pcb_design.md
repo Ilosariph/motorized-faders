@@ -196,11 +196,11 @@ write first on the slower bus.
 **Identifying which variant a module is:** count the pins.
 4 pins (GND/VCC/SCL/SDA) = I2C. 7 pins (GND/VCC/D0/D1/RES/DC/CS) = SPI.
 
-### Actual module: Adafruit 938 (1.3in, 8-pin)
+### Actual module: Adafruit 326 (0.96in, 8-pin, STEMMA QT revision)
 
-The displays in hand are **Adafruit 938** — 1.3in 128x64, SSD1306, with an
-onboard 3.3 V regulator and level shifters. Larger than the 0.96in this
-document originally assumed, which suits a 100 mm fader better.
+The displays in hand are **Adafruit 326** — 0.96in 128x64, SSD1306, with an
+onboard 3.3 V regulator (AP2112K) and 5 V-tolerant inputs. Board 29.21 x
+31.75 mm, M2.5 holes 24.13 x 26.67 mm centre-centre (see `cad/case.scad`).
 
 **8 pins, but only 7 are wired.** The extra pin is `3Vo`, an *output* from the
 module's regulator for powering external parts — leave it unconnected.
@@ -209,15 +209,15 @@ module's regulator for powering external parts — leave it unconnected.
 |------------|-------------|
 | Data | GP19 (SPI0 MOSI) |
 | Clk | GP18 (SPI0 SCK) |
-| A0 | GP20 (DISP_DC) — `A0` is this board's label for DC |
+| DC (A0) | GP20 (DISP_DC) — silkscreen reads both `DC` and `A0` |
 | Rst | `DISP_RES` — shared RC net, see [RC reset](#free-a-gpio-rc-reset-on-display-res) |
 | CS | GP21 / GP26 / GP27 / GP28 |
 | **3Vo** | **no connect** |
 | VIN | 5 V (see below) |
 | GND | GND |
 
-**Ships in I2C mode — cut two jumpers per board to enable SPI.** Adafruit:
-*"the default interface is now I2C, not SPI"*. Do all four before assembly
+**Ships in I2C mode — cut jumpers J1 and J2 per board to enable SPI.** The
+silkscreen: *"Bus default is I2C. For SPI open J1/J2"*. Do all four before assembly
 rather than debugging a silent display later.
 
 **Power VIN from 5 V (Pico VBUS), not 3.3 V.** Each module draws ~40 mA, so
@@ -231,10 +231,10 @@ regulator is for.
 
 Displays are panel-mounted in the case and wired back with jumpers, so the
 module never sits on the PCB. Fit an **8-pin header footprint** matching the
-Adafruit 938 pinout, with the `3Vo` position present but no-connect.
+Adafruit 326 pinout, with the `3Vo` position present but no-connect.
 
 Label the pads on silkscreen in module order
-(`Data Clk A0 Rst CS 3Vo VIN GND`) — that is what gets read with jumpers in
+(`Data Clk DC Rst CS 3Vo VIN GND`) — that is what gets read with jumpers in
 hand, so matching the module's own labels beats using generic SPI names.
 
 An 8-pin footprint still accepts a generic 7-pin SPI module or a 4-pin I2C one;
@@ -390,13 +390,13 @@ unused. CS is plain GPIO and fits there fine.
 Each device labels the same two signals differently. **Name the nets, not the
 pins**, and let each symbol attach to the net:
 
-| Net | Pico | MCP3208 (PDIP-16) | Adafruit 938 |
+| Net | Pico | MCP3208 (PDIP-16) | Adafruit 326 |
 |-----|------|-------------------|--------------|
 | `SPI_SCK` | GP18 | **CLK** (pin 13) | **Clk** |
 | `SPI_MOSI` | GP19 | **DIN** (pin 11) | **Data** |
 | `SPI_MISO` | GP16 | **DOUT** (pin 12) | — (write-only) |
 | `MCP_CS` | GP17 | **CS/SHDN** (pin 10) | — |
-| `DISP_DC` | GP20 | — | **A0** |
+| `DISP_DC` | GP20 | — | **DC** |
 
 MCP3208 DIN/DOUT are named from the *chip's* perspective: DIN is an input, so
 it receives the Pico's MOSI; DOUT drives the Pico's MISO. The display has no
@@ -540,7 +540,7 @@ RP2040 module's header end for its USB connector.
 | RP2040 module (existing) | 1 | headers | GP4/GP5 not exposed |
 | Female header, 20-pos, 2.54 mm | 2 | THT | RP2040 module |
 | Female header, 8-pos, 2.54 mm | 4 | THT | driver breakouts, 2 per TB6612FNG |
-| Adafruit 938 OLED 1.3in SSD1306 | 4 | 8-pin module | one per fader; cut jumpers for SPI |
+| Adafruit 326 OLED 0.96in SSD1306 | 4 | 8-pin module | one per fader; cut jumpers for SPI |
 
 ### Passives — 0805 throughout
 
@@ -616,7 +616,7 @@ barrel jack or fuse needed. PD boards current-limit at the source.
 3.3 V draw is negligible: TB6612FNG VCC is ~1 mA each and four faders at 3.3 V
 into 10 kΩ is ~1.3 mA total, against the Pico regulator's 300 mA.
 
-**Displays are deliberately not on the 3.3 V rail.** Four Adafruit 938 modules
+**Displays are deliberately not on the 3.3 V rail.** Four Adafruit 326 modules
 draw ~160 mA, which would consume over half that budget. They have their own
 regulators, so their VIN goes to 5 V (Pico VBUS) instead.
 
@@ -991,14 +991,10 @@ mistake, the part numbers differ by one digit.
 
 Omron B32 series key tops fit these if a printed cap does not work out.
 
-### Displays — still open
+### Displays
 
-No cheap generic SPI SSD1306 at DigiKey. Either:
-
-- **`1528-1447-ND`** (Adafruit 326), ~CHF 16 ea — 0.96in 128x64 SSD1306,
-  I2C **or** SPI selectable by cutting a jumper on the back. 4x = ~CHF 64.
-- **Generic 7-pin SPI SSD1306** from AliExpress, ~CHF 3-4 ea, 2-4 week ship.
-  These are exactly the 7-pin modules this design assumes, no jumper cutting.
+**`1528-1447-ND`** (Adafruit 326), ~CHF 16 ea — 0.96in 128x64 SSD1306,
+I2C **or** SPI selectable by cutting J1/J2 on the back. 4x = ~CHF 64.
 
 ### Sockets and headers
 
