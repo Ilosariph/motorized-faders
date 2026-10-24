@@ -4,6 +4,28 @@ This guide explains how to tune the PID controller in `pico/main.py` for the Alp
 
 ---
 
+## Automatic Tuning (start here)
+
+`host/autotune.py` does the tuning for you. It drives one fader through a fixed
+set of moves — big jumps both ways, short nudges, a breakaway from the bottom
+end stop — for each candidate gain set, scores every move on arrival time,
+overshoot, hunting (direction reversals), final error and stalls, and keeps
+whichever gains score lowest. Gains are applied live with `TUNE:`.
+
+```
+python host/autotune.py --fader 1            # ~10 min, prints the result
+python host/autotune.py --fader 1 --apply    # also writes pico/main.py
+```
+
+Close Thonny / `host.py` first (one program per serial port). Only the chosen
+fader moves; the stall guard cuts any move that jams. Re-upload after
+`--apply`. Tune one fader, then spot-check the others with the same gains —
+identical faders should not need their own.
+
+The manual procedure below is still useful for understanding what it found.
+
+---
+
 ## What the Constants Do
 
 All tuning constants live at the top of `main.py`. You do not need to reflash — edit the values and save to the Pico.
@@ -76,6 +98,57 @@ INTEGRAL_MAX = 50.0
 Clamps the integral term to prevent runaway accumulation when the fader is held back (e.g., user gripping it). Without this limit, the integral builds up while blocked, then dumps into the motor violently when released.
 
 If you see a sudden surge when releasing the fader after holding it, reduce this value.
+
+---
+
+## INTEGRAL_ZONE
+
+```python
+INTEGRAL_ZONE = 5.0  # percent
+```
+
+The integral only accumulates within this distance of the target and resets
+when the error changes sign. Integrating across a whole 100 mm move stores tens
+of percent of drive that arrives as overshoot — the 60 mm prototype hid this.
+
+---
+
+## Live Tuning: `TUNE:`
+
+Gains can be changed at runtime without reflashing:
+
+```
+TUNE:kp,ki,kd,minmove,deadband,deadband_exit
+TUNE:2.0,0,0,40          set the first four, keep the deadband
+TUNE:,,0.05              empty slot keeps the current value
+TUNE:,,,,1.5,3           widen the deadband
+TUNE:                    report current values
+```
+
+The Pico answers `DBG:tune kp=... minmove=... deadband=... exit=... loop=Nms`.
+`loop` is the control-loop period: the carriage travels speed x loop between
+reads, which bounds how narrow the deadband can be.
+
+On arrival the motor **short-brakes** (IN1 = IN2 = high) for the settle period
+instead of coasting past the target, then coasts once `IDLE` so the fader moves
+freely by hand. Values are lost on
+reset — copy the final ones into the constants at the top of `main.py`.
+
+Send them from `host/host_raw.py` (lines starting with a non-digit go through
+verbatim), together with setpoints such as `SET:20` / `SET:80`. Tune with one
+fader enabled (`FADER_ENABLED`) so a bad gain moves only one motor; the stall
+guard (see [firmware.md](firmware.md#stall-guard)) cuts a move that jams.
+
+**Breakaway ramp:** static friction at an end stop is higher than mid-travel.
+While the position is not progressing, the floor rises by
+`BREAKAWAY_RAMP_PCT_PER_MS` (0.2%/ms, so 40% → 100% in 300 ms) until the
+carriage breaks free, then drops back to `MIN_MOVE_PCT`. The floor only applies
+to output pushing toward the target — a small opposite-sign output is the D term
+braking, and flooring it would shake the fader in place.
+
+`MIN_MOVE_PCT` is part of tuning: a high floor near the target acts like
+bang-bang control and hunts on its own. Lower it until short moves just
+stop crawling.
 
 ---
 
