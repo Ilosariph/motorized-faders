@@ -201,6 +201,9 @@ class FaderHost:
 
     def run(self):
         self._ser = self._connect()
+        # Extensions register before the port opens, so whatever they sent
+        # from their constructors was dropped. Send it now.
+        self._resend_after_boot()
         self._reader = threading.Thread(target=self._reader_loop, daemon=True)
         self._writer = threading.Thread(target=self._writer_loop, daemon=True)
         self._reader.start()
@@ -290,13 +293,24 @@ class FaderHost:
         elif line.startswith("CAL:"):
             phase = "start" if "start" in line else "done"
             if phase == "done":
-                self._resend_slots()
+                self._resend_after_boot()
             self._dispatch("on_calibration", phase)
 
-    def _resend_slots(self):
-        """A rebooted Pico has blank badges; the host still knows the slots."""
+    def _resend_after_boot(self):
+        """
+        A rebooted Pico has default screens and blank badges; the host still
+        knows both.
+        """
+        # Terminate whatever partial line the Pico is holding: opening the
+        # port or a reboot leaves a fragment in its input buffer, which would
+        # otherwise swallow the first command (measured: 1 line in 8 lost).
+        self._send("")
         with self._lock:
+            display = list(self._display)
             slots = list(self._ab_slot)
+        for idx, text in enumerate(display):
+            if text is not None:
+                self._send(f"DISP:{idx + 1},{text[0]},{text[1]}")
         for idx, slot in enumerate(slots):
             if slot is not None:
                 self._send(f"SLOT:{idx + 1},{slot}")

@@ -244,6 +244,22 @@ def test_g1_held_is_not_the_swap_modifier():
     check("MUTE:1,1" in host._ser.lines(), "G1 + F1 still mutes")
 
 
+def test_sends_before_connect_are_replayed():
+    # Extensions register before run() opens the port.
+    host = FaderHost(port="/dev/null", num_faders=4)
+    host.set_display(2, "Comms", "")
+    host._ser = FakeSerial()
+    host._resend_after_boot()
+    check(host._ser.written[0] == "\n",
+          "a bare newline goes first, flushing the Pico's partial line")
+    check("DISP:3,Comms," in host._ser.lines(),
+          f"pre-connect display text sent on connect (got {host._ser.lines()})")
+
+    host._ser.written.clear()
+    host._handle_line("CAL:done")
+    check("DISP:3,Comms," in host._ser.lines(), "and again after a reboot")
+
+
 def test_unknown_button_is_ignored():
     host, ext = make_host()
     for bad in ("BTN:", "BTN:F9", "BTN:F0", "BTN:X1", "BTN:FX"):
@@ -507,6 +523,7 @@ def main():
         test_g2_held_fader_button_swaps_ab,
         test_ab_swap_ignored_while_muted,
         test_g1_held_is_not_the_swap_modifier,
+        test_sends_before_connect_are_replayed,
         test_unknown_button_is_ignored,
         test_mute_confirmation_is_idempotent,
         test_set_mute_guards_loopback,
