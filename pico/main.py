@@ -55,8 +55,11 @@ from lib.ssd1306_spi import SSD1306_SPI
 # ---------------------------------------------------------------------------
 # PID tuning constants — adjust these to tune your faders
 # ---------------------------------------------------------------------------
-KP = 3.5          # Proportional gain — main driving force
-KI = 1.5          # Integral gain — corrects steady-state error
+# Hand-tuned on the rig with step tests (9 V rail). Earlier autotune runs
+# were measured while display redraws stalled the loop, which forced timid
+# gains; with redraws skipped mid-move the plant takes far more.
+KP = 6.0          # Proportional gain — main driving force
+KI = 0.0          # Integral gain — corrects steady-state error
 KD = 0.05         # Derivative gain — damping, reduces overshoot
 
 # Widened from 0.2/0.5 for the 100 mm fader: at the power needed to break
@@ -101,7 +104,7 @@ BREAKAWAY_RAMP_PCT_PER_MS = 0.2
 # moves brisk. Set to 0 to disable.
 # Raised from 30.0 for the 9 V motor rail: USB PD has no 10 V PDO, so the
 # motors run 10% under their rated voltage (docs/pcb_design.md).
-MIN_MOVE_PCT = 35.0
+MIN_MOVE_PCT = 38.0
 
 # Calibration sweep power, likewise raised for 9 V (was 60 at 10 V).
 CAL_MOTOR_POWER = 70
@@ -834,8 +837,16 @@ def main():
 
         # Displays: redraw on change only. draw() is a no-op when nothing
         # changed, and the rate limit bounds how often that check can cost a
-        # full 1 KB frame write mid-move.
-        if ticks_diff(now, last_display_poll) >= DISPLAY_POLL_MS:
+        # full 1 KB frame write.
+        #
+        # Never while a fader is MOVING: the pure-Python framebuffer blocks
+        # the loop for tens of ms per frame, and the motor runs blind at its
+        # last output meanwhile — that alone made moves overshoot into the
+        # end stops and hunt. The bar catches up once the move settles.
+        moving = any(
+            fader is not None and fader.state == "MOVING" for fader in faders
+        )
+        if not moving and ticks_diff(now, last_display_poll) >= DISPLAY_POLL_MS:
             last_display_poll = now
             for idx, screen in enumerate(screens):
                 if screen is None:
