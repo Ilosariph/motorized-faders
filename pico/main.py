@@ -35,6 +35,10 @@ Serial protocol (115200 baud, USB). All lines newline-terminated:
     DISP:idx,line1,line2     display text for fader idx (1-based). Content is
                              whatever the active host plugin wants to show.
     SLOT:idx,A|B             A/B slot badge for fader idx; empty clears it.
+    CREASES:idx,pos:power:ms,...
+                             haptic detents for fader idx: a pulse of
+                             `power` % for `ms` against the hand as it drags
+                             across `pos`. No entries clears them.
     TUNE:kp,ki,kd,minmove,deadband,deadband_exit
                              live PID gains, empty slot keeps the value;
                              echoed as DBG:tune ..., lost on reset.
@@ -134,6 +138,29 @@ REPORT_DELTA = 0.2
 # little above true zero and the zone has to clear that.
 MUTE_PARK_ZONE_PCT = 3.0
 
+# Virtual creases: while IDLE the motor is off, so any movement is the user's
+# hand. Crossing a crease position fires a short pulse against that motion —
+# a bump to feel, never a pull toward the crease.
+#
+# The anchor only moves once the fader is CREASE_HYST_PCT away from it, so
+# ADC flicker while resting on a crease never reads as a crossing. The pulse
+# itself shoves the fader back over the crease; re-crossing that same crease
+# within CREASE_REFRACTORY_MS of the pulse ending is ignored, or it would
+# buzz. Other creases stay live, so a fast drag feels every one.
+CREASE_HYST_PCT = 0.8
+CREASE_REFRACTORY_MS = 120
+
+# Pulses scale with drag speed: a slow, careful adjustment gets a light tap,
+# a fast flick the full bump. Full strength at CREASE_FULL_SPEED %/s. Power
+# scales down to CREASE_MIN_POWER, which still beats stiction; length only
+# to CREASE_MIN_LENGTH_SCALE of full, since pulses must stay short enough
+# not to run into the next crease on a fast drag.
+CREASE_FULL_SPEED = 150.0
+CREASE_MIN_POWER = 40.0
+CREASE_MIN_LENGTH_SCALE = 0.9
+CREASE_MIN_MS = 4
+MAX_CREASES = 24
+
 # ---------------------------------------------------------------------------
 # Motor / hardware constants
 # ---------------------------------------------------------------------------
@@ -209,8 +236,8 @@ DISPLAY_POLL_MS = 100  # rate limit for redraws, which still only run on change
 # The SSD1306's RC reset needs ~5 ms to release before the first command.
 DISPLAY_RESET_MS = 10
 
-# Serial input. Long lines (e.g. a CREASES: layout) run well past 128 chars,
-# so the line limit has room to spare.
+# Serial input. A CREASES: line with a crease every 10% of a 0-150 sink runs
+# ~170 chars, so the line limit has to clear that with room to spare.
 INPUT_CHARS_PER_LOOP = 512
 INPUT_LINE_MAX = 512
 
@@ -302,6 +329,15 @@ class FaderPID:
         # again re-mutes from wherever they left it.
         self.muted = False
         self.unmute_position = 50.0
+
+        # Virtual creases: (position, power %, ms) sorted by position.
+        self.creases = ()
+        self._crease_anchor = None  # None until the first IDLE read
+        self._crease_anchor_time = 0  # when the anchor last moved, for speed
+        self._nudge_start = ticks_ms()
+        self._nudge_ms = -CREASE_REFRACTORY_MS  # no pulse pending at boot
+        self._nudge_power = 0.0
+        self._nudge_crease = None  # crease the last pulse fired for
 
         # Stall guard state. `stalled` is set when a move is abandoned and
         # cleared by the main loop once it has reported it.
@@ -428,6 +464,7 @@ class FaderPID:
                 and abs(position - self.unmute_position) >= DEADBAND_EXIT
             ):
                 self.unmute_position = position
+            self._update_creases(position, now)
             return position
 
         error = self.setpoint - position
@@ -500,6 +537,60 @@ class FaderPID:
         self.motor.drive(output)
         return position
 
+    @property
+    def nudging(self):
+        """A crease pulse is running. Its length is the bump's strength."""
+        return ticks_diff(ticks_ms(), self._nudge_start) < self._nudge_ms
+
+    def set_creases(self, creases):
+        self.creases = tuple(sorted(creases)[:MAX_CREASES])
+        self._crease_anchor = None
+
+    def _update_creases(self, position, now):
+        """IDLE only: fire a pulse when the hand drags across a crease."""
+        since = ticks_diff(now, self._nudge_start)
+        if since < self._nudge_ms:
+            return  # pulse running; it was started with motor.drive()
+        if self._nudge_power:
+            self.motor.stop()
+            self._nudge_power = 0.0
+
+        anchor = self._crease_anchor
+        if anchor is None:
+            self._crease_anchor = position
+            self._crease_anchor_time = now
+            return
+        if abs(position - anchor) < CREASE_HYST_PCT:
+            return
+        elapsed = ticks_diff(now, self._crease_anchor_time)
+        self._crease_anchor = position
+        self._crease_anchor_time = now
+        if not self.creases:
+            return
+        refractory = since < self._nudge_ms + CREASE_REFRACTORY_MS
+
+        # Walk toward the hand's motion, so a step that spans two creases
+        # fires the one met first.
+        motion = 1 if position > anchor else -1
+        order = self.creases if motion > 0 else reversed(self.creases)
+        for crease, power, ms in order:
+            # Side test, not a sign-change product: a reading exactly on the
+            # crease would make the product 0 and hide the crossing.
+            if (anchor < crease) == (position < crease):
+                continue
+            if refractory and crease == self._nudge_crease:
+                continue  # the last pulse knocking the fader back over it
+            speed = abs(position - anchor) * 1000.0 / max(1, elapsed)
+            scale = min(1.0, speed / CREASE_FULL_SPEED)
+            self._nudge_power = -motion * max(
+                min(power, CREASE_MIN_POWER), power * scale)
+            self._nudge_start = now
+            self._nudge_ms = max(
+                CREASE_MIN_MS, int(ms * max(CREASE_MIN_LENGTH_SCALE, scale)))
+            self._nudge_crease = crease
+            self.motor.drive(self._nudge_power)
+            return
+
     def _abandon(self, position):
         """Give up on the current move: motor off, IDLE, flag for reporting."""
         self.motor.stop()
@@ -519,6 +610,11 @@ class FaderPID:
 
     def engage(self, setpoint):
         """Set new target and arm the motor (state -> MOVING)."""
+        # A commanded move is not the hand: re-anchor once it is IDLE again,
+        # and drop any pulse so the PID owns the motor from the first update.
+        self._crease_anchor = None
+        self._nudge_ms = -CREASE_REFRACTORY_MS
+        self._nudge_power = 0.0
         self.setpoint = max(0.0, min(100.0, setpoint))
         self.integral = 0.0
         self.last_error = 0.0
@@ -606,6 +702,8 @@ def _handle_command(line, faders, screens):
             _handle_disp(line[5:], screens)
         elif line.startswith("SLOT:"):
             _handle_slot(line[5:], screens)
+        elif line.startswith("CREASES:"):
+            _handle_creases(line[8:], faders)
         elif line.startswith("TUNE:"):
             _handle_tune(line[5:], faders)
     except (ValueError, IndexError) as e:
@@ -659,6 +757,22 @@ def _handle_slot(payload, screens):
     idx = _parse_index(parts[0])
     if screens[idx] is not None:
         screens[idx].set_slot(parts[1].strip() if len(parts) > 1 else "")
+
+
+def _handle_creases(payload, faders):
+    parts = payload.split(",")
+    idx = _parse_index(parts[0])
+    creases = []
+    for entry in parts[1:]:
+        if not entry.strip():
+            continue
+        pos, power, ms = entry.split(":")
+        pos, power, ms = float(pos), float(power), int(ms)
+        if not (0 <= pos <= 100 and 0 < power <= 100 and 0 < ms <= 200):
+            raise ValueError("crease out of range")
+        creases.append((pos, power, ms))
+    if faders[idx] is not None:
+        faders[idx].set_creases(creases)
 
 
 def _handle_tune(payload, faders):
@@ -861,8 +975,11 @@ def main():
         # the loop for tens of ms per frame, and the motor runs blind at its
         # last output meanwhile — that alone made moves overshoot into the
         # end stops and hunt. The bar catches up once the move settles.
+        # Crease pulses too: a stall mid-pulse stretches it, and the bump's
+        # strength is its length.
         moving = any(
-            fader is not None and fader.state == "MOVING" for fader in faders
+            fader is not None and (fader.state == "MOVING" or fader.nudging)
+            for fader in faders
         )
         if not moving and ticks_diff(now, last_display_poll) >= DISPLAY_POLL_MS:
             last_display_poll = now

@@ -6,6 +6,9 @@ Binds one fader to one sink:
   - sink volume change (pavu)  -> `host.set_fader(idx, NN)` to move the motor
   - fader button (mute)        -> `pactl set-sink-mute <sink> 0|1`
   - sink mute change (pavu)    -> `host.set_mute(idx, muted)`
+  - haptic creases             -> every 25% of sink volume, stronger at
+                                  100% on a sink that goes past it (where
+                                  boost begins)
 
 It also owns what the fader's display shows: the sink name on line 1 and the
 live volume on line 2. That is the point of pushing display text from the host
@@ -21,6 +24,8 @@ Config entry shape (faders/config.json):
 `min`/`max` are the sink-volume bounds (percent). Fader 0% maps to `min`,
 fader 100% maps to `max`. Useful for taming a fader to e.g. 0-80% so you
 can't accidentally pin a sink to clipping.
+
+`creases` (default true) turns the detents off when false.
 
 `label` is optional display text; it defaults to the sink name. Sink names are
 often long (`alsa_output.pci-0000_00_1f.3.analog-stereo`), which does not fit a
@@ -48,6 +53,13 @@ WRITE_MIN_INTERVAL_S = 0.03
 # back. Ignore subscribe events for this many seconds after each write.
 SELF_ECHO_WINDOW_S = 0.25
 
+# Creases, in sink-volume %: (power %, pulse ms) at full strength. The Pico
+# scales both down for a slow drag. Strength is mostly pulse length; the
+# power just has to beat the fader's stiction.
+CREASE_STEP = 25
+CREASE_NORMAL = (55.0, 10)   # every 25%
+CREASE_BIG = (70.0, 18)      # 100%, only when the sink can go past it
+
 # pactl subscribe event line. Example:
 #   Event 'change' on sink #42
 _EVENT_RE = re.compile(r"Event '(?P<ev>\w+)' on sink #(?P<idx>\d+)")
@@ -65,12 +77,14 @@ def register(host, cfg):
         vol_min=float(cfg.get("min", 0)),
         vol_max=float(cfg.get("max", 100)),
         label=cfg.get("label"),
+        creases=bool(cfg.get("creases", True)),
     )
     host.register(ext)
 
 
 class PulseSinkExtension(Extension):
-    def __init__(self, host, fader_idx, sink, vol_min, vol_max, label=None):
+    def __init__(self, host, fader_idx, sink, vol_min, vol_max, label=None,
+                 creases=True):
         self.host = host
         self.fader_idx = fader_idx
         self.sink = sink
@@ -102,6 +116,9 @@ class PulseSinkExtension(Extension):
         else:
             self._push_display(None)
 
+        if creases:
+            host.set_creases(fader_idx, self.crease_layout())
+
         # Seed mute state the same way, so a sink muted before startup shows
         # as muted rather than being discovered on the first button press.
         muted = self._read_sink_mute()
@@ -126,6 +143,22 @@ class PulseSinkExtension(Extension):
             return 0.0
         raw = (sink_pct - self.vol_min) / span * 100.0
         return max(0.0, min(100.0, raw))
+
+    def crease_layout(self):
+        """
+        (fader %, power, ms) for each crease. Positions are in sink volume,
+        so they line up with the volume the display shows; the travel ends
+        are end stops already and get none.
+        """
+        layout = []
+        first = (int(self.vol_min) // CREASE_STEP + 1) * CREASE_STEP
+        for vol in range(first, int(self.vol_max), CREASE_STEP):
+            if vol == 100:
+                power, ms = CREASE_BIG
+            else:
+                power, ms = CREASE_NORMAL
+            layout.append((self._sink_to_fader(vol), power, ms))
+        return layout
 
     # ----- fader -> sink ---------------------------------------------------
 

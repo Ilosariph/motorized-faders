@@ -52,6 +52,7 @@ prefix ignores it.
 | `MUTE:idx,0\|1` | Mute/unmute fader `idx` (1-based) |
 | `DISP:idx,line1,line2` | Display text for fader `idx` (1-based) |
 | `SLOT:idx,A\|B` | A/B slot badge for fader `idx`; empty clears it |
+| `CREASES:idx,pos:power:ms,...` | Haptic detents for fader `idx`, see below. No entries clears |
 | `TUNE:kp,ki,kd,minmove,deadband,deadband_exit` | Live PID gains, empty slot keeps value, echoed as `DBG:tune ... loop=Nms`, lost on reset. See [pid_tuning.md](pid_tuning.md) |
 
 Only these prefixes are parsed as input. Everything else on stdin is
@@ -60,6 +61,36 @@ CDC loopback.
 
 `DISP:` splits on the first two commas only, so `line2` may contain commas.
 The host strips commas and newlines anyway (`faders/core.py::_sanitize`).
+
+---
+
+## Virtual creases
+
+Haptic detents with no touch sensor. While a fader is `IDLE` the motor is off,
+so any movement is the user's hand; crossing a crease fires one short pulse
+of `power` % for `ms` against that motion. A bump to feel, never a pull
+toward the crease, and nothing happens during a commanded move.
+
+- The crossing test runs on an anchor that only moves once the fader is
+  `CREASE_HYST_PCT` (0.8%) away, so ADC flicker while resting on a crease
+  never fires.
+- Pulses scale with drag speed: full strength at `CREASE_FULL_SPEED`
+  (150 %/s) and above. Power scales down to `CREASE_MIN_POWER` (40%) for a
+  slow drag; length only to `CREASE_MIN_LENGTH_SCALE` (90%), since pulses
+  must stay short enough not to run into the next crease on a fast drag.
+- The pulse shoves the fader back over the crease; re-crossing that same
+  crease within `CREASE_REFRACTORY_MS` (120 ms) of the pulse ending is
+  ignored, or it buzzes. Other creases stay live during that window.
+- Display redraws are skipped while a pulse runs: a stalled loop would
+  stretch the pulse, and its length is the bump's strength.
+- The Pico forgets creases on reboot. `FaderHost.set_creases()` caches them
+  and replays them on connect and after every `CAL:done`.
+
+`pulse_sink` places them in sink-volume terms: every 25%, stronger at
+100% on a sink whose `max` goes past it (on 0-150,
+that is 66.7% of travel). `"creases": false` in its config entry turns them
+off. Strengths are `CREASE_NORMAL` / `CREASE_BIG` in
+`faders/extensions/pulse_sink.py`.
 
 ---
 

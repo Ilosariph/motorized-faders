@@ -844,6 +844,128 @@ def test_rail_divider_values_match_doc():
 # Display gating
 # ---------------------------------------------------------------------------
 
+def test_creases_pulse_against_a_hand_drag():
+    print("Creases")
+    rig = Rig()
+    rig.calibrate_all()
+    fader, motor, sim = rig.faders[0], rig.motors[0], rig.sims[0]
+    fader.set_creases([(50.0, 50.0, 20)])
+
+    def drag(path):
+        """Move the fader by 'hand' along path, one 5 ms tick per point.
+        Returns the drive direction seen each tick: +1 up, -1 down, 0 off."""
+        seen = []
+        for p in path:
+            sim.position = p
+            rig.tick(5)
+            seen.append(motor.in1.value() - motor.in2.value()
+                        if motor.pwm.duty_u16() else 0)
+        return seen
+
+    def pulses(seen):
+        """Count runs of non-zero drive and their directions."""
+        runs, last = [], 0
+        for d in seen:
+            if d and d != last:
+                runs.append(d)
+            last = d
+        return runs
+
+    drag([40.0] * 10)
+    up = drag([40.0 + i * 0.5 for i in range(41)] + [60.0] * 20)
+    check(pulses(up) == [-1], f"dragging up across 50 pushes down once (got {pulses(up)})")
+    on = sum(1 for d in up if d)
+    check(3 <= on <= 5, f"pulse lasts ~20 ms (got {on * 5} ms)")
+    check(fader.state == "IDLE", "a crease pulse does not engage the PID")
+
+    down = drag([60.0 - i * 0.5 for i in range(41)] + [40.0] * 20)
+    check(pulses(down) == [1], f"dragging down across 50 pushes up once (got {pulses(down)})")
+
+    # Resting on the crease with ADC flicker must never buzz.
+    drag([50.0] * 10)
+    rest = drag([50.0 + (0.3 if i % 2 else -0.3) for i in range(100)])
+    check(pulses(rest) == [], f"flicker on a crease fires nothing (got {pulses(rest)})")
+
+    # The pulse knocking the fader back over the crease must not re-fire.
+    drag([40.0] * 60)  # the jump from 50 crosses too; wait out its refractory
+    bounce = drag([40.0 + i for i in range(12)] + [49.0, 51.0, 49.0, 51.0] + [55.0] * 30)
+    check(pulses(bounce) == [-1], f"bounce inside the refractory window is ignored (got {pulses(bounce)})")
+
+    # A commanded move crosses creases without pulses getting in the way.
+    fader.engage(30.0)
+    rig.run_for(3000)
+    check(abs(fader.read_position() - 30.0) <= 2.5,
+          f"PID move still lands with creases set (got {fader.read_position():.1f})")
+    check(fader.state == "IDLE", "and releases")
+    still = drag([fader.read_position()] * 40)
+    check(pulses(still) == [], "no stray pulse when the move hands back to IDLE")
+
+    # Speed scaling: a flick gets the full pulse, a slow drag a lighter one.
+    fader.set_creases([(50.0, 80.0, 40)])
+
+    def pulse(path):
+        """(ms, peak duty) of the pulse a drag along path fires."""
+        drag([path[0]] * 60)
+        ms, peak = 0, 0
+        for p in path + [path[-1]] * 30:
+            sim.position = p
+            rig.tick(5)
+            duty = motor.pwm.duty_u16()
+            if duty:
+                ms += 5
+                peak = max(peak, duty)
+        return ms, peak
+
+    fast_ms, fast_duty = pulse([40.0 + i * 2.0 for i in range(11)])   # 400 %/s
+    slow_ms, slow_duty = pulse([45.0 + i * 0.05 for i in range(201)])  # 10 %/s
+    check(35 <= fast_ms <= 45, f"fast drag: full 40 ms pulse (got {fast_ms} ms)")
+    check(30 <= slow_ms <= 40, f"slow drag: length barely shrinks (got {slow_ms} ms)")
+    full = int(0.8 * fw_pwm_max(rig))
+    check(abs(fast_duty - full) <= 1, f"fast drag: full power (got {fast_duty}, want {full})")
+    check(slow_duty < 0.6 * fast_duty,
+          f"slow drag: much lighter pulse (got {slow_duty} vs {fast_duty})")
+
+    # Two creases close together: a fast drag feels both, not just the first.
+    fader.set_creases([(50.0, 60.0, 10), (54.0, 60.0, 10)])
+    drag([40.0] * 60)
+    both = drag([40.0 + i * 2.0 for i in range(11)] + [60.0] * 30)
+    check(pulses(both) == [-1, -1],
+          f"fast drag across two close creases fires both (got {pulses(both)})")
+
+    fader.set_creases([])
+    none = drag([40.0 + i * 0.5 for i in range(41)])
+    check(pulses(none) == [], "cleared creases fire nothing")
+
+
+def fw_pwm_max(rig):
+    return rig.fw.PWM_MAX
+
+
+def test_creases_command():
+    rig = Rig()
+    fw = rig.fw
+    screens = [None] * fw.NUM_FADERS
+    fw._handle_command("CREASES:2,66.7:80:40,10:45:12", rig.faders, screens)
+    check(rig.faders[1].creases == ((10.0, 45.0, 12), (66.7, 80.0, 40)),
+          f"CREASES parsed and sorted (got {rig.faders[1].creases})")
+    check(rig.faders[0].creases == (), "other faders untouched")
+    fw._handle_command("CREASES:2", rig.faders, screens)
+    check(rig.faders[1].creases == (), "CREASES with no entries clears")
+
+    out = []
+    original = fw._emit
+    fw._emit = out.append
+    try:
+        for bad in ("CREASES:2,50:0:10", "CREASES:2,50:50:999", "CREASES:2,150:50:10",
+                    "CREASES:2,50:50", "CREASES:9,50:50:10"):
+            fw._handle_command(bad, rig.faders, screens)
+    finally:
+        fw._emit = original
+    check(len(out) == 5 and all(l.startswith("DBG:") for l in out),
+          f"bad CREASES lines are parse errors, not crashes (got {out})")
+    check(rig.faders[1].creases == (), "a rejected line changes nothing")
+
+
 def test_slot_command():
     print("Protocol: SLOT")
     rig = Rig()
@@ -994,6 +1116,8 @@ def main():
         test_simultaneous_press_reads_lowest,
         test_vm_rail_check,
         test_rail_divider_values_match_doc,
+        test_creases_pulse_against_a_hand_drag,
+        test_creases_command,
         test_slot_command,
         test_muted_screen_shows_restore_position,
         test_display_redraws_only_on_change,

@@ -244,20 +244,36 @@ def test_g1_held_is_not_the_swap_modifier():
     check("MUTE:1,1" in host._ser.lines(), "G1 + F1 still mutes")
 
 
+def test_creases_sent_and_replayed():
+    print("Creases")
+    host, ext = make_host()
+    host.set_creases(1, [(66.666, 80, 40), (10, 45, 12)])
+    check(host._ser.lines() == ["CREASES:2,66.7:80:40,10.0:45:12"],
+          f"set_creases sends one CREASES: line (got {host._ser.lines()})")
+
+    host.set_display(0, "Music", "vol 50%")
+    host._ser.written.clear()
+    host._handle_line("CAL:done")
+    sent = host._ser.lines()
+    check("CREASES:2,66.7:80:40,10.0:45:12" in sent, "creases replayed after reboot")
+    check("DISP:1,Music,vol 50%" in sent, "display text replayed after reboot")
+
+    host.set_creases(1, [])
+    check(host._ser.lines()[-1] == "CREASES:2", "empty list clears")
+
+
 def test_sends_before_connect_are_replayed():
     # Extensions register before run() opens the port.
     host = FaderHost(port="/dev/null", num_faders=4)
     host.set_display(2, "Comms", "")
+    host.set_creases(2, [(50, 45, 12)])
     host._ser = FakeSerial()
     host._resend_after_boot()
     check(host._ser.written[0] == "\n",
           "a bare newline goes first, flushing the Pico's partial line")
-    check("DISP:3,Comms," in host._ser.lines(),
-          f"pre-connect display text sent on connect (got {host._ser.lines()})")
-
-    host._ser.written.clear()
-    host._handle_line("CAL:done")
-    check("DISP:3,Comms," in host._ser.lines(), "and again after a reboot")
+    sent = host._ser.lines()
+    check("DISP:3,Comms," in sent and "CREASES:3,50.0:45:12" in sent,
+          f"pre-connect display and creases sent on connect (got {sent})")
 
 
 def test_unknown_button_is_ignored():
@@ -414,6 +430,21 @@ def test_pulse_sink_display_and_mute():
         ps.register(host, {"fader": 0, "sink": "sink-music", "label": "Music"})
         ext = host._extensions[-1]
 
+        layout = host._creases[0]
+        check([round(p) for p, _, _ in layout] == [25, 50, 75],
+              f"0-100 sink: creases every 25% (got {[round(p, 1) for p, _, _ in layout]})")
+        check(all(c[1:] == ps.CREASE_NORMAL for c in layout),
+              "no boost crease on a sink that stops at 100%")
+
+        boost = ps.PulseSinkExtension.__new__(ps.PulseSinkExtension)
+        boost.vol_min, boost.vol_max = 0.0, 150.0
+        layout = boost.crease_layout()
+        check([round(p, 1) for p, _, _ in layout] == [16.7, 33.3, 50.0, 66.7, 83.3],
+              f"0-150 sink: volume 25..125 in steps of 25 (got {[round(p, 1) for p, _, _ in layout]})")
+        big = [p for p, w, ms in layout if (w, ms) == ps.CREASE_BIG]
+        check(len(big) == 1 and abs(big[0] - 66.67) < 0.1,
+              f"0-150 sink: big crease where 100% volume sits (got {big})")
+
         sent = host._ser.lines()
         check(any(ln.startswith("DISP:1,Music,vol 69%") for ln in sent),
               f"sink label and volume pushed to the display (got {sent})")
@@ -523,6 +554,7 @@ def main():
         test_g2_held_fader_button_swaps_ab,
         test_ab_swap_ignored_while_muted,
         test_g1_held_is_not_the_swap_modifier,
+        test_creases_sent_and_replayed,
         test_sends_before_connect_are_replayed,
         test_unknown_button_is_ignored,
         test_mute_confirmation_is_idempotent,

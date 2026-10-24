@@ -14,11 +14,13 @@ Talks the Pico protocol from `pico/main.py`:
                    MUTE:idx,0|1       (mute/unmute a fader)
                    DISP:idx,l1,l2     (display text for a fader)
                    SLOT:idx,A|B       (A/B slot badge, empty clears)
+                   CREASES:idx,pos:power:ms,...  (haptic detents)
 
 Extensions subclass `Extension`. The host calls `on_position(idx, value)` when a
 fader physically moves (touched by a human). Extensions call
 `host.set_fader(idx, value)` to drive the motor, `host.set_mute(idx, muted)` to
-mute it, and `host.set_display(idx, line1, line2)` to label its screen.
+mute it, `host.set_display(idx, line1, line2)` to label its screen, and
+`host.set_creases(idx, creases)` to give it haptic detents.
 
 Button meaning lives here, not in firmware. The Pico reports which button was
 pressed and released and nothing more; `_handle_button` maps that to an
@@ -127,6 +129,8 @@ class FaderHost:
         # Slot the fader is in now, shown as a badge on its screen. None until
         # the first swap; that swap leaves A stored and the fader in B.
         self._ab_slot = [None] * num_faders
+        # Crease layout per fader, kept so it can be replayed after a reboot.
+        self._creases = [None] * num_faders
         # VM rail check result, None until the Pico reports it.
         self.rail_ok = None
         self.rail_volts = None
@@ -198,6 +202,23 @@ class FaderHost:
                 return  # unchanged — the Pico redraws on change only
             self._display[idx] = (line1, line2)
         self._send(f"DISP:{idx + 1},{line1},{line2}")
+
+    def set_creases(self, idx, creases):
+        """
+        Haptic detents: `creases` is a list of (position %, power %, ms).
+        Dragging the fader by hand across a position fires a pulse of that
+        power and length against the hand. An empty list clears them.
+        """
+        if not 0 <= idx < self.num_faders:
+            return
+        creases = [(float(p), float(w), int(ms)) for p, w, ms in creases]
+        with self._lock:
+            self._creases[idx] = creases
+        self._send_creases(idx, creases)
+
+    def _send_creases(self, idx, creases):
+        entries = "".join(f",{p:.1f}:{w:.0f}:{ms}" for p, w, ms in creases)
+        self._send(f"CREASES:{idx + 1}{entries}")
 
     def run(self):
         self._ser = self._connect()
@@ -298,8 +319,8 @@ class FaderHost:
 
     def _resend_after_boot(self):
         """
-        A rebooted Pico has default screens and blank badges; the host still
-        knows both.
+        A rebooted Pico has default screens, blank badges and no creases;
+        the host still knows all three.
         """
         # Terminate whatever partial line the Pico is holding: opening the
         # port or a reboot leaves a fragment in its input buffer, which would
@@ -308,12 +329,16 @@ class FaderHost:
         with self._lock:
             display = list(self._display)
             slots = list(self._ab_slot)
+            creases = list(self._creases)
         for idx, text in enumerate(display):
             if text is not None:
                 self._send(f"DISP:{idx + 1},{text[0]},{text[1]}")
         for idx, slot in enumerate(slots):
             if slot is not None:
                 self._send(f"SLOT:{idx + 1},{slot}")
+        for idx, layout in enumerate(creases):
+            if layout is not None:
+                self._send_creases(idx, layout)
 
     def _handle_pos(self, payload):
         parts = payload.split(",")
