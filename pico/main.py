@@ -20,6 +20,7 @@ Serial protocol (115200 baud, USB). All lines newline-terminated:
     RAW:r1,r2,r3,r4          raw ADC 0-65535, diagnostics, sent while engaged
     STATE:idx,IDLE|MOVING|SETTLING       idx is 1-based
     BTN:F1..F4|G1|G2         button press edge; the host assigns meaning
+    BTNUP:F1..F4|G1|G2       button release edge, for hold combos
     MUTE:idx,0|1             mute state confirmation, idx is 1-based
     RAIL:ok,<volts> | RAIL:fail,<volts>  VM check result at boot
     CAL:start | CAL:done
@@ -37,9 +38,9 @@ Serial protocol (115200 baud, USB). All lines newline-terminated:
                              live PID gains, empty slot keeps the value;
                              echoed as DBG:tune ..., lost on reset.
 
-Buttons report presses only — the firmware assigns them no function. The host
-decides what a press means, which is what makes a future layer-switch button
-a host-side config change rather than a firmware change.
+Buttons report press and release edges only — the firmware assigns them no
+function. The host decides what a press means, which is what makes a future
+layer-switch button a host-side config change rather than a firmware change.
 """
 
 import sys
@@ -805,6 +806,8 @@ def main():
             last_button_poll = now
             for ladder in (fader_buttons, general_buttons):
                 pressed = ladder.poll()
+                if ladder.released is not None:
+                    _emit("BTNUP:{}".format(ladder.released))
                 if pressed is not None:
                     _emit("BTN:{}".format(pressed))
 

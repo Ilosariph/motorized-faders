@@ -771,6 +771,29 @@ def test_button_ladder_decode():
                   f"{name} still decodes with {error:+.0%} level error")
 
 
+def test_button_release_edge():
+    sys.path.insert(0, str(pathlib.Path(__file__).resolve().parent.parent / "pico"))
+    from lib.buttons import DEBOUNCE_SAMPLES, GENERAL_LADDER, ButtonLadder, R_TOP
+    level = [4095]
+    ladder = ButtonLadder(lambda: level[0], GENERAL_LADDER, 4095)
+
+    def hold(series_r):
+        level[0] = int(series_r / (R_TOP + series_r) * 4095) if series_r is not None else 4095
+        seen = []
+        for _ in range(DEBOUNCE_SAMPLES + 3):
+            pressed = ladder.poll()
+            seen.append((pressed, ladder.released))
+        return [p for p, _ in seen if p], [r for _, r in seen if r]
+
+    check(hold(4700.0) == (["G2"], []), "G2 press reports no release")
+    check(hold(4700.0) == ([], []), "held G2 reports nothing further")
+    check(hold(None) == ([], ["G2"]), "letting go reports G2 released, once")
+    check(hold(None) == ([], []), "idle reports no release")
+    hold(4700.0)
+    check(hold(0.0) == (["G1"], ["G2"]),
+          "G2 -> G1 on one channel is a release plus a press")
+
+
 def test_simultaneous_press_reads_lowest():
     sys.path.insert(0, str(pathlib.Path(__file__).resolve().parent.parent / "pico"))
     from lib.buttons import DEBOUNCE_SAMPLES, FADER_LADDER, ButtonLadder
@@ -899,6 +922,7 @@ def main():
         test_disp_command,
         test_mute_to_absent_fader_is_safe,
         test_button_ladder_decode,
+        test_button_release_edge,
         test_simultaneous_press_reads_lowest,
         test_vm_rail_check,
         test_rail_divider_values_match_doc,

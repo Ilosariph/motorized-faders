@@ -38,8 +38,9 @@ class ButtonLadder:
     One ADC channel carrying several buttons. `poll()` returns the name of a
     button that was just pressed, or None.
 
-    Edge-triggered: a held button reports once. Release is not reported —
-    nothing in this design needs it.
+    Edge-triggered: a held button reports once. After each poll, `released`
+    names the button that poll saw let go (or None) — the host needs it for
+    hold-modifier combos such as G2 + a fader button.
     """
 
     def __init__(self, read_fn, ladder, full_scale=4095):
@@ -58,6 +59,7 @@ class ButtonLadder:
             self._bands.append((upper, name))
 
         self._held = None
+        self.released = None
         self._candidate = None
         self._candidate_count = 0
 
@@ -71,6 +73,7 @@ class ButtonLadder:
         return None
 
     def poll(self):
+        self.released = None
         reading = self._classify(self._read())
 
         if reading != self._candidate:
@@ -82,8 +85,10 @@ class ButtonLadder:
         if self._candidate_count < DEBOUNCE_SAMPLES:
             return None
 
-        # Stable reading. Report only the transition into a press.
+        # Stable reading. Report only transitions. Going straight from one
+        # button to another on the same channel is a release plus a press.
         if reading != self._held:
+            self.released = self._held
             self._held = reading
             if reading is not None:
                 return reading
