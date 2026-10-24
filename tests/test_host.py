@@ -276,6 +276,56 @@ def test_sends_before_connect_are_replayed():
           f"pre-connect display and creases sent on connect (got {sent})")
 
 
+def test_stuck_loopback_guard_is_released():
+    print("Guard watchdog")
+    import faders.core as core
+    host, ext = make_host()
+    clock = [1000.0]
+    original = core.time.monotonic
+    core.time.monotonic = lambda: clock[0]
+    try:
+        host.set_fader(0, 60.0)          # SET: lost on the wire: no STATE:
+        host._handle_line("POS:40.0,0,0,0")
+        check((0, 40.0) not in ext.positions, "guarded while the move is young")
+
+        # A real move that is still running must stay guarded.
+        host.set_fader(1, 60.0)
+        host._handle_line("STATE:2,MOVING")
+
+        clock[0] += core.GUARD_TIMEOUT_S + 0.5
+        ext.positions.clear()
+        host._handle_line("POS:42.0,45.0,0,0")
+        check((0, 42.0) in ext.positions,
+              f"guard on an IDLE fader released after timeout (got {ext.positions})")
+        check((1, 45.0) not in ext.positions,
+              "guard on a MOVING fader kept, however long")
+    finally:
+        core.time.monotonic = original
+
+
+def test_concurrent_sends_stay_whole_lines():
+    import threading, time as _time
+
+    class SlowSerial(FakeSerial):
+        def write(self, data):
+            # Split each write so an unlocked interleave would show.
+            text = data.decode("ascii")
+            half = len(text) // 2
+            self.written.append(text[:half])
+            _time.sleep(0.0005)
+            self.written.append(text[half:])
+
+    host, ext = make_host()
+    host._ser = SlowSerial()
+    lines = [f"DISP:{i % 4 + 1},thread {t},line {i}" for t in range(4) for i in range(25)]
+    threads = [threading.Thread(target=lambda t=t: [host._send(l) for l in lines if f"thread {t}," in l])
+               for t in range(4)]
+    for th in threads: th.start()
+    for th in threads: th.join()
+    check(sorted(host._ser.lines()) == sorted(lines),
+          "lines from concurrent threads never interleave")
+
+
 def test_unknown_button_is_ignored():
     host, ext = make_host()
     for bad in ("BTN:", "BTN:F9", "BTN:F0", "BTN:X1", "BTN:FX"):
@@ -556,6 +606,8 @@ def main():
         test_g1_held_is_not_the_swap_modifier,
         test_creases_sent_and_replayed,
         test_sends_before_connect_are_replayed,
+        test_stuck_loopback_guard_is_released,
+        test_concurrent_sends_stay_whole_lines,
         test_unknown_button_is_ignored,
         test_mute_confirmation_is_idempotent,
         test_set_mute_guards_loopback,

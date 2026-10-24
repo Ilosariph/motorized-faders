@@ -10,6 +10,7 @@ mentioned in the config file via their `register(host, instance_cfg)` hook.
 
 import argparse
 import importlib
+import logging
 import pkgutil
 import sys
 from pathlib import Path
@@ -37,7 +38,15 @@ def main(argv=None):
     parser.add_argument("--config", default=str(default_config))
     parser.add_argument("--port", default=None,
                         help="Override serial port (else auto-detect by USB VID)")
+    parser.add_argument("-v", "--verbose", action="store_true",
+                        help="Log every volume write, SET: and state edge")
     args = parser.parse_args(argv)
+
+    logging.basicConfig(
+        level=logging.DEBUG if args.verbose else logging.INFO,
+        format="%(asctime)s %(levelname)-7s %(name)s: %(message)s",
+        datefmt="%H:%M:%S",
+    )
 
     cfg = config_mod.load(args.config)
     port = args.port or cfg.get("port")

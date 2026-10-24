@@ -34,6 +34,7 @@ often long (`alsa_output.pci-0000_00_1f.3.analog-stereo`), which does not fit a
 Pure subprocess — no Python deps. Works on PipeWire's pactl shim too.
 """
 
+import logging
 import re
 import subprocess
 import sys
@@ -52,6 +53,8 @@ WRITE_MIN_INTERVAL_S = 0.03
 # When we write to pactl, the subscribe loop will see our own change echoed
 # back. Ignore subscribe events for this many seconds after each write.
 SELF_ECHO_WINDOW_S = 0.25
+
+log = logging.getLogger("faders.pulse_sink")
 
 # Creases, in sink-volume %: (power %, pulse ms) at full strength. The Pico
 # scales both down for a slow drag. Strength is mostly pulse length; the
@@ -99,16 +102,23 @@ class PulseSinkExtension(Extension):
         self._last_self_write_t = 0.0
         self._last_mute = None
         self._lock = threading.Lock()
+        # Last fire-and-forget pactl write, polled on the next one so a
+        # failing pactl shows up in the log instead of vanishing.
+        self._last_proc = None
+        self._tag = f"fader {fader_idx + 1} [{self.label}]"
 
         self._sink_index = self._resolve_sink_index()
         if self._sink_index is None:
-            sys.stderr.write(
-                f"[pulse_sink] sink '{sink}' not found at startup; "
-                "will resolve lazily.\n"
-            )
+            log.warning("%s: sink '%s' not found at startup; will resolve "
+                        "lazily", self._tag, sink)
+        else:
+            log.info("%s: sink '%s' is #%d, range %.0f-%.0f%%", self._tag,
+                     sink, self._sink_index, vol_min, vol_max)
 
         # Seed fader to current sink volume so the motor starts in sync.
         current = self._read_sink_volume()
+        log.info("%s: startup volume %s", self._tag,
+                 "unknown" if current is None else f"{current:.0f}%")
         if current is not None:
             fader_value = self._sink_to_fader(current)
             host.set_fader(fader_idx, fader_value)
@@ -172,6 +182,8 @@ class PulseSinkExtension(Extension):
             # around while muted to pick where it returns to. Neither is a
             # volume change — writing them through would zero the sink and
             # lose the volume that unmuting is supposed to restore.
+            log.debug("%s: moved to %.1f%% while muted, volume untouched",
+                      self._tag, value)
             return
         target_vol = self._fader_to_sink(value)
         now = time.monotonic()
@@ -187,16 +199,27 @@ class PulseSinkExtension(Extension):
             self._last_write_t = now
             self._last_self_write_t = now
         # Fire-and-forget; we don't want to block the reader thread.
+        self._check_last_write()
+        log.debug("%s: fader %.1f%% -> volume %.1f%%", self._tag, value,
+                  target_vol)
         try:
-            subprocess.Popen(
+            self._last_proc = subprocess.Popen(
                 [PACTL, "set-sink-volume", self.sink, f"{target_vol:.1f}%"],
                 stdout=subprocess.DEVNULL,
                 stderr=subprocess.DEVNULL,
             )
         except FileNotFoundError:
-            sys.stderr.write("[pulse_sink] `pactl` not found in PATH\n")
+            log.error("`pactl` not found in PATH")
 
         self._push_display(target_vol)
+
+    def _check_last_write(self):
+        proc = self._last_proc
+        if proc is None:
+            return
+        code = proc.poll() if hasattr(proc, "poll") else None
+        if code:
+            log.warning("%s: pactl set-sink-volume exited %d", self._tag, code)
 
     # ----- display ---------------------------------------------------------
 
@@ -225,6 +248,7 @@ class PulseSinkExtension(Extension):
                 return  # already in this state; nothing to write
             self._last_mute = muted
             self._last_self_write_t = time.monotonic()
+        log.info("%s: sink %s", self._tag, "muted" if muted else "unmuted")
         try:
             subprocess.Popen(
                 [PACTL, "set-sink-mute", self.sink, "1" if muted else "0"],
@@ -284,10 +308,14 @@ class PulseSinkExtension(Extension):
                 stderr=subprocess.DEVNULL,
                 text=True,
                 bufsize=1,
+                # Out of the terminal's process group: Ctrl-C must not kill
+                # it before stop() runs, or shutdown reads as a dead monitor.
+                start_new_session=True,
             )
         except FileNotFoundError:
-            sys.stderr.write("[pulse_sink] `pactl` not found; subscribe disabled\n")
+            log.error("`pactl` not found; subscribe disabled")
             return
+        log.info("%s: watching sink changes", self._tag)
 
         for line in self._sub_proc.stdout:
             if self._stop.is_set():
@@ -300,6 +328,14 @@ class PulseSinkExtension(Extension):
             if ev == "new" and self._sink_index is None:
                 # A sink appeared — re-resolve in case it's ours.
                 self._sink_index = self._resolve_sink_index()
+                if self._sink_index is not None:
+                    log.info("%s: sink '%s' appeared as #%d", self._tag,
+                             self.sink, self._sink_index)
+                continue
+            if ev == "remove" and idx == self._sink_index:
+                log.warning("%s: sink '%s' (#%d) removed", self._tag,
+                            self.sink, idx)
+                self._sink_index = None
                 continue
             if ev != "change":
                 continue
@@ -319,6 +355,8 @@ class PulseSinkExtension(Extension):
                     if changed:
                         self._last_mute = muted
                 if changed:
+                    log.info("%s: sink %s elsewhere", self._tag,
+                             "muted" if muted else "unmuted")
                     self.host.set_mute(self.fader_idx, muted)
 
             sink_vol = self._read_sink_volume()
@@ -331,7 +369,12 @@ class PulseSinkExtension(Extension):
             if muted:
                 continue
             fader_value = self._sink_to_fader(sink_vol)
+            log.info("%s: volume %.0f%% set elsewhere, moving fader to %.1f%%",
+                     self._tag, sink_vol, fader_value)
             self.host.set_fader(self.fader_idx, fader_value)
+        if not self._stop.is_set():
+            log.warning("%s: `pactl subscribe` exited; changes made elsewhere "
+                        "no longer reach the fader", self._tag)
 
     # ----- shutdown --------------------------------------------------------
 

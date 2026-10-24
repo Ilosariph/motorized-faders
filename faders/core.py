@@ -36,6 +36,7 @@ positions. This avoids extensions echoing their own setpoints back into the
 source (e.g. PulseAudio) and oscillating.
 """
 
+import logging
 import sys
 import threading
 import time
@@ -47,6 +48,15 @@ PICO_VID = 0x2E8A
 BAUD = 115200
 SET_FLUSH_HZ = 50
 SET_FLUSH_INTERVAL = 1.0 / SET_FLUSH_HZ
+
+# Loopback guard watchdog. A commanded move normally ends in STATE:idx,IDLE
+# within MOVE_TIMEOUT + SETTLE (~4 s). If the Pico still reports IDLE this
+# long after we armed the guard, it never saw the SET: (a lost or garbled
+# line) and no STATE: edge will ever release it — release it ourselves, or
+# that fader is deaf to the hand for good.
+GUARD_TIMEOUT_S = 5.0
+
+log = logging.getLogger("faders")
 
 
 # Display text budget. The Pico truncates to fit its own font, but trimming
@@ -116,6 +126,8 @@ class FaderHost:
         # Loopback guard: True while we drove a SET and Pico hasn't returned
         # to IDLE yet. Suppresses on_position for that fader.
         self._self_driven = [False] * num_faders
+        # When each guard was last armed, for the watchdog.
+        self._self_driven_since = [0.0] * num_faders
         # Mute state, mirrored from the Pico's MUTE: confirmations rather than
         # assumed from the commands we send.
         self._muted = [False] * num_faders
@@ -136,6 +148,9 @@ class FaderHost:
         self.rail_volts = None
 
         self._lock = threading.Lock()
+        # Writes come from the reader, the writer and extension threads; one
+        # line must go out whole or the Pico parses garbage.
+        self._write_lock = threading.Lock()
         self._stop = threading.Event()
         self._reader = None
         self._writer = None
@@ -153,6 +168,7 @@ class FaderHost:
         with self._lock:
             self._pending[idx] = value
             self._self_driven[idx] = True
+            self._self_driven_since[idx] = time.monotonic()
 
     def set_mute(self, idx, muted):
         """
@@ -168,6 +184,7 @@ class FaderHost:
             # Guard the loopback for the motion this mute causes, the same way
             # set_fader does — the fader is about to move under our command.
             self._self_driven[idx] = True
+            self._self_driven_since[idx] = time.monotonic()
         self._send(f"MUTE:{idx + 1},{1 if muted else 0}")
 
     def is_muted(self, idx):
@@ -258,7 +275,7 @@ class FaderHost:
         port = self._port or find_pico_port()
         if port is None:
             raise RuntimeError("Pico not found (VID 0x2E8A). Pass port= explicitly.")
-        sys.stderr.write(f"[faders] connecting to {port} at {BAUD} baud\n")
+        log.info("connecting to %s at %d baud", port, BAUD)
         ser = serial.Serial(port, BAUD, timeout=0.1)
         ser.reset_input_buffer()
         return ser
@@ -284,7 +301,8 @@ class FaderHost:
         if self._ser is None:
             return
         try:
-            self._ser.write((line + "\n").encode("ascii"))
+            with self._write_lock:
+                self._ser.write((line + "\n").encode("ascii"))
         except serial.SerialException:
             sys.stderr.write("[faders] serial write failed\n")
             self._stop.set()
@@ -313,6 +331,7 @@ class FaderHost:
             self._handle_rail(line[5:])
         elif line.startswith("CAL:"):
             phase = "start" if "start" in line else "done"
+            log.info("Pico calibration %s", phase)
             if phase == "done":
                 self._resend_after_boot()
             self._dispatch("on_calibration", phase)
@@ -350,6 +369,14 @@ class FaderHost:
             with self._lock:
                 self._positions[idx] = value
                 suppressed = self._self_driven[idx]
+                age = time.monotonic() - self._self_driven_since[idx]
+                if (suppressed and self._states[idx] == "IDLE"
+                        and age > GUARD_TIMEOUT_S):
+                    self._self_driven[idx] = False
+                    suppressed = False
+                    log.warning(
+                        "fader %d: loopback guard stuck for %.1f s with the "
+                        "Pico IDLE (lost SET:?); releasing", idx + 1, age)
                 if not suppressed:
                     # Human moved this fader. Track it as the current setpoint
                     # so the next SET: (which broadcasts every slot) doesn't
@@ -376,6 +403,7 @@ class FaderHost:
             # Move complete: release the loopback gate.
             if state == "IDLE":
                 self._self_driven[idx] = False
+        log.debug("fader %d: %s", idx + 1, state)
 
     def _handle_button(self, button):
         """
@@ -391,6 +419,7 @@ class FaderHost:
         with self._lock:
             self._held.add(button)
             modifier = "G2" in self._held
+        log.info("button %s%s", button, " (G2 held)" if modifier else "")
         if button.startswith("F") and button[1:].isdigit():
             idx = int(button[1:]) - 1
             if 0 <= idx < self.num_faders:
@@ -422,6 +451,8 @@ class FaderHost:
             slot = "A" if self._ab_slot[idx] == "B" else "B"
             self._ab_slot[idx] = slot
         self._send(f"SLOT:{idx + 1},{slot}")
+        log.info("fader %d: A/B swap to %s (%s)", idx + 1, slot,
+                 "marked" if target is None else f"{target:.1f}%")
         if target is None:
             return
         self.set_fader(idx, target)
@@ -442,6 +473,7 @@ class FaderHost:
             if self._muted[idx] == muted:
                 return  # already known — the Pico re-confirmed, nothing to do
             self._muted[idx] = muted
+        log.info("fader %d: %s", idx + 1, "muted" if muted else "unmuted")
         self._dispatch("on_mute", idx, muted)
 
     def _handle_rail(self, payload):
@@ -479,4 +511,5 @@ class FaderHost:
                         self._pending[idx] = None
                         slots.append(f"{val:.1f}")
                 line = "SET:" + ",".join(slots)
+            log.debug("send %s", line)
             self._send(line)
