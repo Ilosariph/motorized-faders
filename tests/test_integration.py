@@ -142,19 +142,28 @@ class Rig:
             for emitted in out:
                 self._emit_to_host(emitted)
 
-    def press(self, button):
-        """Hold a button long enough for the ladder to debounce it."""
+    def _channel(self, button):
         fw = self.fw
-        ladder = dict(fw.FADER_LADDER + fw.GENERAL_LADDER)
-        series_r = ladder[button]
-        channel = (fw.ADC_CH_FADER_BTN if button.startswith("F")
-                   else fw.ADC_CH_GENERAL_BTN)
+        return (fw.ADC_CH_FADER_BTN if button.startswith("F")
+                else fw.ADC_CH_GENERAL_BTN)
+
+    def hold(self, button):
+        """Press a button and keep it down, long enough to debounce."""
+        fw = self.fw
+        series_r = dict(fw.FADER_LADDER + fw.GENERAL_LADDER)[button]
         from lib.buttons import R_TOP
         level = int(series_r / (R_TOP + series_r) * fw.MCP_FULL_SCALE)
-        self.button_level[channel] = level
+        self.button_level[self._channel(button)] = level
         self.tick(ms=20, steps=4)
-        self.button_level[channel] = fw.MCP_FULL_SCALE
+
+    def release(self, button):
+        self.button_level[self._channel(button)] = self.fw.MCP_FULL_SCALE
         self.tick(ms=20, steps=4)
+
+    def press(self, button):
+        """Press and release a button, each long enough to debounce."""
+        self.hold(button)
+        self.release(button)
 
     def tick(self, ms=5, steps=1):
         """Advance one full system step: plant, firmware, wire, host."""
@@ -174,6 +183,8 @@ class Rig:
 
             for ladder in (self.fader_buttons, self.general_buttons):
                 pressed = ladder.poll()
+                if ladder.released is not None:
+                    self._emit_to_host(f"BTNUP:{ladder.released}")
                 if pressed is not None:
                     self._emit_to_host(f"BTN:{pressed}")
 
@@ -318,6 +329,48 @@ def test_general_button_does_nothing_but_is_reported():
               f"G1 leaves fader {idx + 1} alone")
 
 
+def test_g2_hold_swaps_fader_between_two_positions():
+    print("A/B swap")
+    rig = Rig()
+    for idx in range(4):
+        rig.host.set_fader(idx, 30.0)
+    rig.run_for(4000)
+
+    rig.hold("G2")
+    rig.press("F3")              # marks A = 30
+    rig.release("G2")
+    rig.run_for(1500)
+    check(rig.host.is_muted(2) is False, "G2 + F3 does not mute")
+
+    rig.host.set_fader(2, 75.0)  # stand-in for the user setting B
+    rig.run_for(4000)
+    rig.ext.positions.clear()
+
+    rig.hold("G2")
+    rig.press("F3")
+    rig.release("G2")
+    rig.run_for(4000)
+    check(abs(rig.sims[2].position - 30.0) <= TOL,
+          f"fader 3 back at A (got {rig.sims[2].position:.1f})")
+    told = [v for i, v in rig.ext.positions if i == 2]
+    check(any(abs(v - 30.0) <= TOL for v in told),
+          f"extension told of the swap (got {sorted(set(told))})")
+    for idx in (0, 1, 3):
+        check(abs(rig.sims[idx].position - 30.0) <= TOL,
+              f"fader {idx + 1} unmoved by the swap")
+
+    rig.hold("G2")
+    rig.press("F3")
+    rig.release("G2")
+    rig.run_for(4000)
+    check(abs(rig.sims[2].position - 75.0) <= TOL,
+          f"fader 3 back at B (got {rig.sims[2].position:.1f})")
+
+    rig.press("F3")
+    rig.run_for(4000)
+    check(rig.host.is_muted(2) is True, "F3 alone still mutes")
+
+
 def test_manual_drag_while_muted_then_remute():
     print("Drag while muted")
     rig = Rig()
@@ -364,6 +417,7 @@ def main():
         test_button_press_mutes_end_to_end,
         test_only_the_pressed_fader_moves,
         test_general_button_does_nothing_but_is_reported,
+        test_g2_hold_swaps_fader_between_two_positions,
         test_manual_drag_while_muted_then_remute,
         test_position_reports_survive_the_round_trip,
     ):

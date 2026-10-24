@@ -184,6 +184,56 @@ def test_general_buttons_have_no_function_yet():
           "G1/G2 still reach extensions, for a future layer switch")
 
 
+def test_g2_held_fader_button_swaps_ab():
+    print("A/B swap")
+    host, ext = make_host()
+    host._handle_line("POS:30.0,50.0,50.0,50.0")
+    ext.positions.clear()
+
+    host._handle_line("BTN:G2")
+    host._handle_line("BTN:F1")
+    check(host._ser.lines() == [], "first swap only marks, sends nothing")
+    check(not host.is_muted(0), "G2 + F1 does not mute")
+    host._handle_line("BTNUP:F1")
+
+    # User moves fader 1 to the B level by hand.
+    host._handle_line("POS:70.0,50.0,50.0,50.0")
+    ext.positions.clear()
+    host._handle_line("BTN:F1")
+    check(host._pending[0] == 30.0, f"second swap returns to A (got {host._pending[0]})")
+    check(ext.positions == [(0, 30.0)], f"extensions told the new level (got {ext.positions})")
+    check(not any(host._pending[1:]), "only fader 1 moves")
+
+    # Third swap goes back to where B was left.
+    host._handle_line("BTNUP:F1")
+    host._handle_line("POS:30.0,50.0,50.0,50.0")
+    host._handle_line("BTN:F1")
+    check(host._pending[0] == 70.0, f"third swap returns to B (got {host._pending[0]})")
+
+    # Released G2: fader buttons mute again.
+    host._handle_line("BTNUP:G2")
+    host._handle_line("BTN:F2")
+    check("MUTE:2,1" in host._ser.lines(), "F2 mutes again once G2 is released")
+
+
+def test_ab_swap_ignored_while_muted():
+    host, ext = make_host()
+    host._handle_line("MUTE:1,1")
+    host._handle_line("POS:0.0,50.0,50.0,50.0")
+    host._handle_line("BTN:G2")
+    host._handle_line("BTN:F1")
+    host._handle_line("BTN:F1")
+    check(host._pending[0] is None and host._ser.lines() == [],
+          "swap on a muted fader does nothing")
+
+
+def test_g1_held_is_not_the_swap_modifier():
+    host, ext = make_host()
+    host._handle_line("BTN:G1")
+    host._handle_line("BTN:F1")
+    check("MUTE:1,1" in host._ser.lines(), "G1 + F1 still mutes")
+
+
 def test_unknown_button_is_ignored():
     host, ext = make_host()
     for bad in ("BTN:", "BTN:F9", "BTN:F0", "BTN:X1", "BTN:FX"):
@@ -444,6 +494,9 @@ def main():
         test_button_toggles_mute,
         test_each_fader_button_maps_to_its_own_fader,
         test_general_buttons_have_no_function_yet,
+        test_g2_held_fader_button_swaps_ab,
+        test_ab_swap_ignored_while_muted,
+        test_g1_held_is_not_the_swap_modifier,
         test_unknown_button_is_ignored,
         test_mute_confirmation_is_idempotent,
         test_set_mute_guards_loopback,

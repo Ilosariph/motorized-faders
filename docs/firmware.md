@@ -38,6 +38,7 @@ prefix ignores it.
 | `RAW:r1,r2,r3,r4` | Raw ADC 0-65535, sent only while engaged, diagnostics |
 | `STATE:idx,IDLE\|MOVING\|SETTLING` | State edge, `idx` 1-based |
 | `BTN:F1..F4\|G1\|G2` | Button press edge |
+| `BTNUP:F1..F4\|G1\|G2` | Button release edge |
 | `MUTE:idx,0\|1` | Mute state confirmation |
 | `RAIL:ok,<volts>` / `RAIL:fail,<volts>` | VM check at boot |
 | `CAL:start` / `CAL:done` | Calibration phase |
@@ -64,7 +65,8 @@ The host strips commas and newlines anyway (`faders/core.py::_sanitize`).
 ## Buttons: firmware reports, host decides
 
 The firmware assigns buttons **no meaning**. It decodes which button was
-pressed and emits `BTN:`; `FaderHost._handle_button` maps that to an action.
+pressed or released and emits `BTN:` / `BTNUP:`; `FaderHost._handle_button`
+maps that to an action.
 
 This is deliberate. The planned layer-switch button — one general button
 re-purposing the four fader buttons — becomes a change to that one method, with
@@ -73,10 +75,15 @@ no firmware, protocol, or PCB change. Currently:
 | Button | Action |
 |--------|--------|
 | `F1`-`F4` | Toggle mute on the matching fader |
-| `G1`, `G2` | No function. Reported to extensions via `on_button` |
+| `G2` held + `F1`-`F4` | A/B swap: store the fader's current position, move to the one stored by the last swap. The first swap only stores. Ignored while muted |
+| `G1` | Reserved for the layer switch. No function yet |
 
-Presses are edge-triggered: a held button reports once. Release is not
-reported — nothing needs it.
+All presses are also reported to extensions via `on_button`.
+
+Edges only: a held button reports `BTN:` once and `BTNUP:` once on release.
+The host tracks what is held from those, which is what makes `G2` usable as
+a modifier. `G2` and the fader buttons sit on different ADC channels, so
+holding both reads correctly; `G1` + `G2` together read as `G1`.
 
 ### Ladder decode
 

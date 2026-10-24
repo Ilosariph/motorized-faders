@@ -5,6 +5,7 @@ Talks the Pico protocol from `pico/main.py`:
     Pico -> host:  POS:f1,f2,f3,f4    (position, 0-100%)
                    STATE:idx,IDLE|MOVING|SETTLING
                    BTN:F1..F4|G1|G2   (button press edge)
+                   BTNUP:F1..F4|G1|G2 (button release edge)
                    MUTE:idx,0|1       (mute state confirmation)
                    RAIL:ok|fail,volts (VM rail check at boot)
                    CAL:start | CAL:done
@@ -19,9 +20,11 @@ fader physically moves (touched by a human). Extensions call
 mute it, and `host.set_display(idx, line1, line2)` to label its screen.
 
 Button meaning lives here, not in firmware. The Pico reports which button was
-pressed and nothing more; `_handle_button` maps that to an action. A future
-layer-switch button (one general button re-purposing the four fader buttons)
-is therefore a change to this mapping, not a firmware change.
+pressed and released and nothing more; `_handle_button` maps that to an
+action. Current mapping:
+    F1..F4            toggle mute
+    G2 held + Fn      swap fader n between two remembered positions (A/B)
+    G1                reserved for a future layer switch (no function yet)
 
 Loopback guard: while a fader is moving in response to a `SET:` we just sent,
 `on_position` is *not* called for that fader. Pico reports a STATE:idx,IDLE
@@ -115,6 +118,11 @@ class FaderHost:
         self._muted = [False] * num_faders
         # Last display text sent per fader, so unchanged text is not re-sent.
         self._display = [None] * num_faders
+        # Buttons currently held down, from BTN:/BTNUP: edges.
+        self._held = set()
+        # A/B position swap (G2 + fader button): the position stored for the
+        # slot that is *not* active. None until the first swap marks one.
+        self._ab_other = [None] * num_faders
         # VM rail check result, None until the Pico reports it.
         self.rail_ok = None
         self.rail_volts = None
@@ -268,6 +276,9 @@ class FaderHost:
             self._handle_state(line[6:])
         elif line.startswith("BTN:"):
             self._handle_button(line[4:].strip())
+        elif line.startswith("BTNUP:"):
+            with self._lock:
+                self._held.discard(line[6:].strip())
         elif line.startswith("MUTE:"):
             self._handle_mute(line[5:])
         elif line.startswith("RAIL:"):
@@ -318,19 +329,47 @@ class FaderHost:
         Map a button press to an action. Firmware assigns buttons no meaning,
         so this is the single place that decides what one does.
 
-        Currently one layer: the four fader buttons toggle mute, and the two
-        general buttons have no function yet. Adding a layer-switch button
-        later means branching here on an active-layer field — no firmware or
-        protocol change.
+        Fader buttons toggle mute, or swap A/B positions while G2 is held.
+        G1 is reserved for a layer switch: branching here on an active-layer
+        field later needs no firmware or protocol change.
         """
         if not button:
             return
+        with self._lock:
+            self._held.add(button)
+            modifier = "G2" in self._held
         if button.startswith("F") and button[1:].isdigit():
             idx = int(button[1:]) - 1
             if 0 <= idx < self.num_faders:
-                self.toggle_mute(idx)
-        # G1 / G2: reserved. A future layer switch lands here.
+                if modifier:
+                    self.swap_ab(idx)
+                else:
+                    self.toggle_mute(idx)
         self._dispatch("on_button", button)
+
+    def swap_ab(self, idx):
+        """
+        Swap a fader between two positions. The current position is stored
+        and the fader moves to the one stored by the previous swap, so each
+        press returns to wherever the other slot was last left. The first
+        swap has nothing stored yet, so it only marks the current position.
+
+        Extensions are told directly: the loopback guard hides this move's
+        POS: from them, but unlike a SET: from an extension, nothing else
+        knows about it.
+        """
+        if not 0 <= idx < self.num_faders:
+            return
+        with self._lock:
+            if self._muted[idx]:
+                return  # parked at the bottom; its position is not a level
+            current = self._positions[idx]
+            target = self._ab_other[idx]
+            self._ab_other[idx] = current
+        if target is None:
+            return
+        self.set_fader(idx, target)
+        self._dispatch("on_position", idx, target)
 
     def _handle_mute(self, payload):
         parts = payload.split(",", 1)
