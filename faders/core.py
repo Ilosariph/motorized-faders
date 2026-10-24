@@ -13,6 +13,7 @@ Talks the Pico protocol from `pico/main.py`:
     host -> Pico:  SET:f1,f2,f3,f4    (setpoints, 0-100%)
                    MUTE:idx,0|1       (mute/unmute a fader)
                    DISP:idx,l1,l2     (display text for a fader)
+                   SLOT:idx,A|B       (A/B slot badge, empty clears)
 
 Extensions subclass `Extension`. The host calls `on_position(idx, value)` when a
 fader physically moves (touched by a human). Extensions call
@@ -123,6 +124,9 @@ class FaderHost:
         # A/B position swap (G2 + fader button): the position stored for the
         # slot that is *not* active. None until the first swap marks one.
         self._ab_other = [None] * num_faders
+        # Slot the fader is in now, shown as a badge on its screen. None until
+        # the first swap; that swap leaves A stored and the fader in B.
+        self._ab_slot = [None] * num_faders
         # VM rail check result, None until the Pico reports it.
         self.rail_ok = None
         self.rail_volts = None
@@ -285,7 +289,17 @@ class FaderHost:
             self._handle_rail(line[5:])
         elif line.startswith("CAL:"):
             phase = "start" if "start" in line else "done"
+            if phase == "done":
+                self._resend_slots()
             self._dispatch("on_calibration", phase)
+
+    def _resend_slots(self):
+        """A rebooted Pico has blank badges; the host still knows the slots."""
+        with self._lock:
+            slots = list(self._ab_slot)
+        for idx, slot in enumerate(slots):
+            if slot is not None:
+                self._send(f"SLOT:{idx + 1},{slot}")
 
     def _handle_pos(self, payload):
         parts = payload.split(",")
@@ -366,6 +380,9 @@ class FaderHost:
             current = self._positions[idx]
             target = self._ab_other[idx]
             self._ab_other[idx] = current
+            slot = "A" if self._ab_slot[idx] == "B" else "B"
+            self._ab_slot[idx] = slot
+        self._send(f"SLOT:{idx + 1},{slot}")
         if target is None:
             return
         self.set_fader(idx, target)

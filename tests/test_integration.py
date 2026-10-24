@@ -239,12 +239,18 @@ class FakeScreen:
         self.line2 = ""
         self.muted = False
         self.position = 0.0
+        self.restore = 0.0
+        self.slot = ""
     def set_lines(self, l1, l2):
         self.line1, self.line2 = l1, l2
     def set_muted(self, m):
         self.muted = m
     def set_position(self, p):
         self.position = p
+    def set_restore(self, p):
+        self.restore = p
+    def set_slot(self, slot):
+        self.slot = slot
     def draw(self, force=False):
         return False
 
@@ -365,6 +371,7 @@ def test_g2_hold_swaps_fader_between_two_positions():
     rig.run_for(4000)
     check(abs(rig.sims[2].position - 75.0) <= TOL,
           f"fader 3 back at B (got {rig.sims[2].position:.1f})")
+    check(rig.screens[2].slot == "B", f"fader 3 badge shows B (got {rig.screens[2].slot!r})")
 
     rig.press("F3")
     rig.run_for(4000)

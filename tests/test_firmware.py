@@ -844,6 +844,74 @@ def test_rail_divider_values_match_doc():
 # Display gating
 # ---------------------------------------------------------------------------
 
+def test_slot_command():
+    print("Protocol: SLOT")
+    rig = Rig()
+    fw = rig.fw
+    sys.path.insert(0, str(pathlib.Path(__file__).resolve().parent.parent / "pico"))
+    from lib.fader_screen import FaderScreen
+
+    class FakeDisplay:
+        def __getattr__(self, name): return lambda *a, **k: None
+
+    screens = [FaderScreen(FakeDisplay()) for _ in range(fw.NUM_FADERS)]
+    fw._handle_command("SLOT:2,A", rig.faders, screens)
+    check(screens[1].slot == "A", "SLOT sets fader 2's badge")
+    check(screens[0].slot == "", "other faders untouched")
+    fw._handle_command("SLOT:2,", rig.faders, screens)
+    check(screens[1].slot == "", "empty SLOT clears the badge")
+    fw._handle_command("SLOT:9,A", rig.faders, screens)
+    check(True, "out-of-range SLOT is a parse error, not a crash")
+
+
+def test_muted_screen_shows_restore_position():
+    print("Display: restore strip + slot badge")
+    sys.path.insert(0, str(pathlib.Path(__file__).resolve().parent.parent / "pico"))
+    from lib import fader_screen as fs
+    from lib.ssd1306_spi import SSD1306_SPI
+
+    class Sink:
+        def write(self, b): pass
+        def value(self, v=None): pass
+
+    disp = SSD1306_SPI(Sink(), Sink(), Sink())
+    screen = fs.FaderScreen(disp)
+
+    def lit(x, y):
+        return bool(disp.buf[(y >> 3) * fs.WIDTH + x] & (1 << (y & 7)))
+
+    mid_y = fs.BAR_Y + fs.BAR_H // 2
+    inner = fs.BAR_W - 4
+    x_in = fs.BAR_X + 2 + int(inner * 0.4)     # inside a 60% strip
+    x_out = fs.BAR_X + 2 + int(inner * 0.8)    # beyond it
+    edge_y = fs.BAR_Y + 2                      # full-bar row, outside strip
+
+    screen.set_position(0.0)
+    screen.set_restore(60.0)
+    screen.draw(force=True)
+    check(not lit(x_in, mid_y), "unmuted: restore position not drawn")
+
+    screen.set_muted(True)
+    screen.draw()
+    check(lit(x_in, mid_y), "muted: strip drawn up to the restore position")
+    check(not lit(x_out, mid_y), "muted: strip stops at the restore position")
+    check(not lit(x_in, edge_y), "muted: strip is thinner than the live bar")
+
+    screen.set_restore(30.0)
+    check(screen.draw() is True, "restore change redraws while muted")
+
+    screen.set_muted(False)
+    screen.draw()
+    screen.set_restore(70.0)
+    check(screen.draw() is False, "restore change does not redraw unmuted")
+
+    badge_y = fs.HEIGHT - fs.SLOT_H + 1
+    check(not lit(fs.SLOT_X, badge_y), "no slot: no badge")
+    screen.set_slot("B")
+    check(screen.draw() is True, "slot change redraws")
+    check(lit(fs.SLOT_X, badge_y), "slot badge drawn bottom-left")
+
+
 def test_display_redraws_only_on_change():
     print("Display gating")
     sys.path.insert(0, str(pathlib.Path(__file__).resolve().parent.parent / "pico"))
@@ -926,6 +994,8 @@ def main():
         test_simultaneous_press_reads_lowest,
         test_vm_rail_check,
         test_rail_divider_values_match_doc,
+        test_slot_command,
+        test_muted_screen_shows_restore_position,
         test_display_redraws_only_on_change,
     ]
     for test in tests:

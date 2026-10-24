@@ -11,9 +11,14 @@ sends a sink name and volume, a future plugin sends whatever it wants.
     | vol 78%                      |  line2
     |                              |
     | [##################------]   |  position bar, from read_position()
-    |                        78.2  |  live position, always firmware-owned
-    | ############ MUTE ########## |  mute bar — solid, full width
+    | A                      78.2  |  A/B slot badge (host), live position
     +------------------------------+
+
+Muted, the bar is empty but for a thin strip showing where unmute will
+return the fader, and a solid bar replaces the bottom row:
+
+    | [=============             ]   |  thin strip: restore position
+    | A######## MUTE 78% ##########  |  mute bar, restore % knocked out
 
 The display is a monochrome SSD1306: white-on-black, no colour. Mute therefore
 reads as a solid full-width bar along the bottom with inverted text knocked out
@@ -44,6 +49,15 @@ _MAX_CHARS_SCALE1 = WIDTH // CHAR_W
 
 _MUTE_LABEL = "MUTE"
 
+# Restore strip inside the empty bar while muted: thin, so it reads as a
+# marker rather than as the fader's live position.
+RESTORE_H = 4
+
+# A/B slot badge, bottom-left: one inverted character.
+SLOT_X = 1
+SLOT_W = CHAR_W + 3
+SLOT_H = MUTE_BAR_H  # same row as the readout and the mute label
+
 
 class FaderScreen:
     def __init__(self, display):
@@ -52,6 +66,8 @@ class FaderScreen:
         self.line2 = ""
         self.muted = False
         self.position = 0.0
+        self.restore = 0.0
+        self.slot = ""
         self._drawn = None  # last rendered tuple; None forces a first draw
 
     # ----- state ----------------------------------------------------------
@@ -66,6 +82,14 @@ class FaderScreen:
     def set_position(self, position):
         self.position = position
 
+    def set_restore(self, position):
+        """Where unmute will return the fader. Drawn only while muted."""
+        self.restore = position
+
+    def set_slot(self, slot):
+        """A/B slot badge text from the host; empty hides it."""
+        self.slot = slot[:1]
+
     def needs_redraw(self):
         return self._fingerprint() != self._drawn
 
@@ -76,6 +100,8 @@ class FaderScreen:
             self.line2,
             self.muted,
             int(self.position / POSITION_EPSILON),
+            int(self.restore / POSITION_EPSILON) if self.muted else None,
+            self.slot,
         )
 
     # ----- rendering ------------------------------------------------------
@@ -101,9 +127,11 @@ class FaderScreen:
 
         self._draw_bar()
         if self.muted:
+            self._draw_restore()
             self._draw_mute_bar()
         else:
             self._draw_readout()
+        self._draw_slot()
 
         d.show()
         self._drawn = self._fingerprint()
@@ -118,6 +146,24 @@ class FaderScreen:
         if filled > 0:
             d.fill_rect(BAR_X + 2, BAR_Y + 2, filled, BAR_H - 4, 1)
 
+    def _draw_restore(self):
+        d = self.display
+        fraction = max(0.0, min(100.0, self.restore)) / 100.0
+        filled = int((BAR_W - 4) * fraction)
+        if filled > 0:
+            y = BAR_Y + (BAR_H - RESTORE_H) // 2
+            d.fill_rect(BAR_X + 2, y, filled, RESTORE_H, 1)
+
+    def _draw_slot(self):
+        if not self.slot:
+            return
+        d = self.display
+        y = HEIGHT - SLOT_H
+        if not self.muted:
+            # Inside the mute bar the background is already solid.
+            d.fill_rect(SLOT_X, y, SLOT_W, SLOT_H, 1)
+        d.text(self.slot, SLOT_X + 2, y + 2, 0)
+
     def _draw_readout(self):
         text = "{:.1f}%".format(self.position)
         x = WIDTH - len(text) * CHAR_W - 2
@@ -127,6 +173,6 @@ class FaderScreen:
         """Solid bar along the bottom, label knocked out of it."""
         d = self.display
         d.fill_rect(0, MUTE_BAR_Y, WIDTH, MUTE_BAR_H, 1)
-        label = "{}  {:.1f}%".format(_MUTE_LABEL, self.position)
+        label = "{}  {:.0f}%".format(_MUTE_LABEL, self.restore)
         x = (WIDTH - len(label) * CHAR_W) // 2
         d.text(label, x, MUTE_BAR_Y + 2, 0)

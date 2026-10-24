@@ -51,9 +51,10 @@ prefix ignores it.
 | `SET:f1,f2,f3,f4` | Setpoints. An **empty slot leaves that fader alone** |
 | `MUTE:idx,0\|1` | Mute/unmute fader `idx` (1-based) |
 | `DISP:idx,line1,line2` | Display text for fader `idx` (1-based) |
+| `SLOT:idx,A\|B` | A/B slot badge for fader `idx`; empty clears it |
 | `TUNE:kp,ki,kd,minmove,deadband,deadband_exit` | Live PID gains, empty slot keeps value, echoed as `DBG:tune ... loop=Nms`, lost on reset. See [pid_tuning.md](pid_tuning.md) |
 
-Only these four prefixes are parsed as input. Everything else on stdin is
+Only these prefixes are parsed as input. Everything else on stdin is
 discarded, which matters because the Pico's own output can arrive back as a USB
 CDC loopback.
 
@@ -159,20 +160,23 @@ same fader would label it differently with no firmware change.
 | vol 78%                      |  line2
 |                              |
 | [####################----]   |  position bar, firmware-owned
-|                      78.2%   |  live position, firmware-owned
+| A                    78.2%   |  A/B badge (host, SLOT:), live position
 +------------------------------+
 ```
 
-Muted replaces the readout with a solid full-width bar along the bottom, label
-knocked out of it. The SSD1306 is **monochrome** — there is no colour to use,
+Muted replaces the readout with a solid full-width bar along the bottom,
+`MUTE  NN%` knocked out of it, where `NN` is the position unmute returns to.
+The otherwise empty position bar shows that same restore position as a thin
+strip, so dragging a muted fader to pick a new restore level is visible. The SSD1306 is **monochrome** — there is no colour to use,
 so mute reads as a large filled block, which carries across a desk where four
 small letters do not.
 
-**Redraw discipline.** A full 128x64 frame is 1 KB, ~8 ms at 1 MHz. Screens
-redraw only when their content actually changes (`FaderScreen.draw()` returns
-`False` otherwise), position changes are quantised to 0.5%, and the main loop
-draws **at most one display per pass** so four simultaneous redraws cannot
-stall the PID loop for ~32 ms at once.
+**Redraw discipline.** A frame is drawn in pure Python and blocks the loop for
+tens of ms. Screens redraw only when their content actually changes
+(`FaderScreen.draw()` returns `False` otherwise), position changes are
+quantised to 0.5%, the main loop draws **at most one display per pass**, and
+**nothing redraws while any fader is MOVING** — a stalled loop leaves the motor
+running blind at its last output, which overshoots into the end stops.
 
 A display that fails to initialise is logged and set to `None`; the faders keep
 working without it.

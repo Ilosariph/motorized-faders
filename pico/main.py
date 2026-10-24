@@ -34,6 +34,7 @@ Serial protocol (115200 baud, USB). All lines newline-terminated:
                              unmuting drives it back there.
     DISP:idx,line1,line2     display text for fader idx (1-based). Content is
                              whatever the active host plugin wants to show.
+    SLOT:idx,A|B             A/B slot badge for fader idx; empty clears it.
     TUNE:kp,ki,kd,minmove,deadband,deadband_exit
                              live PID gains, empty slot keeps the value;
                              echoed as DBG:tune ..., lost on reset.
@@ -598,6 +599,8 @@ def _handle_command(line, faders, screens):
             _handle_mute(line[5:], faders, screens)
         elif line.startswith("DISP:"):
             _handle_disp(line[5:], screens)
+        elif line.startswith("SLOT:"):
+            _handle_slot(line[5:], screens)
         elif line.startswith("TUNE:"):
             _handle_tune(line[5:], faders)
     except (ValueError, IndexError) as e:
@@ -644,6 +647,13 @@ def _handle_disp(payload, screens):
     line1 = parts[1] if len(parts) > 1 else ""
     line2 = parts[2] if len(parts) > 2 else ""
     screens[idx].set_lines(line1, line2)
+
+
+def _handle_slot(payload, screens):
+    parts = payload.split(",", 1)
+    idx = _parse_index(parts[0])
+    if screens[idx] is not None:
+        screens[idx].set_slot(parts[1].strip() if len(parts) > 1 else "")
 
 
 def _handle_tune(payload, faders):
@@ -855,6 +865,8 @@ def main():
                 if screen is None:
                     continue
                 screen.set_position(positions[idx])
+                if faders[idx] is not None:
+                    screen.set_restore(faders[idx].unmute_position)
                 # One frame per pass at most, so a four-display redraw can
                 # never stall the PID loop for ~32 ms at once.
                 if screen.draw():
