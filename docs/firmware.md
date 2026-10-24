@@ -50,8 +50,9 @@ prefix ignores it.
 | `SET:f1,f2,f3,f4` | Setpoints. An **empty slot leaves that fader alone** |
 | `MUTE:idx,0\|1` | Mute/unmute fader `idx` (1-based) |
 | `DISP:idx,line1,line2` | Display text for fader `idx` (1-based) |
+| `TUNE:kp,ki,kd,minmove,deadband,deadband_exit` | Live PID gains, empty slot keeps value, echoed as `DBG:tune ... loop=Nms`, lost on reset. See [pid_tuning.md](pid_tuning.md) |
 
-Only these three prefixes are parsed as input. Everything else on stdin is
+Only these four prefixes are parsed as input. Everything else on stdin is
 discarded, which matters because the Pico's own output can arrive back as a USB
 CDC loopback.
 
@@ -210,6 +211,24 @@ for `CAL_STALL_READS` in a row — the carriage is against the stop.
 emits `DBG:calibration sweep timed out` instead of hanging boot.
 
 Wiper polarity is still detected rather than assumed.
+
+---
+
+## Stall guard
+
+A fader that cannot reach its setpoint (jammed, stuck at an end stop, held by
+hand) would otherwise be driven at stall current until the next command. A move
+is abandoned — motor off, `IDLE`, `DBG:stall fN, move abandoned` — when either:
+
+- it stays `MOVING` longer than `MOVE_TIMEOUT_MS` (3 s), or
+- output stays at `STALL_OUTPUT_PCT` (100%) while the position changes less
+  than `STALL_PROGRESS_PCT` (0.5%) within `STALL_WINDOW_MS` (300 ms).
+
+A stuck carriage always reaches full power, through `kp x error` or the
+breakaway ramp (40% -> 100% in ~300 ms). Arming the window at full power rather
+than 50% matters: at 50% it started while the ramp was still climbing, and a
+fader parked at an end stop was abandoned ~50 ms after reaching full power,
+before it could break free. A jam costs at most ~0.6 s of drive per fader.
 
 ---
 

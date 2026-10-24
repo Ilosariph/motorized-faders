@@ -33,6 +33,9 @@ Serial protocol (115200 baud, USB). All lines newline-terminated:
                              unmuting drives it back there.
     DISP:idx,line1,line2     display text for fader idx (1-based). Content is
                              whatever the active host plugin wants to show.
+    TUNE:kp,ki,kd,minmove,deadband,deadband_exit
+                             live PID gains, empty slot keeps the value;
+                             echoed as DBG:tune ..., lost on reset.
 
 Buttons report presses only — the firmware assigns them no function. The host
 decides what a press means, which is what makes a future layer-switch button
@@ -56,11 +59,42 @@ KP = 3.5          # Proportional gain — main driving force
 KI = 1.5          # Integral gain — corrects steady-state error
 KD = 0.05         # Derivative gain — damping, reduces overshoot
 
-DEADBAND = 0.2    # % — motor stops when within this distance of target
-DEADBAND_EXIT = 0.5  # % — must exceed this to leave hold state (hysteresis)
+# Widened from 0.2/0.5 for the 100 mm fader: at the power needed to break
+# stiction it covers more than 0.2% between loop iterations, so it never
+# landed inside the band and hunted instead.
+DEADBAND = 1.0    # % — motor brakes when within this distance of target
+DEADBAND_EXIT = 2.0  # % — must exceed this to leave hold state (hysteresis)
 
 # Anti-windup: integral is clamped to this range
 INTEGRAL_MAX = 100.0
+
+# Integral only accumulates within this distance of the target (%), and resets
+# when the error changes sign. Integrating across a whole move winds up tens of
+# percent of stored drive on the 100 mm fader, which arrives as overshoot.
+INTEGRAL_ZONE = 5.0
+
+# Stall guard: a fader that cannot reach its setpoint (jammed, stuck at an end
+# stop, held by hand) would otherwise be driven indefinitely at stall current.
+# A move is abandoned if it stays engaged longer than MOVE_TIMEOUT_MS, or if
+# output stays at STALL_OUTPUT_PCT while the position moves less than
+# STALL_PROGRESS_PCT within STALL_WINDOW_MS.
+#
+# STALL_OUTPUT_PCT is full power: a stuck carriage always gets there, through
+# kp x error or the breakaway ramp below. Counting from a lower output (it was
+# 50) started the window while the ramp was still climbing, so a fader parked
+# at an end stop was abandoned ~50 ms after reaching full power — before it
+# could break free.
+MOVE_TIMEOUT_MS = 3000
+STALL_WINDOW_MS = 300
+STALL_PROGRESS_PCT = 0.5
+STALL_OUTPUT_PCT = 100.0
+
+# Breakaway: static friction at an end stop is higher than mid-travel, so the
+# MIN_MOVE_PCT floor that keeps a moving carriage going may not start one
+# parked against a stop. While the position is not progressing, the floor rises
+# by this much per ms until the carriage breaks free (or the stall guard above
+# gives up), then drops back to MIN_MOVE_PCT.
+BREAKAWAY_RAMP_PCT_PER_MS = 0.2
 
 # Minimum motor output (%) when actively moving — below this the motor
 # crawls near stall. Floor non-zero PID output to this to keep short
@@ -138,6 +172,12 @@ ADC_CH_FADER_BTN = 7
 MCP_FULL_SCALE = 4095
 ADC_VREF = 3.3
 
+# Samples averaged per position read. Was 16, but with four faders that put the
+# control loop at ~10 ms — long enough for the carriage to travel ~9% between
+# reads at full power, which showed up as overshoot. The RC-filtered wiper reads
+# within a count or two, so 4 samples lose nothing.
+ADC_OVERSAMPLE = 4
+
 # ---------------------------------------------------------------------------
 # VM rail check — a divider into CH4 catches the HUSB238's silent 5 V
 # fallback, which otherwise presents as a mechanical fault (docs/pcb_design.md)
@@ -202,6 +242,17 @@ class MotorDriver:
     def stop(self):
         self.drive(0)
 
+    def brake(self):
+        """
+        Short brake: IN1 = IN2 = high shorts the motor windings through the
+        TB6612FNG, stopping the carriage dead instead of letting it coast past
+        the target. Only for arrival — an idle fader must coast so the user can
+        move it by hand.
+        """
+        self.in1.value(1)
+        self.in2.value(1)
+        self.pwm.duty_u16(PWM_MAX)
+
 
 class FaderPID:
     def __init__(self, read_raw, motor):
@@ -242,9 +293,20 @@ class FaderPID:
         self.muted = False
         self.unmute_position = 50.0
 
+        # Stall guard state. `stalled` is set when a move is abandoned and
+        # cleared by the main loop once it has reported it.
+        self.move_start = 0
+        self.stall_ref_pos = 0.0
+        self.stall_ref_time = 0
+        self.stalled = False
+        # Breakaway ramp: last position the carriage was seen moving from.
+        self.progress_ref_pos = 0.0
+        self.progress_ref_time = 0
+        self.last_dt_ms = 0  # loop period, reported by TUNE: for diagnosis
+
     def _raw_adc(self):
-        """Average 16 samples to reduce noise (kills sub-% jitter)."""
-        return sum(self._read() for _ in range(16)) // 16
+        """Average ADC_OVERSAMPLE samples to reduce noise."""
+        return sum(self._read() for _ in range(ADC_OVERSAMPLE)) // ADC_OVERSAMPLE
 
     def read_raw(self):
         """Return raw ADC value (0-65535), uncalibrated."""
@@ -335,7 +397,8 @@ class FaderPID:
         PID still holds, releases motor after SETTLE_MS of stillness.
         """
         now = ticks_ms()
-        dt = min(ticks_diff(now, self.last_time) / 1000.0, MAX_DT_S)
+        self.last_dt_ms = ticks_diff(now, self.last_time)
+        dt = min(self.last_dt_ms / 1000.0, MAX_DT_S)
         self.last_time = now
 
         position = self.read_position()
@@ -359,6 +422,12 @@ class FaderPID:
 
         error = self.setpoint - position
 
+        # MOVING only: SETTLING is the motor-off settle timer, which a slow
+        # but successful move would otherwise run into.
+        if self.state == "MOVING" and \
+                ticks_diff(now, self.move_start) >= MOVE_TIMEOUT_MS:
+            return self._abandon(position)
+
         if self.state == "MOVING" and abs(error) < DEADBAND:
             self.state = "SETTLING"
             self.settle_start = now
@@ -368,6 +437,8 @@ class FaderPID:
                 self.state = "MOVING"
                 self.integral = 0.0
                 self.last_error = 0.0
+                self.progress_ref_pos = position
+                self.progress_ref_time = now
             elif ticks_diff(now, self.settle_start) >= SETTLE_MS:
                 self.motor.stop()
                 self.integral = 0.0
@@ -376,27 +447,57 @@ class FaderPID:
                 self.last_reported_pos = position
                 return position
             else:
-                # In deadband, waiting out settle timer — motor off, no PID.
-                self.motor.stop()
+                # In deadband, waiting out settle timer — brake, no PID.
+                self.motor.brake()
                 return position
 
         # PID (MOVING only)
-        if dt > 0:
+        if error * self.last_error < 0 or abs(error) >= INTEGRAL_ZONE:
+            # Crossed the setpoint, or still far from it: stored drive would
+            # only push the fader further past.
+            self.integral = 0.0
+        elif dt > 0:
             self.integral += error * dt
             self.integral = max(-INTEGRAL_MAX, min(INTEGRAL_MAX, self.integral))
-            derivative = (error - self.last_error) / dt
-        else:
-            derivative = 0.0
+        derivative = (error - self.last_error) / dt if dt > 0 else 0.0
 
         self.last_error = error
         output = KP * error + KI * self.integral + KD * derivative
         output = max(-100.0, min(100.0, output))
 
-        # Floor non-zero output so short moves don't crawl near stall
-        if 0 < abs(output) < MIN_MOVE_PCT:
-            output = MIN_MOVE_PCT if output > 0 else -MIN_MOVE_PCT
+        # Floor non-zero output so short moves don't crawl near stall. The
+        # floor ramps up while the carriage is not moving, to break stiction.
+        if abs(position - self.progress_ref_pos) >= STALL_PROGRESS_PCT:
+            self.progress_ref_pos = position
+            self.progress_ref_time = now
+        stuck_ms = ticks_diff(now, self.progress_ref_time)
+        floor = min(100.0, MIN_MOVE_PCT + BREAKAWAY_RAMP_PCT_PER_MS * stuck_ms)
+        # Only output that pushes toward the target is floored. A small
+        # opposite-sign output is the D term asking to brake; flooring it would
+        # turn that into full reverse drive and shake the fader in place.
+        if 0 < abs(output) < floor and output * error > 0:
+            output = floor if output > 0 else -floor
+
+        # No-progress check: hard drive with the position not changing means
+        # the carriage is blocked.
+        if abs(output) < STALL_OUTPUT_PCT or \
+                abs(position - self.stall_ref_pos) >= STALL_PROGRESS_PCT:
+            self.stall_ref_pos = position
+            self.stall_ref_time = now
+        elif ticks_diff(now, self.stall_ref_time) >= STALL_WINDOW_MS:
+            return self._abandon(position)
 
         self.motor.drive(output)
+        return position
+
+    def _abandon(self, position):
+        """Give up on the current move: motor off, IDLE, flag for reporting."""
+        self.motor.stop()
+        self.integral = 0.0
+        self.last_error = 0.0
+        self.state = "IDLE"
+        self.last_reported_pos = position
+        self.stalled = True
         return position
 
     def state_changed(self):
@@ -414,6 +515,12 @@ class FaderPID:
         self.last_time = ticks_ms()
         self.in_deadband = False
         self.state = "MOVING"
+        self.move_start = self.last_time
+        self.stall_ref_pos = self.read_position()
+        self.stall_ref_time = self.last_time
+        self.progress_ref_pos = self.stall_ref_pos
+        self.progress_ref_time = self.last_time
+        self.stalled = False
 
     def set_mute(self, muted):
         """
@@ -432,7 +539,13 @@ class FaderPID:
             # zone — inside it, the stored target is the better answer.
             live = self.read_position()
             if live > MUTE_PARK_ZONE_PCT:
-                self.unmute_position = live
+                # Within the hold band of the last setpoint the fader has not
+                # been moved, only stopped short by the deadband. Keep the
+                # commanded value, or every mute cycle drifts by up to DEADBAND.
+                if abs(live - self.setpoint) <= DEADBAND_EXIT:
+                    self.unmute_position = self.setpoint
+                else:
+                    self.unmute_position = live
             self.muted = True
             self.engage(0.0)
         else:
@@ -481,6 +594,8 @@ def _handle_command(line, faders, screens):
             _handle_mute(line[5:], faders, screens)
         elif line.startswith("DISP:"):
             _handle_disp(line[5:], screens)
+        elif line.startswith("TUNE:"):
+            _handle_tune(line[5:], faders)
     except (ValueError, IndexError) as e:
         _emit("DBG:parse err {}".format(e))
 
@@ -525,6 +640,31 @@ def _handle_disp(payload, screens):
     line1 = parts[1] if len(parts) > 1 else ""
     line2 = parts[2] if len(parts) > 2 else ""
     screens[idx].set_lines(line1, line2)
+
+
+def _handle_tune(payload, faders):
+    """
+    Live PID tuning: `TUNE:kp,ki,kd,minmove,deadband,deadband_exit`. An empty
+    slot keeps that value, so `TUNE:` alone just reports. Changes last until
+    reset — copy the final values into the constants at the top of this file.
+    """
+    global KP, KI, KD, MIN_MOVE_PCT, DEADBAND, DEADBAND_EXIT
+    values = [KP, KI, KD, MIN_MOVE_PCT, DEADBAND, DEADBAND_EXIT]
+    for idx, raw in enumerate(payload.split(",")[:len(values)]):
+        if raw.strip():
+            values[idx] = float(raw)
+    if values[3] < 0 or values[3] > 100:
+        raise ValueError("minmove out of range")
+    if not 0 < values[4] <= values[5]:
+        raise ValueError("need 0 < deadband <= deadband_exit")
+    KP, KI, KD, MIN_MOVE_PCT, DEADBAND, DEADBAND_EXIT = values
+    # Loop period matters as much as the gains: the carriage travels
+    # speed x dt between reads, which bounds how tight the deadband can be.
+    dts = [f.last_dt_ms for f in faders if f is not None]
+    dt = max(dts) if dts else 0
+    # DBG:, not TUNE:, so a loopback of this line can't re-apply anything.
+    _emit("DBG:tune kp={} ki={} kd={} minmove={} deadband={} exit={} "
+          "loop={}ms".format(*(values + [dt])))
 
 
 def _build_screens(spi):
@@ -646,6 +786,9 @@ def main():
         for idx, fader in enumerate(faders):
             if fader is None:
                 continue
+            if fader.stalled:
+                fader.stalled = False
+                _emit("DBG:stall f{}, move abandoned".format(idx + 1))
             state = fader.state_changed()
             if state is not None:
                 _emit("STATE:{},{}".format(idx + 1, state))

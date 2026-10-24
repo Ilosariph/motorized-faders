@@ -210,9 +210,181 @@ def test_pid_reaches_setpoint_and_releases():
     check(rig.motors[0].pwm.duty_u16() == 0, "motor coasts once IDLE")
 
 
+def test_full_travel_move_is_not_a_stall():
+    rig = Rig()
+    rig.calibrate_all()
+    fader, sim = rig.faders[0], rig.sims[0]
+    sim.position = 0.0
+    fader.engage(100.0)
+    rig.run_for(2500)
+    check(not fader.stalled, "full-travel move is not flagged as a stall")
+    check(close(sim.position, 100.0, SETTLE_TOL),
+          f"full-travel move arrives (got {sim.position:.1f})")
+
+
+def test_blocked_fader_is_abandoned():
+    print("Stall guard")
+    rig = Rig()
+    rig.calibrate_all()
+    fw = rig.fw
+    fader, sim = rig.faders[0], rig.sims[0]
+    sim.step = lambda dt_s, stby=1: None  # carriage jammed
+
+    fader.engage(90.0)
+    rig.run_for(fw.STALL_WINDOW_MS - 50)
+    check(fader.state == "MOVING", "still driving inside the stall window")
+    rig.run_for(200)
+    check(fader.state == "IDLE", "blocked fader abandoned after stall window")
+    check(fader.stalled, "abandoned move is flagged for reporting")
+    check(rig.motors[0].pwm.duty_u16() == 0, "motor off after stall")
+
+    fader.engage(10.0)
+    check(not fader.stalled, "a new move clears the stall flag")
+
+
+def test_breakaway_ramp_frees_a_sticky_fader():
+    rig = Rig()
+    rig.calibrate_all()
+    fw = rig.fw
+    fader, sim = rig.faders[0], rig.sims[0]
+    # Gains as on the bench. KD = 0 matters: a derivative kick on the first
+    # tick would break stiction by itself and hide a missing ramp.
+    fw.KP, fw.KI, fw.KD, fw.MIN_MOVE_PCT = 1.0, 0.0, 0.0, 40.0
+    sim.position = 0.0
+    fader.read_position()
+
+    # Static friction at an end stop: from rest it needs full duty held for
+    # 150 ms to start, where the floor gives 40%. Once moving, the normal
+    # stall threshold applies. The stall guard must give the ramp that long.
+    free_step = sim.step
+    moving = [False]
+    held_ms = [0.0]
+
+    def sticky_step(dt_s, stby=1):
+        before = sim.position
+        held_ms[0] = held_ms[0] + dt_s * 1000 if sim._duty >= fw.PWM_MAX else 0
+        if moving[0] or held_ms[0] >= 150:
+            free_step(dt_s, stby)
+        moving[0] = sim.position != before
+
+    sim.step = sticky_step
+
+    fader.engage(20.0)
+    rig.run_for(2000)
+    check(not fader.stalled, "sticky fader is not abandoned")
+    check(close(sim.position, 20.0, SETTLE_TOL),
+          f"ramp breaks stiction and the move arrives (got {sim.position:.1f})")
+
+
+def test_move_timeout():
+    rig = Rig()
+    rig.calibrate_all()
+    fw = rig.fw
+    fader, sim = rig.faders[0], rig.sims[0]
+    fw.STALL_OUTPUT_PCT = 1000.0  # isolate the timeout from the progress check
+    sim.step = lambda dt_s, stby=1: None
+
+    fader.engage(90.0)
+    rig.run_for(fw.MOVE_TIMEOUT_MS - 100)
+    check(fader.state == "MOVING", "no timeout before MOVE_TIMEOUT_MS")
+    rig.run_for(200)
+    check(fader.state == "IDLE" and fader.stalled,
+          "move abandoned at MOVE_TIMEOUT_MS")
+
+
+def test_integral_only_near_target():
+    rig = Rig()
+    rig.calibrate_all()
+    fw = rig.fw
+    fader, sim = rig.faders[0], rig.sims[0]
+    sim.position = 10.0
+    fader.engage(80.0)
+
+    peak = 0.0
+    far_integral = 0.0
+    for _ in range(600):
+        positions = rig.tick(5)
+        if abs(fader.setpoint - positions[0]) >= fw.INTEGRAL_ZONE:
+            far_integral = max(far_integral, abs(fader.integral))
+        peak = max(peak, sim.position)
+    check(far_integral == 0.0, "no integral accumulates far from the target")
+    check(peak - 80.0 < fw.DEADBAND_EXIT + 1.0,
+          f"long move does not overshoot (peak {peak:.1f})")
+
+
+def test_tune_command():
+    print("Protocol: TUNE")
+    rig = Rig()
+    fw = rig.fw
+
+    out = collect_output(fw, lambda: fw._handle_command(
+        "TUNE:1.5,0.2,0.03,25", rig.faders, rig.screens))
+    check((fw.KP, fw.KI, fw.KD, fw.MIN_MOVE_PCT) == (1.5, 0.2, 0.03, 25.0),
+          "TUNE: sets all four values")
+    check(any(ln.startswith("DBG:tune kp=1.5") for ln in out),
+          "TUNE: echoes the active values as DBG:")
+
+    fw._handle_command("TUNE:,,0.1", rig.faders, rig.screens)
+    check((fw.KP, fw.KI, fw.KD, fw.MIN_MOVE_PCT) == (1.5, 0.2, 0.1, 25.0),
+          "empty TUNE: slots keep their value")
+
+    for bad in ("TUNE:abc", "TUNE:1,1,1,150"):
+        out = collect_output(fw, lambda: fw._handle_command(
+            bad, rig.faders, rig.screens))
+        check(any("DBG:parse err" in ln for ln in out),
+              f"{bad!r} reports an error")
+    check((fw.KP, fw.KI, fw.KD, fw.MIN_MOVE_PCT) == (1.5, 0.2, 0.1, 25.0),
+          "rejected TUNE: changes nothing")
+
+    fw._handle_command("DBG:tune kp=9 ki=9 kd=9 minmove=9",
+                       rig.faders, rig.screens)
+    check(fw.KP == 1.5, "echoed DBG:tune line is not re-applied")
+
+    out = collect_output(fw, lambda: fw._handle_command(
+        "TUNE:,,,,1.5,3", rig.faders, rig.screens))
+    check((fw.DEADBAND, fw.DEADBAND_EXIT) == (1.5, 3.0),
+          "TUNE: slots 5-6 set the deadband pair")
+    check(any("loop=" in ln for ln in out), "TUNE: echo reports loop period")
+    out = collect_output(fw, lambda: fw._handle_command(
+        "TUNE:,,,,4,3", rig.faders, rig.screens))
+    check(any("DBG:parse err" in ln for ln in out) and fw.DEADBAND == 1.5,
+          "deadband above deadband_exit is rejected")
+
+
+def test_settling_brakes_then_idle_coasts():
+    rig = Rig()
+    rig.calibrate_all()
+    fw = rig.fw
+    fader, motor = rig.faders[0], rig.motors[0]
+    fader.engage(70.0)
+    while fader.state == "MOVING":
+        rig.tick(5)
+    rig.tick(5)
+    check(fader.state == "SETTLING", "arrival enters SETTLING")
+    check((motor.in1.value(), motor.in2.value()) == (1, 1),
+          "SETTLING short-brakes the motor (IN1 = IN2 = high)")
+    rig.run_for(fw.SETTLE_MS + 100)
+    check(fader.state == "IDLE", "settle timer releases to IDLE")
+    check((motor.in1.value(), motor.in2.value(), motor.pwm.duty_u16())
+          == (0, 0, 0), "IDLE coasts so the fader moves freely by hand")
+
+
+def test_mute_restores_commanded_setpoint_not_deadband_shortfall():
+    rig = Rig()
+    rig.calibrate_all()
+    fader, sim = rig.faders[0], rig.sims[0]
+    fader.engage(70.0)
+    rig.run_for(3000)
+    sim.position = 70.0 - rig.fw.DEADBAND * 0.9  # stopped short, inside band
+    fader.set_mute(True)
+    check(fader.unmute_position == 70.0,
+          "mute inside the hold band restores the commanded setpoint")
+
+
 def test_min_move_pct_matches_9v_rail():
     fw = load_firmware()
-    check(fw.MIN_MOVE_PCT == 35.0, "MIN_MOVE_PCT raised to 35 for the 9 V rail")
+    # Bench-tuned (host/autotune.py); must stay above the 10 V prototype's 30.
+    check(fw.MIN_MOVE_PCT > 30.0, "MIN_MOVE_PCT raised for the 9 V rail")
     check(fw.CAL_MOTOR_POWER == 70, "calibration power raised to 70 for 9 V")
 
 
@@ -704,6 +876,14 @@ def main():
         test_calibration_both_polarities,
         test_collapsed_calibration_does_not_divide_by_zero,
         test_pid_reaches_setpoint_and_releases,
+        test_full_travel_move_is_not_a_stall,
+        test_blocked_fader_is_abandoned,
+        test_move_timeout,
+        test_breakaway_ramp_frees_a_sticky_fader,
+        test_integral_only_near_target,
+        test_tune_command,
+        test_settling_brakes_then_idle_coasts,
+        test_mute_restores_commanded_setpoint_not_deadband_shortfall,
         test_min_move_pct_matches_9v_rail,
         test_motor_direction_and_stall_floor,
         test_pwm_slices_are_distinct,
