@@ -209,6 +209,11 @@ DISPLAY_POLL_MS = 100  # rate limit for redraws, which still only run on change
 # The SSD1306's RC reset needs ~5 ms to release before the first command.
 DISPLAY_RESET_MS = 10
 
+# Serial input. Long lines (e.g. a CREASES: layout) run well past 128 chars,
+# so the line limit has room to spare.
+INPUT_CHARS_PER_LOOP = 512
+INPUT_LINE_MAX = 512
+
 
 class MotorDriver:
     def __init__(self, in1, in2, pwm_pin, stby):
@@ -872,15 +877,20 @@ def main():
                 if screen.draw():
                     break
 
-        # Non-blocking serial read
-        if select.select([sys.stdin], [], [], 0)[0]:
+        # Non-blocking serial read. Drain everything waiting, not one char
+        # per loop: a slow loop (display redraw) at one char each turned a
+        # burst of DISP: lines into seconds of lag for every later command.
+        # The cap only bounds a pathological flood.
+        for _ in range(INPUT_CHARS_PER_LOOP):
+            if not select.select([sys.stdin], [], [], 0)[0]:
+                break
             char = sys.stdin.read(1)
             if char == '\n':
                 _handle_command(input_buf, faders, screens)
                 input_buf = ""
             else:
                 input_buf += char
-                if len(input_buf) > 128:
+                if len(input_buf) > INPUT_LINE_MAX:
                     input_buf = ""  # guard against buffer overflow
 
 
