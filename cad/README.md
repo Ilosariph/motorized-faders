@@ -16,19 +16,20 @@ Eagle board — no STEP exists:
 openscad case.scad                                       # assembly w/ ghost parts
 openscad -D 'part="panel"' -o panel.stl case.scad        # prints face down
 openscad -D 'part="base"'  -o base.stl  case.scad
+openscad -D 'part="clips"' -o clips.stl case.scad        # button retaining bars
 ```
 
-Outer 220 x 227 x 70 mm (65 mm inside) — needs a >=230 mm bed. Layout per column, front to
+Outer 208 x 227 x 69.5 mm (65 mm inside, 2 mm panel) — needs a >=230 mm bed. Layout per column, front to
 back: fader, fader button, display. General buttons (G2, G1) sit in a strip
 right of fader 4, G2 level with the fader buttons.
 
 | Part | Mounting | Hardware |
 |------|----------|----------|
-| Fader RSA0N11M9 | 2x M3 from top into frame, countersunk; 3 x 110 mm slot | M3x5 countersunk |
+| Fader RSA0N11M9 | 2x M3 from top into frame, countersunk; 3 x 110 mm slot; 38 mm pitch | M3x4 countersunk |
 | Display Adafruit 326 0.96in (STEMMA QT rev) | glass up against panel underside on 1.6 mm posts; holes 24.13 x 26.67 c-c; window 23.7 x 12.9 | M2.5x8 pan head from top + nut |
-| Buttons Omron B3F-4050 | snap cradle under 1.2 mm skin, 5.8 mm hole, plunger 1.8 mm proud | none |
+| Buttons Omron B3F-4050 | pushed up from below into an open-bottom box under the panel, 7.6 mm hole clears the 7.1 collar; retaining bar slides along x through the end walls under the body, between the leg pairs, takes the press. Slot fits 3.5-4.5 mm bodies; `clips.stl` = 6 bars at `clip_t` 2.5 mm (tested). Other switches: `-D clip_t=0` prints a 1.6-2.6 mm test set (dots on head = size, 1 dot thinnest), use the thickest that goes in. Solder wires before fitting | printed bar |
 | HUSB238 PD board | 2 standoffs (8 mm) at back wall right of PCB, USB-C facing out | M2.5x5 thread-forming |
-| Panel -> base | 6 countersunk screws into heat-set inserts in wall bosses | M3x6, M3 insert 4.0 mm |
+| Panel -> base | 6 countersunk screws into heat-set inserts; back-middle boss hangs off the back wall above the PCB | M3x6, M3 insert 4.0 mm |
 | PCB (`motorized-faders.kicad_pcb`, 155 x 93) | 4 standoffs (5 mm), KiCad top edge (Pico USB end) 0.5 mm off back wall | M3 self-tap |
 
 `btn_type` = `"mx"` (Cherry MX plate cutout) or `"round"` (`round_hole_d`

@@ -7,7 +7,7 @@
 // Axes: X = width (left->right), Y = depth (0 = front edge, nearest user),
 // Z = up. Faders travel along Y.
 
-part = "assembly"; // [assembly, panel, base, exploded]
+part = "assembly"; // [assembly, panel, base, clips, exploded]
 
 $fn = 48;
 eps = 0.01;
@@ -15,7 +15,7 @@ eps = 0.01;
 // ---------------------------------------------------------------- shell
 wall      = 2.5;
 floor_t   = 2.5;
-panel_t   = 2.5;   // fader screws: M3 x 5 countersunk with 2.5
+panel_t   = 2.0;   // fader screws: M3 x 4 countersunk
 h_in      = 65;    // floor top -> panel underside (room for clip leads)
 corner_r  = 4;
 fit       = 0.3;   // panel lip -> wall clearance
@@ -58,8 +58,12 @@ od_screw_d = 2.8;       // M2.5 x 8 pan head from the top, nut under the board
 
 // ---------------------------------------------------------------- buttons
 // "tact": Omron B3F-4050 12x12 tactile (as on the PCB): body 12x12x3.5,
-//         collar 7.1 dia x 0.8, square 3.8 plunger, 7.3 overall. Snaps into a
-//         cradle under a thinned panel; plunger pokes through a small hole.
+//         collar 7.1 dia x 0.8, square 3.8 plunger, 7.3 overall. Pushed up
+//         from below into an open-bottom box, collar + plunger through the
+//         hole, body top against the panel underside. A retaining bar
+//         (part="clips") slides in along x under the body, between the leg
+//         pairs (legs at +-x, y = +-2.5), and takes the press. The slot fits
+//         bodies tact_body_h..tact_body_h_max: pick the thickest bar that goes in.
 // "mx": Cherry MX style keyswitch, 14 x 14 plate cutout, clips need 1.5 plate.
 // "round": panel-mount momentary pushbutton, round hole.
 btn_type     = "tact";  // [tact, mx, round]
@@ -67,20 +71,25 @@ tact_body    = 12.0;
 tact_body_h  = 3.5;
 tact_collar_h = 0.8;
 tact_h       = 7.3;
-tact_skin    = 1.2;     // panel thickness over the switch -> plunger stands 1.8 proud
-tact_hole_d  = 5.8;     // clears the 3.8 square plunger (5.4 diagonal)
-tact_fit     = 0.3;
+tact_hole_d  = 7.6;     // clears the 7.1 collar; plunger stands h - body - panel proud
+tact_fit     = 0.2;     // per side, body -> box side walls
+tact_body_h_max = 4.5;  // tallest body the slot accepts (with the thinnest bar)
 tact_wall    = 1.6;
-tact_lip     = 0.4;     // snap lip under the body
+tact_leg_clr = 1.2;     // body edge -> end wall, room for the legs
+tact_bar_w   = 3.0;     // fits between the 5.0 pitch leg pairs
+tact_bar_t   = 1.6;     // thinnest bar; thickest = + (body_h_max - body_h)
+tact_bar_step = 0.2;
+clip_t       = 2.5;     // part="clips": 6 bars of this thickness (fits the B3F here); 0 = test set
+tact_bar_fit = 0.15;    // per side in the slot
+tact_floor   = 1.2;     // end wall below the slot
 mx_cut       = 14.0;
 mx_plate_t   = 1.5;
 mx_pocket    = 15.6;
 round_hole_d = 12.2;    // 12 mm pushbutton; 16.2 for 16 mm
 
 // ---------------------------------------------------------------- layout
-pitch     = 44;    // fader column pitch
+pitch     = 38;    // fader column pitch
 x0        = 10;    // left panel edge -> first column edge
-strip_w   = 28;    // general-button strip right of the columns
 x_right   = 6;     // strip -> right panel edge
 fd_y0     = 14;    // panel front edge -> fader frame front end
 btn_gap   = 12.5;  // fader frame back end -> fader button centre
@@ -88,7 +97,11 @@ od_gap    = 13;    // fader button centre -> display board front edge
 y_back    = 9;     // display board back edge -> panel back edge
 gen_dy    = 26;    // spacing of the two general buttons
 
-W = x0 + 4 * pitch + strip_w + x_right;
+// Back wall carries PCB (155) + PD board (20.32) between the corner bosses.
+pd_gap = 6;       // PCB -> PD board, and PD board -> right corner boss
+W_back = 2 * (2.5 + 7.5) + 0.5 + 155 + pd_gap + 20.32 + pd_gap;
+W = max(x0 + 4 * pitch + 28 + x_right, W_back);
+strip_w = W - x0 - 4 * pitch - x_right;   // general-button strip right of the columns
 fd_cy  = fd_y0 + fd_len_front;                 // travel centre
 fd_y1  = fd_cy + fd_len_back;                  // frame back end
 btn_y  = fd_y1 + btn_gap;
@@ -112,8 +125,12 @@ bosses = [
     [boss_in, boss_in], [W - boss_in, boss_in],
     [boss_in, D - boss_in], [W - boss_in, D - boss_in],
     [x0 + 2 * pitch, boss_in],
-    [198, D - boss_in],   // right of the PCB + PD board, behind G1
 ];
+// Back-middle boss hangs off the back wall above the PCB (PCB + Pico on
+// headers stay below hung_z). Sits in the gap between displays 2 and 3.
+hung_bosses = [[x0 + 2 * pitch, D - boss_in]];
+hung_z = 34;      // above floor top
+all_bosses = concat(bosses, hung_bosses);
 
 // ---------------------------------------------------------------- panel ribs
 rib_t = 2;
@@ -144,7 +161,7 @@ pd_usb_overhang = 1.11;
 pd_usb_zc = 2.67;          // connector centre above board underside
 pd_holes  = [[2.54, 20.95], [17.78, 20.95]];
 pd_standoff_h = 8;
-pd_pos = [pcb_pos.x + pcb_size.x + 1.5, D - wall - 0.3 - pd_usb_overhang - pd_size.y];
+pd_pos = [pcb_pos.x + pcb_size.x + pd_gap, D - wall - 0.3 - pd_usb_overhang - pd_size.y];
 
 // ---------------------------------------------------------------- back wall IO
 // USB-C openings, sized for bulky plug overmolds. [x, z low, z high] centres
@@ -187,34 +204,46 @@ module display_posts() {
         cylinder(d = od_post_d, h = od_glass_t + eps);
 }
 
-tact_skin_z = panel_t - tact_skin;             // skin underside, above panel underside
-tact_bot_z  = tact_skin_z - tact_collar_h - tact_body_h;   // switch underside
+tact_bot_z = -tact_body_h;                   // switch underside (nominal), rel. panel underside
+tact_slot_top = tact_bot_z + tact_bar_fit;
+tact_slot_bot = -tact_body_h_max - tact_bar_t - tact_bar_fit;
+tact_bar_ts = [for (t = [tact_bar_t : tact_bar_step : tact_bar_t + tact_body_h_max - tact_body_h + eps]) t];
+
+tact_c = tact_body / 2 + tact_fit;               // box inner half-width (y)
+tact_e = tact_body / 2 + tact_leg_clr;           // box inner half-length (x)
+tact_bar_len = 2 * (tact_e + tact_wall) + 3;     // pokes 1.5 out each end
 
 module button_cradle() {
     if (btn_type == "tact") {
-        c = tact_body / 2 + tact_fit;
-        // snap walls on the two sides without legs (legs exit at +-x)
-        for (sy = [-1, 1]) translate([-tact_body / 2, sy > 0 ? c : -c - tact_wall, tact_bot_z - tact_lip * 2])
-            cube([tact_body, tact_wall, tact_skin_z - tact_bot_z + tact_lip * 2 + eps]);
-        for (sy = [-1, 1]) hull() {
-            translate([-tact_body / 2 + 1, sy * c - (sy > 0 ? 0 : eps), tact_bot_z - tact_lip * 2])
-                cube([tact_body - 2, eps, tact_lip]);
-            translate([-tact_body / 2 + 1, sy * (c - tact_lip) - (sy > 0 ? 0 : eps), tact_bot_z - tact_lip])
-                cube([tact_body - 2, eps, eps]);
-            translate([-tact_body / 2 + 1, sy * c - (sy > 0 ? 0 : eps), tact_bot_z - eps])
-                cube([tact_body - 2, eps, eps]);
+        zb = tact_slot_bot - tact_floor;
+        difference() {
+            union() {
+                // side walls, locate the body in y
+                for (sy = [-1, 1]) translate([-tact_e - tact_wall, sy > 0 ? tact_c : -tact_c - tact_wall, -tact_body_h_max])
+                    cube([2 * (tact_e + tact_wall), tact_wall, tact_body_h_max + eps]);
+                // end walls, outside the legs, carry the bar
+                for (sx = [-1, 1]) translate([sx > 0 ? tact_e : -tact_e - tact_wall, -tact_c - tact_wall, zb])
+                    cube([tact_wall, 2 * (tact_c + tact_wall), -zb + eps]);
+            }
+            // bar slot along x, spans every body height in range
+            translate([-tact_e - tact_wall - 1, -tact_bar_w / 2 - tact_bar_fit, tact_slot_bot])
+                cube([2 * (tact_e + tact_wall) + 2, tact_bar_w + 2 * tact_bar_fit, tact_slot_top - tact_slot_bot]);
         }
-        // locating tabs at +-x, between the leg pairs (legs at y = +-2.5)
-        for (sx = [-1, 1]) translate([sx > 0 ? c : -c - tact_wall, -1.2, tact_bot_z])
-            cube([tact_wall, 2.4, tact_skin_z - tact_bot_z + eps]);
+    }
+}
+
+module button_bar(t = tact_bar_t, dots = 0) {
+    // flat, with a head at one end as stop / grip; dots on the head mark the size
+    translate([-tact_bar_len / 2, -tact_bar_w / 2, 0]) cube([tact_bar_len, tact_bar_w, t]);
+    translate([tact_bar_len / 2 - 1.5, -tact_bar_w / 2 - 1.5, 0]) {
+        cube([1.5, tact_bar_w + 3, t]);
+        if (dots > 0) for (i = [0:dots - 1]) translate([1.5, 0.6 + i * 1.0, 0]) cube([0.6, 0.6, t]);
     }
 }
 
 module button_cut() {
     if (btn_type == "tact") {
         translate([0, 0, -1]) cylinder(d = tact_hole_d, h = panel_t + 2);
-        p = tact_body + 2 * tact_fit;
-        translate([-p / 2, -p / 2, -1]) cube([p, p, 1 + tact_skin_z]);
     } else if (btn_type == "mx") {
         translate([-mx_cut / 2, -mx_cut / 2, -1]) cube([mx_cut, mx_cut, panel_t + 2]);
         translate([-mx_pocket / 2, -mx_pocket / 2, -1])
@@ -243,7 +272,7 @@ module panel() {
                     rrect([W - 2 * (wall + fit), D - 2 * (wall + fit)], corner_r - wall, lip_h + eps);
                 translate([wall + fit + lip_t, wall + fit + lip_t, -eps])
                     rrect([W - 2 * (wall + fit + lip_t), D - 2 * (wall + fit + lip_t)], 1, lip_h + 3 * eps);
-                for (b = bosses) translate([b.x, b.y, -eps]) cylinder(d = boss_d + 1, h = lip_h + 3 * eps);
+                for (b = all_bosses) translate([b.x, b.y, -eps]) cylinder(d = boss_d + 1, h = lip_h + 3 * eps);
             }
             // stiffening ribs between fader bodies
             for (i = [0:4]) translate([x0 + i * pitch - rib_t / 2, fd_y0, top_z - rib_h])
@@ -254,7 +283,7 @@ module panel() {
         for (i = [0:3]) translate([col_x(i), fd_cy, top_z]) fader_cut();
         for (i = [0:3]) translate([col_x(i) - od_w / 2, od_y0, top_z]) display_cut();
         for (b = concat(fader_btns, gen_btns)) translate([b.x, b.y, top_z]) button_cut();
-        for (b = bosses) translate([b.x, b.y, H]) csk_m3(panel_t + 1);
+        for (b = all_bosses) translate([b.x, b.y, H]) csk_m3(panel_t + 1);
         for (i = [0:3], h = od_holes) translate([col_x(i) - od_w / 2 + h.x, od_y0 + h.y, top_z - od_glass_t - 1])
             cylinder(d = od_screw_d, h = od_glass_t + panel_t + 2);
     }
@@ -269,18 +298,23 @@ module base() {
                 translate([wall, wall, floor_t])
                     rrect([W - 2 * wall, D - 2 * wall], corner_r - wall, h_in + 1);
             }
-            for (b = bosses) translate([b.x, b.y, 0]) cylinder(d = boss_d, h = top_z);
-            // fill between corner bosses and walls
+            // bosses, joined to the front/back wall
             for (b = bosses) hull() {
                 translate([b.x, b.y, 0]) cylinder(d = boss_d, h = top_z);
-                translate([b.x < W / 2 ? 0 : W - eps, b.y - boss_d / 2, 0]) cube([eps, boss_d, top_z]);
+                translate([b.x - boss_d / 2, b.y < D / 2 ? 0 : D - eps, 0]) cube([boss_d, eps, top_z]);
+            }
+            // hung bosses with a 45 deg support underneath
+            for (b = hung_bosses) hull() {
+                translate([b.x, b.y, floor_t + hung_z]) cylinder(d = boss_d, h = top_z - floor_t - hung_z);
+                translate([b.x - boss_d / 2, D - eps, floor_t + hung_z - (D - b.y + boss_d / 2)])
+                    cube([boss_d, eps, top_z - floor_t - hung_z + D - b.y + boss_d / 2]);
             }
             for (h = pcb_holes) translate([pcb_pos.x + h.x, pcb_pos.y + h.y, 0])
                 cylinder(d = 7, h = floor_t + pcb_standoff_h);
             for (h = pd_holes) translate([pd_pos.x + h.x, pd_pos.y + h.y, 0])
                 cylinder(d = 5.5, h = floor_t + pd_standoff_h);
         }
-        for (b = bosses) translate([b.x, b.y, top_z - insert_h]) cylinder(d = insert_d, h = insert_h + eps);
+        for (b = all_bosses) translate([b.x, b.y, top_z - insert_h]) cylinder(d = insert_d, h = insert_h + eps);
         for (h = pcb_holes) translate([pcb_pos.x + h.x, pcb_pos.y + h.y, floor_t])
             cylinder(d = 2.5, h = pcb_standoff_h + eps);   // M3 self-tap / M2.5 insert
         for (h = pd_holes) translate([pd_pos.x + h.x, pd_pos.y + h.y, floor_t])
@@ -316,6 +350,7 @@ module ghost_button() {
         translate([-6, -6, tact_bot_z]) cube([12, 12, tact_body_h]);
         translate([0, 0, tact_bot_z + tact_body_h]) cylinder(d = 7.1, h = tact_collar_h);
         translate([-1.9, -1.9, tact_bot_z]) cube([3.8, 3.8, tact_h]);
+        translate([0, 0, tact_slot_bot]) button_bar(tact_bot_z - tact_slot_bot);
     } else if (btn_type == "mx") color("tan") {
         translate([-7, -7, -5]) cube([14, 14, 5]);
         translate([-9, -9, 6.6]) cube([18, 18, 8]);
@@ -340,6 +375,13 @@ echo(str("fader underside clearance to floor: ", top_z - fd_body_d - floor_t, " 
 if (part == "panel") {
     // print face down
     translate([0, D, H]) rotate([180, 0, 0]) panel();
+} else if (part == "clips") {
+    // button retaining bars: a test set (n dots = n-th size from thinnest), or 6 of clip_t
+    if (clip_t == 0) for (i = [0:len(tact_bar_ts) - 1]) {
+        echo(str("bar ", i + 1, " dot(s): ", tact_bar_ts[i], " mm -> body ", tact_body_h_max - (tact_bar_ts[i] - tact_bar_t), " mm"));
+        translate([0, i * (tact_bar_w + 6), 0]) button_bar(tact_bar_ts[i], i + 1);
+    } else for (i = [0:len(concat(fader_btns, gen_btns)) - 1])
+        translate([0, i * (tact_bar_w + 6), 0]) button_bar(clip_t);
 } else if (part == "base") {
     base();
 } else if (part == "exploded") {
