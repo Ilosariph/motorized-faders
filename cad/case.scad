@@ -120,6 +120,9 @@ fader_btns = [for (i = [0:3]) [col_x(i), btn_y]];
 boss_d   = 7.5;
 insert_d = 4.0;   // M3 heat-set insert, 5.7 long
 insert_h = 6;
+pcb_standoff_d = 8;   // PCB: same M3 insert as the bosses
+pd_insert_d = 3.2;    // PD board: M2 heat-set insert (M2 screw through its M2.5 holes), <=5.7 long
+pd_standoff_d = 6.5;
 boss_in  = wall + boss_d / 2;
 bosses = [
     [boss_in, boss_in], [W - boss_in, boss_in],
@@ -310,15 +313,15 @@ module base() {
                     cube([boss_d, eps, top_z - floor_t - hung_z + D - b.y + boss_d / 2]);
             }
             for (h = pcb_holes) translate([pcb_pos.x + h.x, pcb_pos.y + h.y, 0])
-                cylinder(d = 7, h = floor_t + pcb_standoff_h);
+                cylinder(d = pcb_standoff_d, h = floor_t + pcb_standoff_h);
             for (h = pd_holes) translate([pd_pos.x + h.x, pd_pos.y + h.y, 0])
-                cylinder(d = 5.5, h = floor_t + pd_standoff_h);
+                cylinder(d = pd_standoff_d, h = floor_t + pd_standoff_h);
         }
         for (b = all_bosses) translate([b.x, b.y, top_z - insert_h]) cylinder(d = insert_d, h = insert_h + eps);
-        for (h = pcb_holes) translate([pcb_pos.x + h.x, pcb_pos.y + h.y, floor_t])
-            cylinder(d = 2.5, h = pcb_standoff_h + eps);   // M3 self-tap / M2.5 insert
-        for (h = pd_holes) translate([pd_pos.x + h.x, pd_pos.y + h.y, floor_t])
-            cylinder(d = 2.1, h = pd_standoff_h + eps);    // M2.5 thread-forming
+        for (h = pcb_holes) translate([pcb_pos.x + h.x, pcb_pos.y + h.y, floor_t + pcb_standoff_h - insert_h])
+            cylinder(d = insert_d, h = insert_h + eps);
+        for (h = pd_holes) translate([pd_pos.x + h.x, pd_pos.y + h.y, floor_t + pd_standoff_h - insert_h])
+            cylinder(d = pd_insert_d, h = insert_h + eps);
         for (u = usb_cuts) translate([u.x, D + eps, floor_t]) rotate([90, 0, 0])
             linear_extrude(wall + 2 * eps + 1) hull()
                 for (z = [u[1], u[2]]) translate([0, z])
