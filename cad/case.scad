@@ -7,7 +7,7 @@
 // Axes: X = width (left->right), Y = depth (0 = front edge, nearest user),
 // Z = up. Faders travel along Y.
 
-part = "assembly"; // [assembly, panel, base, clips, exploded]
+part = "assembly"; // [assembly, panel, base, clips, caps, exploded]
 
 $fn = 48;
 eps = 0.01;
@@ -82,6 +82,20 @@ tact_bar_step = 0.2;
 clip_t       = 2.5;     // part="clips": 6 bars of this thickness (fits the B3F here); 0 = test set
 tact_bar_fit = 0.15;    // per side in the slot
 tact_floor   = 1.2;     // end wall below the slot
+// Printed caps: press fit on the square plunger, stem guided in the hole,
+// head clear of the panel by cap_gap. Labels engraved; printed face down.
+tact_body_real = tact_body_h_max - (clip_t - tact_bar_t);   // body height the chosen bar implies
+cap_d        = 11;
+cap_h        = 2.5;     // head
+cap_gap      = 0.6;     // head underside -> panel top, > 0.25 travel
+cap_stem_d   = tact_hole_d - 0.6;
+cap_stem_clr = 0.5;     // stem bottom -> collar top
+cap_sock     = 3.8 + 0.1;  // square socket, press fit
+cap_chamfer  = 0.5;
+cap_engrave  = 0.6;
+cap_font     = "Liberation Sans:style=Bold";
+fader_caps   = ["mute", "mute", "mute", "mute"];
+gen_caps     = ["B", "A"];  // G2 (by fader row), G1
 mx_cut       = 14.0;
 mx_plate_t   = 1.5;
 mx_pocket    = 15.6;
@@ -244,6 +258,34 @@ module button_bar(t = tact_bar_t, dots = 0) {
     }
 }
 
+// z rel. panel top
+cap_plunger_z = tact_h - tact_body_real - panel_t;
+cap_stem_z    = tact_collar_h - panel_t + cap_stem_clr;
+
+module cap_label(label) {
+    if (label == "mute") translate([-0.2, 0]) {
+        // speaker + X
+        translate([-3, -1]) square([1.2, 2]);
+        polygon([[-1.8, -1], [-1.8, 1], [0.2, 2.6], [0.2, -2.6]]);
+        for (a = [45, -45]) translate([2.3, 0]) rotate(a) square([3.8, 0.7], center = true);
+    } else text(label, size = 6, font = cap_font, halign = "center", valign = "center");
+}
+
+module button_cap(label) {
+    // in place: z = 0 at panel top
+    difference() {
+        union() {
+            translate([0, 0, cap_gap]) hull() {
+                cylinder(d = cap_d, h = cap_h - cap_chamfer);
+                cylinder(d = cap_d - 2 * cap_chamfer, h = cap_h);
+            }
+            translate([0, 0, cap_stem_z]) cylinder(d = cap_stem_d, h = cap_gap - cap_stem_z + eps);
+        }
+        translate([-cap_sock / 2, -cap_sock / 2, cap_stem_z - 1]) cube([cap_sock, cap_sock, cap_plunger_z - cap_stem_z + 1]);
+        translate([0, 0, cap_gap + cap_h - cap_engrave]) linear_extrude(cap_engrave + 1) cap_label(label);
+    }
+}
+
 module button_cut() {
     if (btn_type == "tact") {
         translate([0, 0, -1]) cylinder(d = tact_hole_d, h = panel_t + 2);
@@ -348,12 +390,13 @@ module ghost_display() {
         cube([od_glass[1].x - od_glass[0].x, od_glass[1].y - od_glass[0].y, od_glass_t]);
 }
 
-module ghost_button() {
+module ghost_button(b_label) {
     if (btn_type == "tact") color("tan") {
         translate([-6, -6, tact_bot_z]) cube([12, 12, tact_body_h]);
         translate([0, 0, tact_bot_z + tact_body_h]) cylinder(d = 7.1, h = tact_collar_h);
         translate([-1.9, -1.9, tact_bot_z]) cube([3.8, 3.8, tact_h]);
         translate([0, 0, tact_slot_bot]) button_bar(tact_bot_z - tact_slot_bot);
+        translate([0, 0, panel_t]) button_cap(b_label);
     } else if (btn_type == "mx") color("tan") {
         translate([-7, -7, -5]) cube([14, 14, 5]);
         translate([-9, -9, 6.6]) cube([18, 18, 8]);
@@ -363,7 +406,9 @@ module ghost_button() {
 module ghosts() {
     for (i = [0:3]) translate([col_x(i), fd_cy, top_z]) ghost_fader();
     for (i = [0:3]) translate([col_x(i) - od_w / 2, od_y0, top_z]) ghost_display();
-    for (b = concat(fader_btns, gen_btns)) translate([b.x, b.y, top_z]) ghost_button();
+    btns = concat(fader_btns, gen_btns);
+    labels = concat(fader_caps, gen_caps);
+    for (i = [0:len(btns) - 1]) translate([btns[i].x, btns[i].y, top_z]) ghost_button(labels[i]);
     color("green", 0.5) translate([pcb_pos.x, pcb_pos.y, floor_t + pcb_standoff_h]) cube([pcb_size.x, pcb_size.y, 1.6]);
     color("black") translate([pd_pos.x, pd_pos.y, floor_t + pd_standoff_h]) {
         cube([pd_size.x, pd_size.y, 1.57]);
@@ -385,6 +430,10 @@ if (part == "panel") {
         translate([0, i * (tact_bar_w + 6), 0]) button_bar(tact_bar_ts[i], i + 1);
     } else for (i = [0:len(concat(fader_btns, gen_btns)) - 1])
         translate([0, i * (tact_bar_w + 6), 0]) button_bar(clip_t);
+} else if (part == "caps") {
+    // face down, socket up
+    labels = concat(fader_caps, gen_caps);
+    for (i = [0:len(labels) - 1]) translate([i * (cap_d + 4), 0, cap_gap + cap_h]) rotate([180, 0, 0]) button_cap(labels[i]);
 } else if (part == "base") {
     base();
 } else if (part == "exploded") {
