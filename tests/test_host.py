@@ -80,6 +80,10 @@ class RecordingExtension(Extension):
         self.buttons = []
         self.rails = []
         self.calibrations = []
+        self.connects = 0
+
+    def on_connect(self):
+        self.connects += 1
 
     def on_position(self, idx, value):
         self.positions.append((idx, value))
@@ -326,6 +330,86 @@ def test_concurrent_sends_stay_whole_lines():
           "lines from concurrent threads never interleave")
 
 
+def test_replug_reconnects_and_restores():
+    print("Reconnect")
+    import threading
+    import faders.core as core
+
+    class DyingSerial(FakeSerial):
+        """Reads nothing until `unplug` is set, then fails like a yanked port."""
+        def __init__(self):
+            super().__init__()
+            self.unplug = threading.Event()
+
+        def read(self, n):
+            if self.unplug.wait(0.01):
+                raise _SerialException("device disconnected")
+            return b""
+
+    first, second = DyingSerial(), DyingSerial()
+    # Absent at start, then present, then gone for a while, then back.
+    plan = [None, None, first, None, None, second]
+
+    def fake_connect():
+        return plan.pop(0) if plan else None
+
+    original_interval = core.RECONNECT_INTERVAL_S
+    core.RECONNECT_INTERVAL_S = 0.01
+    host = FaderHost(port="/dev/null", num_faders=4)
+    ext = RecordingExtension()
+    host.register(ext)
+    host._connect = fake_connect
+    host.set_display(1, "Apps", "vol 40%")
+    host.set_creases(1, [(50, 45, 12)])
+    runner = threading.Thread(target=host.run, daemon=True)
+    try:
+        runner.start()
+        _wait_for(lambda: host._ser is first)
+        check(ext.connects == 1, "on_connect after waiting for an absent Pico")
+        check("DISP:2,Apps,vol 40%" in first.lines(),
+              "display replayed on first connect")
+
+        host._handle_line("MUTE:2,1")
+        host.set_fader(2, 70.0)
+        first.unplug.set()
+        _wait_for(lambda: host._ser is second)
+        check(not host._stop.is_set(), "unplug does not stop the host")
+        check(first.closed, "dead port closed")
+        check(ext.connects == 2, "on_connect again after the replug")
+        sent = second.lines()
+        check("DISP:2,Apps,vol 40%" in sent and "CREASES:2,50.0:45:12" in sent,
+              f"display and creases replayed to the rebooted Pico (got {sent})")
+        check(not host.is_muted(1), "mute mirror reset: a rebooted Pico is unmuted")
+        check(host._self_driven == [False] * 4, "loopback guards released")
+    finally:
+        host.stop()
+        runner.join(2.0)
+        core.RECONNECT_INTERVAL_S = original_interval
+    check(not runner.is_alive(), "run() returns after stop()")
+
+
+def test_write_failure_disconnects_without_stopping():
+    class BrokenSerial(FakeSerial):
+        def write(self, data):
+            raise _SerialException("write failed")
+
+    host, ext = make_host()
+    broken = BrokenSerial()
+    host._ser = broken
+    host.set_display(0, "Music", "")
+    check(host._ser is None and broken.closed, "write failure drops the port")
+    check(not host._stop.is_set(), "write failure does not stop the host")
+    host.set_display(0, "Music", "x")  # no port: dropped quietly, no raise
+    check(host._display[0] == ("Music", "x"), "display still tracked for replay")
+
+
+def _wait_for(cond, timeout=2.0):
+    import time as _time
+    end = _time.monotonic() + timeout
+    while not cond() and _time.monotonic() < end:
+        _time.sleep(0.005)
+
+
 def test_unknown_button_is_ignored():
     host, ext = make_host()
     for bad in ("BTN:", "BTN:F9", "BTN:F0", "BTN:X1", "BTN:FX"):
@@ -568,9 +652,14 @@ def test_pulse_sink_reads_mute_at_startup():
     try:
         host, _ = make_host()
         ps.register(host, {"fader": 0, "sink": "sink-music"})
+        check(not any(ln.startswith("MUTE:") for ln in host._ser.lines()),
+              "nothing seeded before the Pico is connected")
+        host._extensions[-1].on_connect()
         check(any("MUTE:1,1" in ln for ln in host._ser.lines()),
-              f"a sink already muted at startup mutes the fader "
+              f"a sink already muted at startup mutes the fader on connect "
               f"(got {host._ser.lines()})")
+        check(host._pending[0] == 50.0,
+              "fader driven to the sink volume on connect")
     finally:
         ps.subprocess.check_output = original_check
         ps.subprocess.Popen = original_popen
@@ -608,6 +697,8 @@ def main():
         test_sends_before_connect_are_replayed,
         test_stuck_loopback_guard_is_released,
         test_concurrent_sends_stay_whole_lines,
+        test_replug_reconnects_and_restores,
+        test_write_failure_disconnects_without_stopping,
         test_unknown_button_is_ignored,
         test_mute_confirmation_is_idempotent,
         test_set_mute_guards_loopback,

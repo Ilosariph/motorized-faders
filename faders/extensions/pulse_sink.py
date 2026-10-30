@@ -115,26 +115,11 @@ class PulseSinkExtension(Extension):
             log.info("%s: sink '%s' is #%d, range %.0f-%.0f%%", self._tag,
                      sink, self._sink_index, vol_min, vol_max)
 
-        # Seed fader to current sink volume so the motor starts in sync.
-        current = self._read_sink_volume()
-        log.info("%s: startup volume %s", self._tag,
-                 "unknown" if current is None else f"{current:.0f}%")
-        if current is not None:
-            fader_value = self._sink_to_fader(current)
-            host.set_fader(fader_idx, fader_value)
-            self._push_display(current)
-        else:
-            self._push_display(None)
-
+        # Fader position and mute are seeded in on_connect, once the Pico is
+        # there to receive them; display text and creases the host replays.
+        self._push_display(self._read_sink_volume())
         if creases:
             host.set_creases(fader_idx, self.crease_layout())
-
-        # Seed mute state the same way, so a sink muted before startup shows
-        # as muted rather than being discovered on the first button press.
-        muted = self._read_sink_mute()
-        if muted is not None:
-            self._last_mute = muted
-            host.set_mute(fader_idx, muted)
 
         self._stop = threading.Event()
         self._sub_proc = None
@@ -169,6 +154,29 @@ class PulseSinkExtension(Extension):
                 power, ms = CREASE_NORMAL
             layout.append((self._sink_to_fader(vol), power, ms))
         return layout
+
+    # ----- (re)connect -----------------------------------------------------
+
+    def on_connect(self):
+        """
+        Pico connected, at startup or after a replug that rebooted it: move
+        the fader to the sink's volume and mute it if the sink is muted, so
+        the hardware starts in sync rather than on the first button press.
+        """
+        current = self._read_sink_volume()
+        log.info("%s: sink volume %s", self._tag,
+                 "unknown" if current is None else f"{current:.0f}%")
+        with self._lock:
+            self._last_written_vol = None
+        if current is not None:
+            self.host.set_fader(self.fader_idx, self._sink_to_fader(current))
+        self._push_display(current)
+        muted = self._read_sink_mute()
+        if muted is not None:
+            with self._lock:
+                self._last_mute = muted
+            if muted:
+                self.host.set_mute(self.fader_idx, True)
 
     # ----- fader -> sink ---------------------------------------------------
 

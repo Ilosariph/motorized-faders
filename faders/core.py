@@ -56,6 +56,9 @@ SET_FLUSH_INTERVAL = 1.0 / SET_FLUSH_HZ
 # that fader is deaf to the hand for good.
 GUARD_TIMEOUT_S = 5.0
 
+# How often to look for the Pico while it is unplugged.
+RECONNECT_INTERVAL_S = 1.0
+
 log = logging.getLogger("faders")
 
 
@@ -87,6 +90,14 @@ class Extension:
 
     def on_calibration(self, phase):
         """phase is 'start' or 'done'."""
+
+    def on_connect(self):
+        """
+        Called each time the Pico's port opens: at startup and after a
+        replug. A replugged Pico has rebooted, so it holds no setpoints and
+        no mute state; re-assert both here. Display text and creases set
+        through the host are replayed by the host itself.
+        """
 
     def on_mute(self, fader_idx, muted):
         """
@@ -152,6 +163,7 @@ class FaderHost:
         # line must go out whole or the Pico parses garbage.
         self._write_lock = threading.Lock()
         self._stop = threading.Event()
+        self._waiting_logged = False
         self._reader = None
         self._writer = None
 
@@ -238,17 +250,26 @@ class FaderHost:
         self._send(f"CREASES:{idx + 1}{entries}")
 
     def run(self):
-        self._ser = self._connect()
-        # Extensions register before the port opens, so whatever they sent
-        # from their constructors was dropped. Send it now.
-        self._resend_after_boot()
-        self._reader = threading.Thread(target=self._reader_loop, daemon=True)
+        """
+        Serve until stop(). Survives the Pico being absent or unplugged: it
+        waits for the port to appear, and when a read or write fails it
+        closes the port and waits again.
+        """
         self._writer = threading.Thread(target=self._writer_loop, daemon=True)
-        self._reader.start()
         self._writer.start()
         try:
             while not self._stop.is_set():
-                time.sleep(0.2)
+                ser = self._connect()
+                if ser is None:
+                    self._stop.wait(RECONNECT_INTERVAL_S)
+                    continue
+                self._ser = ser
+                self._on_connected()
+                self._reader = threading.Thread(target=self._reader_loop,
+                                                args=(ser,), daemon=True)
+                self._reader.start()
+                while self._reader.is_alive() and not self._stop.is_set():
+                    self._reader.join(0.2)
         except KeyboardInterrupt:
             pass
         finally:
@@ -272,22 +293,65 @@ class FaderHost:
     # ----- internals -------------------------------------------------------
 
     def _connect(self):
+        """Open the Pico's port, or return None if it is absent or busy."""
+        # Re-resolve every attempt: a replugged Pico may come back as a
+        # different ttyACM node.
         port = self._port or find_pico_port()
         if port is None:
-            raise RuntimeError("Pico not found (VID 0x2E8A). Pass port= explicitly.")
-        log.info("connecting to %s at %d baud", port, BAUD)
-        ser = serial.Serial(port, BAUD, timeout=0.1)
-        ser.reset_input_buffer()
+            self._log_waiting("Pico not found (VID 0x2E8A)")
+            return None
+        try:
+            ser = serial.Serial(port, BAUD, timeout=0.1)
+            ser.reset_input_buffer()
+        except (serial.SerialException, OSError) as e:
+            self._log_waiting(f"cannot open {port}: {e}")
+            return None
+        log.info("connected to %s at %d baud", port, BAUD)
+        self._waiting_logged = False
         return ser
 
-    def _reader_loop(self):
+    def _log_waiting(self, reason):
+        # Once per outage, not once per retry.
+        if not self._waiting_logged:
+            log.warning("%s; waiting for it", reason)
+            self._waiting_logged = True
+
+    def _on_connected(self):
+        """
+        The Pico just (re)appeared. After a replug it has rebooted: every
+        fader is IDLE and unmuted, and nothing sent before still applies.
+        """
+        with self._lock:
+            self._states = ["IDLE"] * self.num_faders
+            self._self_driven = [False] * self.num_faders
+            self._muted = [False] * self.num_faders
+            self._pending = [None] * self.num_faders
+            self._held.clear()
+        self._resend_after_boot()
+        self._dispatch("on_connect")
+
+    def _disconnect(self, ser, reason):
+        """Drop `ser` after an I/O failure; run() then waits for a replug."""
+        with self._write_lock:
+            if self._ser is not ser:
+                return  # already dropped by the other thread
+            self._ser = None
+        try:
+            ser.close()
+        except Exception:
+            pass
+        if not self._stop.is_set():
+            log.warning("Pico disconnected (%s)", reason)
+
+    def _reader_loop(self, ser):
         buf = ""
-        while not self._stop.is_set():
+        while not self._stop.is_set() and self._ser is ser:
             try:
-                data = self._ser.read(128)
-            except serial.SerialException:
-                sys.stderr.write("[faders] serial read failed\n")
-                self._stop.set()
+                data = ser.read(128)
+            except (serial.SerialException, OSError, TypeError) as e:
+                # pyserial raises TypeError from read() when the port was
+                # closed under it by a failed write on another thread.
+                self._disconnect(ser, f"read failed: {e}")
                 return
             if not data:
                 continue
@@ -298,14 +362,16 @@ class FaderHost:
 
     def _send(self, line):
         """Write one protocol line immediately. Safe to call from any thread."""
-        if self._ser is None:
-            return
-        try:
-            with self._write_lock:
-                self._ser.write((line + "\n").encode("ascii"))
-        except serial.SerialException:
-            sys.stderr.write("[faders] serial write failed\n")
-            self._stop.set()
+        with self._write_lock:
+            ser = self._ser
+            if ser is None:
+                return
+            try:
+                ser.write((line + "\n").encode("ascii"))
+                return
+            except (serial.SerialException, OSError) as e:
+                reason = f"write failed: {e}"
+        self._disconnect(ser, reason)
 
     def _dispatch(self, hook, *args):
         """Call `hook` on every extension, isolating failures to one of them."""
@@ -496,6 +562,8 @@ class FaderHost:
     def _writer_loop(self):
         while not self._stop.is_set():
             time.sleep(SET_FLUSH_INTERVAL)
+            if self._ser is None:
+                continue  # keep pending setpoints until the Pico is back
             with self._lock:
                 if all(p is None for p in self._pending):
                     continue

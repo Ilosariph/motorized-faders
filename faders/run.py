@@ -6,12 +6,16 @@ Usage:
 
 Discovers every module in `faders/extensions/` and instantiates the ones
 mentioned in the config file via their `register(host, instance_cfg)` hook.
+
+Runs until SIGINT/SIGTERM. The Pico may be absent at startup or unplugged at
+any time: the host waits for it and restores state when it comes back.
 """
 
 import argparse
 import importlib
 import logging
 import pkgutil
+import signal
 import sys
 from pathlib import Path
 
@@ -72,6 +76,8 @@ def main(argv=None):
     sys.stderr.write(
         f"[faders] {len(host._extensions)} extension instance(s) loaded\n"
     )
+    # systemd stops with SIGTERM; shut down like Ctrl-C so extensions clean up.
+    signal.signal(signal.SIGTERM, lambda *_: host.stop())
     host.run()
 
 

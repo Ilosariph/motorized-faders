@@ -134,6 +134,36 @@ it describes whatever that fader actually controls.
 sink names (`alsa_output.pci-0000_00_1f.3.analog-stereo`) do not fit a 128 px
 screen.
 
+The host survives the Pico being unplugged: it waits for the port to come
+back (it may return as a different `ttyACM` node), then replays display text,
+A/B badges and creases, and extensions re-seed fader positions and mute via
+their `on_connect` hook. Starting without the Pico attached waits the same way.
+
+### NixOS
+
+`flake.nix` exports the package (`nix run .`), a dev shell and
+`nixosModules.default`, which runs the host as a systemd **user** service
+(plugins like `pulse_sink` need the user's PipeWire session) and grants the
+logged-in user the Pico's tty via udev `uaccess`:
+
+```nix
+{
+  inputs.motorized-faders.url = "github:Ilosariph/motorized-faders";
+  # in nixosSystem modules: inputs.motorized-faders.nixosModules.default
+  services.motorized-faders = {
+    enable = true;
+    plugins.pulse_sink = [
+      { fader = 0; sink = "sink-master"; max = 100; label = "Master"; }
+      { fader = 3; sink = "sink-music"; max = 150; label = "Music"; }
+    ];
+  };
+}
+```
+
+`plugins` keys are module names in `faders/extensions/` (checked at eval);
+each value is one instance config or a list. Logs:
+`journalctl --user -u motorized-faders -f`.
+
 ### Tests
 
 No hardware needed — the fader is simulated and `machine`/`utime` are stubbed:
