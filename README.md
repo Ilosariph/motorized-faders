@@ -139,7 +139,7 @@ screen.
 Plugins are grouped into **layers** that take turns owning the four faders.
 Each layer remembers its own fader levels, mutes, screens and creases.
 Without a `layers` key every plugin is its own layer (`pulse_sink` → "Audio",
-`discord_voice` → "Discord"); to choose, list them:
+`discord_voice` → "Discord", `home_assistant` → "Home"); to choose, list them:
 
 ```json
 "layers": [
@@ -153,7 +153,7 @@ Without a `layers` key every plugin is its own layer (`pulse_sink` → "Audio",
 | `F1`-`F4` | Mute that fader |
 | `G1` + `F1` / `F4` | Previous / next layer — screens show the name while `G1` is held, faders move on its release |
 | `G2` + `Fn` | A/B position swap (layers without pages, e.g. Audio) |
-| `G2` + `F1` / `F4` | Previous / next page (paged layers, e.g. Discord) |
+| `G2` + `F1` / `F4` | Previous / next page (paged layers, e.g. Discord, Home with >4 entities) |
 
 #### Discord
 
@@ -169,6 +169,38 @@ client (Vesktop/arRPC lack voice RPC) and your own Discord application:
    (`client_secret` inline also works; keep the file private).
 4. Start the host, click **Authorize** in the Discord popup once. The token is
    cached in `~/.local/state/motorized-faders/discord_token.json`.
+
+#### Home Assistant
+
+`home_assistant` binds faders to lights and covers over HA's WebSocket API:
+
+- **Light**: fader = brightness, dragged to the bottom = off; button = off /
+  back on at its brightness. Turned off in HA → fader parks (muted).
+- **Cover**: `"attribute": "position"` (default) or `"tilt"`. Two faders on
+  one blind give position and slat angle. Button = close (0) / restore.
+  Covers get one command when the fader comes to rest; the fader follows HA
+  once the cover stops moving.
+
+Entries fill the faders in order; more than four → pages (`G2` + `F1`/`F4`,
+`x/y` on the last screen). `null` leaves a fader empty, e.g. to keep a
+blind's pair on one page. Needs a long-lived access token (HA profile →
+Security):
+
+```json
+"home_assistant": {
+  "url": "http://homeassistant.local:8123",
+  "token_file": "~/.config/motorized-faders/ha-token",
+  "faders": [
+    {"entity": "light.desk", "label": "Desk"},
+    null,
+    {"entity": "cover.office", "attribute": "position", "label": "Blinds"},
+    {"entity": "cover.office", "attribute": "tilt", "label": "Slats"}
+  ]
+}
+```
+
+`token` inline also works (keep the config private); `"verify_ssl": false`
+for a self-signed https URL.
 
 The host survives the Pico being unplugged: it waits for the port to come
 back (it may return as a different `ttyACM` node), then replays display text,
@@ -226,6 +258,7 @@ python3 tests/run_all.py
 | `faders/` | Extension host — serial transport, button/mute dispatch, plugins |
 | `faders/extensions/pulse_sink.py` | Binds a fader to a PulseAudio/PipeWire sink |
 | `faders/extensions/discord_voice.py` | Voice-channel users on the faders: volume, mute, pages |
+| `faders/extensions/home_assistant.py` | HA lights (brightness, on/off) and covers (position, tilt), paged |
 | `tests/` | Test suites — run `python3 tests/run_all.py`, no hardware required |
 | `docs/upload.md` | How to flash firmware to the Pico (Thonny + mpremote) |
 | `docs/pid_tuning.md` | How to tune the PID controller |
