@@ -19,7 +19,7 @@ Muted, the bar is empty but for a thin strip showing where unmute will
 return the fader, and a solid bar replaces the bottom row:
 
     | [=============             ]   |  thin strip: restore position
-    | A######## MUTE 78% ##########  |  mute bar, restore % knocked out
+    | A########## MUTE ############  |  mute bar, label knocked out
 
 `MENU:idx,label,name` swaps the whole layout for a menu card — no bar,
 badge or mute — until the next `DISP:`. The host shows it on every screen
@@ -228,6 +228,5 @@ class FaderScreen:
         """Solid bar along the bottom, label knocked out of it."""
         d = self.display
         d.fill_rect(0, MUTE_BAR_Y, WIDTH, MUTE_BAR_H, 1)
-        label = "{}  {:.0f}%".format(_MUTE_LABEL, self.restore)
-        x = (WIDTH - len(label) * CHAR_W) // 2
-        d.text(label, x, MUTE_BAR_Y + 2, 0)
+        x = (WIDTH - len(_MUTE_LABEL) * CHAR_W) // 2
+        d.text(_MUTE_LABEL, x, MUTE_BAR_Y + 2, 0)
