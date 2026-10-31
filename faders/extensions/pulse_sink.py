@@ -27,6 +27,9 @@ can't accidentally pin a sink to clipping.
 
 `creases` (default true) turns the detents off when false.
 
+`"source": "<name>"` in place of `sink` binds an input instead, e.g. a mic:
+same volume, mute and display, through pactl's -source- commands.
+
 `label` is optional display text; it defaults to the sink name. Sink names are
 often long (`alsa_output.pci-0000_00_1f.3.analog-stereo`), which does not fit a
 128 px screen, so a short label is usually worth setting.
@@ -83,7 +86,8 @@ CREASE_BIG = (70.0, 18)      # 100%, only when the sink can go past it
 
 # pactl subscribe event line. Example:
 #   Event 'change' on sink #42
-_EVENT_RE = re.compile(r"Event '(?P<ev>\w+)' on sink #(?P<idx>\d+)")
+# `on source #` does not match `on source-output #`.
+_EVENT_RE = re.compile(r"Event '(?P<ev>\w+)' on (?P<kind>sink|source) #(?P<idx>\d+)")
 # `pactl get-sink-volume <sink>` returns lines containing e.g. "/  80% /".
 _VOLUME_RE = re.compile(r"/\s*(\d+)%\s*/")
 # `pactl get-sink-mute <sink>` returns "Mute: yes" or "Mute: no".
@@ -96,10 +100,14 @@ def register_all(host, cfg):
 
 
 def register(host, cfg):
+    if ("sink" in cfg) == ("source" in cfg):
+        raise ValueError("pulse_sink: give exactly one of 'sink' or 'source'")
+    kind = "sink" if "sink" in cfg else "source"
     ext = PulseSinkExtension(
         host=host,
         fader_idx=int(cfg["fader"]),
-        sink=str(cfg["sink"]),
+        sink=str(cfg[kind]),
+        kind=kind,
         vol_min=float(cfg.get("min", 0)),
         vol_max=float(cfg.get("max", 100)),
         label=cfg.get("label"),
@@ -110,10 +118,13 @@ def register(host, cfg):
 
 class PulseSinkExtension(Extension):
     def __init__(self, host, fader_idx, sink, vol_min, vol_max, label=None,
-                 creases=True):
+                 creases=True, kind="sink"):
         self.host = host
         self.fader_idx = fader_idx
         self.sink = sink
+        # "sink", or "source" for an input such as a mic: same pactl
+        # commands with -source- in place of -sink-.
+        self.kind = kind
         self.vol_min = vol_min
         self.vol_max = vol_max
         # Shown on line 1 of this fader's display. Defaults to the sink name,
@@ -235,7 +246,7 @@ class PulseSinkExtension(Extension):
                   target_vol)
         try:
             self._last_proc = subprocess.Popen(
-                [PACTL, "set-sink-volume", self.sink, f"{target_vol:.1f}%"],
+                [PACTL, f"set-{self.kind}-volume", self.sink, f"{target_vol:.1f}%"],
                 stdout=subprocess.DEVNULL,
                 stderr=subprocess.DEVNULL,
             )
@@ -250,7 +261,8 @@ class PulseSinkExtension(Extension):
             return
         code = proc.poll() if hasattr(proc, "poll") else None
         if code:
-            log.warning("%s: pactl set-sink-volume exited %d", self._tag, code)
+            log.warning("%s: pactl set-%s-volume exited %d", self._tag, self.kind,
+                        code)
 
     # ----- display ---------------------------------------------------------
 
@@ -282,7 +294,7 @@ class PulseSinkExtension(Extension):
         log.info("%s: sink %s", self._tag, "muted" if muted else "unmuted")
         try:
             subprocess.Popen(
-                [PACTL, "set-sink-mute", self.sink, "1" if muted else "0"],
+                [PACTL, f"set-{self.kind}-mute", self.sink, "1" if muted else "0"],
                 stdout=subprocess.DEVNULL,
                 stderr=subprocess.DEVNULL,
             )
@@ -292,7 +304,7 @@ class PulseSinkExtension(Extension):
     def _read_sink_mute(self):
         try:
             out = subprocess.check_output(
-                [PACTL, "get-sink-mute", self.sink], text=True, timeout=2.0
+                [PACTL, f"get-{self.kind}-mute", self.sink], text=True, timeout=2.0
             )
         except (subprocess.SubprocessError, FileNotFoundError):
             return None
@@ -306,7 +318,7 @@ class PulseSinkExtension(Extension):
     def _resolve_sink_index(self):
         try:
             out = subprocess.check_output(
-                [PACTL, "list", "short", "sinks"], text=True, timeout=2.0
+                [PACTL, "list", "short", f"{self.kind}s"], text=True, timeout=2.0
             )
         except (subprocess.SubprocessError, FileNotFoundError):
             return None
@@ -322,7 +334,7 @@ class PulseSinkExtension(Extension):
     def _read_sink_volume(self):
         try:
             out = subprocess.check_output(
-                [PACTL, "get-sink-volume", self.sink], text=True, timeout=2.0
+                [PACTL, f"get-{self.kind}-volume", self.sink], text=True, timeout=2.0
             )
         except (subprocess.SubprocessError, FileNotFoundError):
             return None
@@ -353,6 +365,8 @@ class PulseSinkExtension(Extension):
                 break
             m = _EVENT_RE.search(line)
             if m is None:
+                continue
+            if m.group("kind") != self.kind:
                 continue
             ev = m.group("ev")
             idx = int(m.group("idx"))

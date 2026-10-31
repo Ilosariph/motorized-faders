@@ -1015,6 +1015,50 @@ def test_pulse_sink_pages():
         ps.subprocess.check_output, ps.subprocess.Popen, ps.threading.Thread = original
 
 
+def test_pulse_source():
+    print("pulse_sink source")
+    import faders.extensions.pulse_sink as ps
+    calls = []
+    asked = []
+
+    def fake_check_output(cmd, **kwargs):
+        asked.append(cmd[1:])
+        if "get-source-volume" in cmd:
+            return "Volume: mono: 1 /  80% / 0 dB\n"
+        if "get-source-mute" in cmd:
+            return "Mute: no\n"
+        if cmd[1:] == ["list", "short", "sources"]:
+            return "87\tsource-mic\tm\tfloat32le\tRUNNING\n"
+        raise AssertionError(cmd)
+
+    original = (ps.subprocess.check_output, ps.subprocess.Popen, ps.threading.Thread)
+    ps.subprocess.check_output = fake_check_output
+    ps.subprocess.Popen = lambda cmd, **k: calls.append(cmd)
+    ps.threading.Thread = lambda *a, **k: types.SimpleNamespace(
+        start=lambda: None, join=lambda *a, **k: None)
+    try:
+        host, _ = make_host()
+        ps.register(host, {"fader": 0, "source": "source-mic", "label": "Mic"})
+        ext = host._extensions[-1]
+        check(ext._sink_index == 87, "source resolved from pactl's source list")
+        check(host._display[0] == ("Mic", "vol 80%"), f"source volume shown (got {host._display[0]})")
+        ext.on_position(0, 50.0)
+        ext.on_mute(0, True)
+        check(calls == [["pactl", "set-source-volume", "source-mic", "50.0%"],
+                        ["pactl", "set-source-mute", "source-mic", "1"]],
+              f"source writes use -source- commands (got {calls})")
+        check(not any("sink" in " ".join(c) for c in asked), "no sink commands asked")
+        check(ps._EVENT_RE.search("Event 'change' on source-output #3") is None,
+              "source-output events are not the source")
+        try:
+            ps.register(host, {"fader": 1, "sink": "a", "source": "b"})
+            check(False, "sink and source together rejected")
+        except ValueError:
+            pass
+    finally:
+        ps.subprocess.check_output, ps.subprocess.Popen, ps.threading.Thread = original
+
+
 def test_config_defaults_to_four_faders():
     print("Config")
     import json
@@ -1067,6 +1111,7 @@ def main():
         test_pulse_sink_display_and_mute,
         test_pulse_sink_reads_mute_at_startup,
         test_pulse_sink_pages,
+        test_pulse_source,
         test_config_defaults_to_four_faders,
     ]
     for test in tests:

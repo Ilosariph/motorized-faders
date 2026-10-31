@@ -130,7 +130,8 @@ it describes whatever that fader actually controls.
 {"fader": 0, "sink": "sink-music", "min": 0, "max": 100, "label": "Music"}
 ```
 
-`label` is optional and defaults to the sink name — worth setting, since real
+`"source": "source-mic"` in place of `sink` puts an input (e.g. a mic) on the
+fader the same way. `label` is optional and defaults to the sink name — worth setting, since real
 sink names (`alsa_output.pci-0000_00_1f.3.analog-stereo`) do not fit a 128 px
 screen.
 
