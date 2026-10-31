@@ -64,7 +64,12 @@
             port = cfg.port;
             num_faders = cfg.numFaders;
             extensions = cfg.plugins;
+            layers = cfg.layers;
           });
+          # Plugin names used anywhere: top level and inside explicit layers.
+          usedPlugins = builtins.attrNames cfg.plugins
+            ++ lib.concatMap (layer: builtins.attrNames (layer.extensions or { }))
+              (if cfg.layers == null then [ ] else cfg.layers);
         in
         {
           options.services.motorized-faders = {
@@ -108,6 +113,25 @@
               '';
             };
 
+            layers = lib.mkOption {
+              type = with lib.types; nullOr (listOf attrs);
+              default = null;
+              example = lib.literalExpression ''
+                [
+                  { name = "Audio"; extensions.pulse_sink = [ { fader = 0; sink = "sink-master"; } ]; }
+                  { name = "Discord"; extensions.discord_voice = {
+                      client_id = "1234567890";
+                      client_secret_file = "/run/secrets/discord-faders";
+                    }; }
+                ]
+              '';
+              description = ''
+                Explicit layers, switched with G1 + F1/F4. Each has a `name`
+                and `extensions` shaped like `plugins`. null makes every
+                plugin in `plugins` a layer of its own.
+              '';
+            };
+
             verbose = lib.mkOption {
               type = lib.types.bool;
               default = false;
@@ -118,9 +142,9 @@
           config = lib.mkIf cfg.enable {
             assertions = map (name: {
               assertion = builtins.elem name builtinPlugins;
-              message = "services.motorized-faders.plugins.${name}: no such plugin "
+              message = "services.motorized-faders: no such plugin ${name} "
                 + "(available: ${lib.concatStringsSep ", " builtinPlugins})";
-            }) (builtins.attrNames cfg.plugins);
+            }) usedPlugins;
 
             # Logged-in user gets the Pico's tty without joining dialout.
             services.udev.extraRules = ''

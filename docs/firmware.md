@@ -49,7 +49,7 @@ prefix ignores it.
 | Line | Meaning |
 |------|---------|
 | `SET:f1,f2,f3,f4` | Setpoints. An **empty slot leaves that fader alone** |
-| `MUTE:idx,0\|1` | Mute/unmute fader `idx` (1-based) |
+| `MUTE:idx,0\|1[,pos]` | Mute/unmute fader `idx` (1-based). Optional `pos` sets the position unmute returns to (mute) or drives to (unmute) instead of reading the fader |
 | `DISP:idx,line1,line2` | Display text for fader `idx` (1-based) |
 | `SLOT:idx,A\|B` | A/B slot badge for fader `idx`; empty clears it |
 | `CREASES:idx,pos:power:ms,...` | Haptic detents for fader `idx`, see below. No entries clears |
@@ -100,15 +100,19 @@ The firmware assigns buttons **no meaning**. It decodes which button was
 pressed or released and emits `BTN:` / `BTNUP:`; `FaderHost._handle_button`
 maps that to an action.
 
-This is deliberate. The planned layer-switch button — one general button
-re-purposing the four fader buttons — becomes a change to that one method, with
-no firmware, protocol, or PCB change. Currently:
+This is deliberate: layers, paging and A/B are all host-side, with no
+firmware, protocol, or PCB change. Currently:
 
 | Button | Action |
 |--------|--------|
 | `F1`-`F4` | Toggle mute on the matching fader |
+| `G1` held + `F1` / `F4` | Previous / next layer. Screens name the layer while `G1` is held; faders move on its release |
 | `G2` held + `F1`-`F4` | A/B swap: store the fader's current position, move to the one stored by the last swap. The first swap only stores. Ignored while muted |
-| `G1` | Reserved for the layer switch. No function yet |
+| `G2` held + `F1` / `F4`, paged layer | Previous / next page (e.g. `discord_voice`), replaces A/B there |
+| `G1` / `G2` alone, `G1`/`G2` + `F2`/`F3` where unassigned | Nothing |
+
+Held modifiers never also mute. While a layer switch is settling, only further
+`G1` steps are taken.
 
 All presses are also reported to extensions via `on_button`.
 
@@ -286,7 +290,8 @@ python3 tests/run_all.py
 | Suite | Covers |
 |-------|--------|
 | `tests/test_firmware.py` | MCP3208 framing, calibration at both polarities, PID, pin map, mute cycling, protocol parsing, ladder decode, rail check, redraw gating |
-| `tests/test_host.py` | POS/BTN/MUTE/RAIL parsing, button dispatch, loopback guard, display de-dup, `pulse_sink` pactl calls |
+| `tests/test_host.py` | POS/BTN/MUTE/RAIL parsing, button dispatch, layers, loopback guard, display de-dup, `pulse_sink` pactl calls |
+| `tests/test_discord_voice.py` | `discord_voice`: user/fader mapping, paging, volume and mute both ways, RPC framing, OAuth token cache |
 | `tests/test_integration.py` | Firmware + host over a loopback pipe: real button press to real fader travel |
 
 The integration suite is the one that matters for the mute behaviour — it

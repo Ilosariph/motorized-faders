@@ -244,8 +244,245 @@ def test_ab_swap_ignored_while_muted():
 def test_g1_held_is_not_the_swap_modifier():
     host, ext = make_host()
     host._handle_line("BTN:G1")
+    for n in (1, 2, 3, 4):
+        host._handle_line(f"BTN:F{n}")
+        host._handle_line(f"BTNUP:F{n}")
+    check(host._ser.lines() == [],
+          f"G1 + Fn neither mutes nor swaps, single layer (got {host._ser.lines()})")
+    check(host._target is None, "one layer: G1 + F1/F4 switches nothing")
+
+
+def test_g1_g2_held_fader_button_does_nothing():
+    host, ext = make_host()
+    host._handle_line("BTN:G1")
+    host._handle_line("BTN:G2")
+    host._handle_line("BTN:F2")
+    check(host._ser.lines() == [], "G1 + G2 + F2 is ambiguous: nothing sent")
+
+
+# ---------------------------------------------------------------------------
+# Layers
+# ---------------------------------------------------------------------------
+
+class PagedExtension(RecordingExtension):
+    PAGED = True
+
+    def __init__(self):
+        super().__init__()
+        self.pages = []
+        self.activations = []
+
+    def on_page(self, delta):
+        self.pages.append(delta)
+
+    def on_activate(self):
+        self.activations.append("on")
+
+    def on_deactivate(self):
+        self.activations.append("off")
+
+
+def make_layered_host():
+    host = FaderHost(port="/dev/null", num_faders=4)
+    host._ser = FakeSerial()
+    audio, chat = host.add_layer("Audio"), host.add_layer("Chat")
+    a, b = RecordingExtension(), PagedExtension()
+    audio.register(a)
+    chat.register(b)
+    return host, audio, chat, a, b
+
+
+def test_inactive_layer_writes_are_stored_not_sent():
+    print("Layers")
+    host, audio, chat, a, b = make_layered_host()
+    chat.set_fader(0, 80.0)
+    chat.set_display(0, "Alice", "vol 160%")
+    chat.set_mute(1, True, 40.0)
+    chat.set_creases(0, [(50, 70, 18)])
+    check(host._ser.lines() == [] and host._pending == [None] * 4,
+          f"inactive layer reaches nothing (got {host._ser.lines()})")
+    check(chat.is_muted(1) and not audio.is_muted(1),
+          "mute stored on the inactive layer only")
+    check(not chat.is_active() and audio.is_active(), "first layer active")
+
+    audio.set_display(0, "Music", "vol 50%")
+    check(host._ser.lines() == ["DISP:1,Music,vol 50%"], "active layer writes through")
+
+
+def test_layer_switch_applies_on_g1_release():
+    host, audio, chat, a, b = make_layered_host()
+    audio.set_fader(0, 30.0)
+    host._pending = [None] * 4
+    host._setpoints[0] = 30.0
+    chat.set_fader(0, 80.0)
+    chat.set_display(0, "Alice", "vol 160%")
+    host._ser.written.clear()
+
+    host._handle_line("BTN:G1")
+    host._handle_line("BTN:F4")
+    sent = host._ser.lines()
+    check("DISP:2,Chat,layer 2/2" in sent, f"target layer named at once (got {sent})")
+    check(not any(ln.startswith(("MUTE:", "CREASES:")) for ln in sent)
+          and host._pending == [None] * 4, "no motion while G1 is held")
+    check(not audio.is_active() and not chat.is_active(), "no layer live mid-switch")
+
+    # Input mid-switch goes nowhere.
+    host._handle_line("POS:55.0,0,0,0")
+    host._handle_line("BTN:F2")
+    check(a.positions == [] and b.positions == [], "positions dropped mid-switch")
+    check(not any(ln.startswith("MUTE:") for ln in host._ser.lines()),
+          "fader button does not mute mid-switch")
+
+    check(host._target is not None, "still pending while G1 is held")
+    host._handle_line("BTNUP:G1")
+    check(chat.is_active(), "target layer active on G1 release")
+    check(host._pending[0] == 80.0, f"fader moves to the layer level (got {host._pending})")
+    check("DISP:1,Alice,vol 160%" in host._ser.lines(), "layer screen restored")
+    check(b.activations == ["on"], "on_activate dispatched")
+
+
+def test_repeated_steps_apply_only_the_last():
+    host = FaderHost(port="/dev/null", num_faders=4)
+    host._ser = FakeSerial()
+    layers = [host.add_layer(n) for n in ("A", "B", "C")]
+    exts = [RecordingExtension() for _ in layers]
+    for layer, ext in zip(layers, exts):
+        layer.register(ext)
+    layers[1].set_fader(0, 90.0)
+    layers[2].set_fader(0, 10.0)
+    host._setpoints[0] = 50.0
+    host._handle_line("BTN:G1")
+    host._handle_line("BTN:F4")
+    host._handle_line("BTN:F4")
+    check("DISP:2,C,layer 3/3" in host._ser.lines(), "second step names C")
+    check(host._pending[0] is None, "intermediate layer B never moves the faders")
+    host._handle_line("BTNUP:G1")
+    check(layers[2].is_active() and host._pending[0] == 10.0,
+          "only the final layer is applied")
+
+    # Wrap backwards: F1 from A goes to the last layer.
+    host2, audio, chat, a, b = make_layered_host()
+    host2._handle_line("BTN:G1")
+    host2._handle_line("BTN:F1")
+    host2._handle_line("BTNUP:G1")
+    check(chat.is_active(), "G1 + F1 steps back and wraps")
+
+
+def test_stepping_back_to_the_active_layer_does_not_move():
+    host, audio, chat, a, b = make_layered_host()
+    audio.set_display(0, "Music", "vol 50%")
+    audio.set_fader(0, 30.0)
+    chat.set_fader(0, 80.0)
+    host._handle_line("BTN:G1")
+    host._handle_line("BTN:F4")
     host._handle_line("BTN:F1")
-    check("MUTE:1,1" in host._ser.lines(), "G1 + F1 still mutes")
+    host._ser.written.clear()
+    host._handle_line("BTNUP:G1")
+    check(audio.is_active(), "back on the first layer")
+    check(host._pending[0] == 30.0, "own queued level untouched, nothing new queued")
+    check(host._ser.lines() == ["DISP:1,Music,vol 50%"] + [f"DISP:{i},," for i in (2, 3, 4)],
+          f"only screens restored (got {host._ser.lines()})")
+    check(a.mutes == [] and b.activations == [], "no activation for a no-op switch")
+
+
+def test_g1_hint_names_neighbour_layers():
+    host = FaderHost(port="/dev/null", num_faders=4)
+    host._ser = FakeSerial()
+    layers = [host.add_layer(n) for n in ("A", "B", "C")]
+    for layer in layers:
+        layer.register(RecordingExtension())
+    layers[0].set_display(0, "Music", "vol 50%")
+    host._ser.written.clear()
+
+    host._handle_line("BTN:G1")
+    check(host._ser.lines() == ["DISP:1,C,< prev 3/3", "DISP:4,B,next > 2/3"],
+          f"G1 names previous / next layer on screens 1 and 4 (got {host._ser.lines()})")
+    layers[0].set_display(0, "Music", "vol 60%")
+    check(host._display[0] == ("C", "< prev 3/3"), "layer writes do not cover the hint")
+
+    host._ser.written.clear()
+    host._handle_line("BTN:F4")
+    sent = host._ser.lines()
+    check("DISP:1,A,< prev 1/3" in sent and "DISP:4,C,next > 3/3" in sent,
+          f"hint follows the step target (got {sent})")
+    check("DISP:2,B,layer 2/3" in sent, "middle screens name the target")
+
+    host._ser.written.clear()
+    host._handle_line("BTNUP:G1")
+    check(layers[1].is_active()
+          and host._ser.lines() == [f"DISP:{i},," for i in (1, 2, 3, 4)],
+          f"release applies the target's screens (got {host._ser.lines()})")
+
+    host2, audio, chat, a, b = make_layered_host()
+    audio.set_display(0, "Music", "vol 60%")
+    host2._handle_line("BTN:G1")
+    host2._ser.written.clear()
+    host2._handle_line("BTNUP:G1")
+    check(host2._ser.lines() == ["DISP:1,Music,vol 60%", "DISP:4,,"],
+          f"release restores the layer screens (got {host2._ser.lines()})")
+
+    host3, _ = make_host()
+    host3._handle_line("BTN:G1")
+    check(host3._ser.lines() == [], "one layer: no hint")
+
+
+def test_switch_replays_mute_with_level():
+    host, audio, chat, a, b = make_layered_host()
+    # Fader 1 muted on Audio (confirmed by the Pico), level 60 to return to.
+    audio.set_fader(0, 60.0)
+    host._handle_line("MUTE:1,1")
+    check(a.mutes == [(0, True)], "confirmation reaches the live layer")
+    chat.set_fader(0, 80.0)
+    chat.set_mute(1, True, 40.0)
+    chat.set_creases(0, [(50, 70, 18)])
+    host._ser.written.clear()
+
+    host.step_layer(1)
+    sent = host._ser.lines()
+    check("MUTE:1,0,80.0" in sent, f"unmuted on Chat: unmute straight to its level (got {sent})")
+    check("MUTE:2,1,40.0" in sent, "muted on Chat: park, restore its level")
+    check("CREASES:1,50.0:70:18" in sent, "Chat creases applied")
+
+    # The Pico's confirmations of the replay are not user actions.
+    host._handle_line("MUTE:1,0")
+    host._handle_line("MUTE:2,1")
+    check(b.mutes == [] and a.mutes == [(0, True)],
+          f"replay confirmations not dispatched (got {b.mutes}, {a.mutes})")
+
+    host._ser.written.clear()
+    host.step_layer(1)
+    sent = host._ser.lines()
+    check("MUTE:1,1,60.0" in sent and "MUTE:2,0" in sent,
+          f"back on Audio: mute and level restored (got {sent})")
+    check("CREASES:1" in sent, "creases cleared for a layer without them")
+    check(b.activations == ["on", "off"], "on_deactivate on the way out")
+
+
+def test_hand_level_kept_per_layer():
+    host, audio, chat, a, b = make_layered_host()
+    host._handle_line("POS:42.0,0,0,0")
+    check((0, 42.0) in a.positions, "hand move reaches the live layer")
+    check(audio.setpoint[0] == 42.0, "and is remembered as its level")
+    host.step_layer(1)
+    host._handle_line("STATE:1,IDLE")
+    host._handle_line("POS:70.0,0,0,0")
+    check((0, 70.0) in b.positions and (0, 70.0) not in a.positions,
+          "moves now go to the second layer only")
+    host._pending = [None] * 4
+    host.step_layer(1)
+    check(host._pending[0] == 42.0, "first layer's hand level restored")
+
+
+def test_g2_pages_on_a_paged_layer():
+    host, audio, chat, a, b = make_layered_host()
+    host.step_layer(1)
+    host._ser.written.clear()
+    host._handle_line("BTN:G2")
+    for n in (1, 2, 3, 4):
+        host._handle_line(f"BTN:F{n}")
+        host._handle_line(f"BTNUP:F{n}")
+    check(b.pages == [-1, 1], f"G2 + F1/F4 page back/forward (got {b.pages})")
+    check(host._ser.lines() == [], "no A/B swap, no mute on a paged layer")
 
 
 def test_creases_sent_and_replayed():
@@ -693,6 +930,15 @@ def main():
         test_g2_held_fader_button_swaps_ab,
         test_ab_swap_ignored_while_muted,
         test_g1_held_is_not_the_swap_modifier,
+        test_g1_g2_held_fader_button_does_nothing,
+        test_inactive_layer_writes_are_stored_not_sent,
+        test_layer_switch_applies_on_g1_release,
+        test_repeated_steps_apply_only_the_last,
+        test_stepping_back_to_the_active_layer_does_not_move,
+        test_g1_hint_names_neighbour_layers,
+        test_switch_replays_mute_with_level,
+        test_hand_level_kept_per_layer,
+        test_g2_pages_on_a_paged_layer,
         test_creases_sent_and_replayed,
         test_sends_before_connect_are_replayed,
         test_stuck_loopback_guard_is_released,

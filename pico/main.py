@@ -29,9 +29,12 @@ Serial protocol (115200 baud, USB). All lines newline-terminated:
   Host -> Pico
     SET:f1,f2,f3,f4          setpoints, 0-100%; an empty slot means
                              "leave this fader unchanged"
-    MUTE:idx,0|1             mute/unmute fader idx (1-based). Muting parks the
+    MUTE:idx,0|1[,pos]       mute/unmute fader idx (1-based). Muting parks the
                              fader at the bottom and remembers where it was;
-                             unmuting drives it back there.
+                             unmuting drives it back there. `pos` overrides
+                             the remembered position (mute) or the target
+                             (unmute), for a host switching what the fader
+                             controls while it may still be moving.
     DISP:idx,line1,line2     display text for fader idx (1-based). Content is
                              whatever the active host plugin wants to show.
     SLOT:idx,A|B             A/B slot badge for fader idx; empty clears it.
@@ -628,15 +631,24 @@ class FaderPID:
         self.progress_ref_time = self.last_time
         self.stalled = False
 
-    def set_mute(self, muted):
+    def set_mute(self, muted, restore=None):
         """
         Mute: park at the bottom, remembering the current position.
         Unmute: drive back to the remembered position.
 
+        `restore` replaces the remembered position. The host passes it when
+        it swaps what the fader controls: the fader may be mid-move then, and
+        reading it would remember a point on the way.
+
         Idempotent — re-muting an already-muted fader re-parks it, which is
         what the user wants after dragging a muted fader by hand.
         """
-        if muted:
+        if restore is not None:
+            self.unmute_position = max(0.0, min(100.0, restore))
+        if muted and restore is not None:
+            self.muted = True
+            self.engage(0.0)
+        elif muted:
             # Capture the position to come back to. Prefer the live reading
             # over self.setpoint: the user may have moved the fader by hand
             # since the last SET:. Re-muting an already-muted fader the user
@@ -732,7 +744,10 @@ def _handle_mute(payload, faders, screens):
     if fader is None:
         return
     muted = parts[1].strip() not in ("0", "", "false", "False")
-    fader.set_mute(muted)
+    restore = None
+    if len(parts) > 2 and parts[2].strip():
+        restore = float(parts[2])
+    fader.set_mute(muted, restore)
     if screens[idx] is not None:
         screens[idx].set_muted(muted)
     # Confirm, so the host tracks the state the firmware actually holds

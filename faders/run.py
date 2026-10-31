@@ -5,7 +5,12 @@ Usage:
     python -m faders.run [--config faders/config.json] [--port /dev/ttyACM0]
 
 Discovers every module in `faders/extensions/` and instantiates the ones
-mentioned in the config file via their `register(host, instance_cfg)` hook.
+mentioned in the config file via their `register(host, instance_cfg)` hook,
+where `host` is the layer the instance belongs to.
+
+Layers come from the config's `layers` list when present; otherwise each
+plugin in `extensions` is a layer of its own, named by the module's
+`LAYER_NAME` (or the module name). G1 + F1/F4 switches between them.
 
 Runs until SIGINT/SIGTERM. The Pico may be absent at startup or unplugged at
 any time: the host waits for it and restores state when it comes back.
@@ -57,24 +62,30 @@ def main(argv=None):
     host = FaderHost(port=port, num_faders=cfg.get("num_faders", 4))
 
     modules = _discover_extension_modules()
-    enabled = cfg.get("extensions", {})
 
-    for ext_name, instances in enabled.items():
-        mod = modules.get(ext_name)
-        if mod is None:
-            sys.stderr.write(f"[faders] config references unknown extension '{ext_name}'\n")
-            continue
-        if not hasattr(mod, "register"):
-            sys.stderr.write(f"[faders] extension '{ext_name}' has no register()\n")
-            continue
-        # Accept list-of-instances or single dict for convenience.
-        if isinstance(instances, dict):
-            instances = [instances]
-        for inst_cfg in instances:
-            mod.register(host, inst_cfg)
+    def layer_name_for(ext_name):
+        return getattr(modules.get(ext_name), "LAYER_NAME", ext_name)
+
+    for layer_name, enabled in config_mod.layer_specs(cfg, layer_name_for):
+        layer = host.add_layer(layer_name)
+        for ext_name, instances in enabled.items():
+            mod = modules.get(ext_name)
+            if mod is None:
+                sys.stderr.write(f"[faders] config references unknown extension '{ext_name}'\n")
+                continue
+            if not hasattr(mod, "register"):
+                sys.stderr.write(f"[faders] extension '{ext_name}' has no register()\n")
+                continue
+            # Accept list-of-instances or single dict for convenience.
+            if isinstance(instances, dict):
+                instances = [instances]
+            for inst_cfg in instances:
+                mod.register(layer, inst_cfg)
 
     sys.stderr.write(
-        f"[faders] {len(host._extensions)} extension instance(s) loaded\n"
+        f"[faders] {len(host._extensions)} extension instance(s) loaded in "
+        f"{len(host.layers)} layer(s): "
+        + ", ".join(layer.name for layer in host.layers) + "\n"
     )
     # systemd stops with SIGTERM; shut down like Ctrl-C so extensions clean up.
     signal.signal(signal.SIGTERM, lambda *_: host.stop())

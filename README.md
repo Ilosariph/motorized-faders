@@ -134,6 +134,42 @@ it describes whatever that fader actually controls.
 sink names (`alsa_output.pci-0000_00_1f.3.analog-stereo`) do not fit a 128 px
 screen.
 
+#### Layers and buttons
+
+Plugins are grouped into **layers** that take turns owning the four faders.
+Each layer remembers its own fader levels, mutes, screens and creases.
+Without a `layers` key every plugin is its own layer (`pulse_sink` → "Audio",
+`discord_voice` → "Discord"); to choose, list them:
+
+```json
+"layers": [
+  {"name": "Audio",   "extensions": {"pulse_sink": [...]}},
+  {"name": "Discord", "extensions": {"discord_voice": {...}}}
+],
+```
+
+| Buttons | Action |
+|---|---|
+| `F1`-`F4` | Mute that fader |
+| `G1` + `F1` / `F4` | Previous / next layer — screens show the name while `G1` is held, faders move on its release |
+| `G2` + `Fn` | A/B position swap (layers without pages, e.g. Audio) |
+| `G2` + `F1` / `F4` | Previous / next page (paged layers, e.g. Discord) |
+
+#### Discord
+
+`discord_voice` puts the other people in your current voice channel on the
+faders: name on the screen, fader = their local volume 0-200%, fader button =
+Discord's per-user mute (right-click → Mute; volume untouched). More than four
+people → pages, shown as `x/y` on the last screen. Needs the official desktop
+client (Vesktop/arRPC lack voice RPC) and your own Discord application:
+
+1. <https://discord.com/developers/applications> → New Application.
+2. OAuth2 → copy Client ID and Client Secret, add redirect `http://localhost`.
+3. Config: `"discord_voice": {"client_id": "...", "client_secret_file": "/path/to/secret"}`
+   (`client_secret` inline also works; keep the file private).
+4. Start the host, click **Authorize** in the Discord popup once. The token is
+   cached in `~/.local/state/motorized-faders/discord_token.json`.
+
 The host survives the Pico being unplugged: it waits for the port to come
 back (it may return as a different `ttyACM` node), then replays display text,
 A/B badges and creases, and extensions re-seed fader positions and mute via
@@ -156,12 +192,17 @@ logged-in user the Pico's tty via udev `uaccess`:
       { fader = 0; sink = "sink-master"; max = 100; label = "Master"; }
       { fader = 3; sink = "sink-music"; max = 150; label = "Music"; }
     ];
+    plugins.discord_voice = {
+      client_id = "1234567890";
+      client_secret_file = "/run/secrets/discord-faders";  # not in the store
+    };
   };
 }
 ```
 
 `plugins` keys are module names in `faders/extensions/` (checked at eval);
-each value is one instance config or a list. Logs:
+each value is one instance config or a list. `layers` (list of
+`{ name; extensions; }`) sets explicit layers. Logs:
 `journalctl --user -u motorized-faders -f`.
 
 ### Tests
@@ -184,6 +225,7 @@ python3 tests/run_all.py
 | `host/host_raw.py` | Raw 16-bit ADC viewer for wiring diagnostics |
 | `faders/` | Extension host — serial transport, button/mute dispatch, plugins |
 | `faders/extensions/pulse_sink.py` | Binds a fader to a PulseAudio/PipeWire sink |
+| `faders/extensions/discord_voice.py` | Voice-channel users on the faders: volume, mute, pages |
 | `tests/` | Test suites — run `python3 tests/run_all.py`, no hardware required |
 | `docs/upload.md` | How to flash firmware to the Pico (Thonny + mpremote) |
 | `docs/pid_tuning.md` | How to tune the PID controller |

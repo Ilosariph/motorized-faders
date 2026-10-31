@@ -6,8 +6,8 @@ import subprocess
 import sys
 
 HERE = pathlib.Path(__file__).resolve().parent
-SUITES = ("test_firmware.py", "test_host.py", "test_integration.py",
-          "test_autotune.py")
+SUITES = ("test_firmware.py", "test_host.py", "test_discord_voice.py",
+          "test_integration.py", "test_autotune.py")
 
 
 def main():

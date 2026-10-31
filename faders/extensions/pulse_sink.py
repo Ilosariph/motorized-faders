@@ -45,6 +45,9 @@ from ..core import Extension
 
 PACTL = "pactl"
 
+# Layer name when the config does not group plugins into layers itself.
+LAYER_NAME = "Audio"
+
 # Coalesce writes to pactl: ignore changes smaller than this many percent,
 # and never write more often than this many seconds apart.
 WRITE_EPSILON_PCT = 0.5

@@ -652,6 +652,38 @@ def test_mute_command_and_confirmation():
           "no fader muted by the invalid commands")
 
 
+def test_mute_command_with_restore_position():
+    print("Protocol: MUTE with restore position")
+    rig = Rig()
+    rig.calibrate_all()
+    fw = rig.fw
+    fader, sim = rig.faders[0], rig.sims[0]
+
+    # Mid-move to 80 when the host mutes with an explicit restore of 40: the
+    # in-transit position must not be what unmute returns to.
+    fader.engage(80.0)
+    rig.run_for(100)
+    out = collect_output(fw, lambda: fw._handle_command(
+        "MUTE:1,1,40", rig.faders, rig.screens))
+    check("MUTE:1,1" in out, f"confirmation emitted (got {out})")
+    check(fader.muted and fader.setpoint == 0.0, "muted, parking")
+    check(fader.unmute_position == 40.0,
+          f"restore set to 40 (got {fader.unmute_position})")
+    rig.run_for(3000 + rig.fw.SETTLE_MS + 300)
+    check(close(sim.position, 0.0, SETTLE_TOL), "parked at the bottom")
+    check(fader.unmute_position == 40.0, "park did not overwrite restore")
+
+    fw._handle_command("MUTE:1,0,65", rig.faders, rig.screens)
+    check(not fader.muted, "unmuted")
+    rig.run_for(3000 + rig.fw.SETTLE_MS + 300)
+    check(close(sim.position, 65.0, SETTLE_TOL),
+          f"unmute with pos drives there (got {sim.position:.1f})")
+
+    fw._handle_command("MUTE:1,1,", rig.faders, rig.screens)
+    check(close(fader.unmute_position, 65.0, SETTLE_TOL),
+          "empty pos falls back to reading the fader")
+
+
 def test_disp_command():
     print("Protocol: DISP")
     rig = Rig()
@@ -1109,6 +1141,7 @@ def main():
         test_set_command,
         test_loopback_lines_are_ignored,
         test_mute_command_and_confirmation,
+        test_mute_command_with_restore_position,
         test_disp_command,
         test_mute_to_absent_fader_is_safe,
         test_button_ladder_decode,
