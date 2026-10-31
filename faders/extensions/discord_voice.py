@@ -55,6 +55,7 @@ import os
 import queue
 import socket
 import struct
+import sys
 import threading
 import time
 import urllib.error
@@ -161,6 +162,50 @@ def ipc_paths():
                 yield os.path.join(base, sub, f"discord-ipc-{i}")
 
 
+class WinPipe:
+    """
+    Discord's IPC on Windows: a named pipe, `discord-ipc-N`, wrapped to
+    look like the socket RpcClient expects. A ReadFile blocked on a
+    synchronous handle also blocks writes from other threads, so `recv` waits
+    with PeekNamedPipe until there is something to read.
+    """
+
+    POLL_S = 0.01
+
+    def __init__(self, path):
+        import ctypes
+        import msvcrt
+        self._f = open(path, "r+b", buffering=0)
+        self._handle = ctypes.c_void_p(msvcrt.get_osfhandle(self._f.fileno()))
+        self._peek = ctypes.windll.kernel32.PeekNamedPipe
+        self._avail = ctypes.c_ulong()
+        self._byref = ctypes.byref
+        self._closed = False
+
+    @staticmethod
+    def paths():
+        return [rf"\\.\pipe\discord-ipc-{i}" for i in range(10)]
+
+    def sendall(self, data):
+        view = memoryview(data)
+        while view:
+            view = view[self._f.write(view):]
+
+    def recv(self, n):
+        while not self._closed:
+            if not self._peek(self._handle, None, 0, None,
+                              self._byref(self._avail), None):
+                return b""    # pipe broken: Discord went away
+            if self._avail.value:
+                return self._f.read(min(n, self._avail.value))
+            time.sleep(self.POLL_S)
+        return b""
+
+    def close(self):
+        self._closed = True
+        self._f.close()
+
+
 class RpcClient:
     """
     Discord's local RPC: length-prefixed JSON frames over a Unix socket.
@@ -178,6 +223,15 @@ class RpcClient:
 
     def connect(self, client_id):
         """Open the socket and handshake. Returns the READY payload."""
+        if self._sock is None and sys.platform == "win32":
+            for path in WinPipe.paths():
+                try:
+                    self._sock = WinPipe(path)
+                except OSError:
+                    continue
+                break
+            else:
+                raise RpcError("Discord is not running (no IPC pipe)")
         if self._sock is None:
             for path in ipc_paths():
                 if not os.path.exists(path):
