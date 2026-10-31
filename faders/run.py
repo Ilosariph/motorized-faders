@@ -76,6 +76,10 @@ def main(argv=None):
             if not hasattr(mod, "register"):
                 sys.stderr.write(f"[faders] extension '{ext_name}' has no register()\n")
                 continue
+            if hasattr(mod, "register_all"):
+                # Per-fader plugin: takes the whole entry list, for paging.
+                mod.register_all(layer, instances)
+                continue
             # Accept list-of-instances or single dict for convenience.
             if isinstance(instances, dict):
                 instances = [instances]

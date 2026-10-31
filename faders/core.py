@@ -23,6 +23,11 @@ fader physically moves (touched by a human). Extensions call
 mute it, `host.set_display(idx, line1, line2)` to label its screen, and
 `host.set_creases(idx, creases)` to give it haptic detents.
 
+Per-fader plugins (one instance per fader) can hold more entries than there
+are faders: `register_slots` puts them on pages through a `PagedGroup`, whose
+instances each get a view of the layer that writes through only while their
+page is shown.
+
 Layers: the four faders are shared by several plugin sets. Each `Layer` holds
 its own extensions and its own idea of every fader's level, mute, screen text,
 A/B badge and creases. Extensions get their layer as `host`, with the same API;
@@ -35,9 +40,9 @@ pressed and released and nothing more; `_handle_button` maps that to an
 action. Current mapping:
     F1..F4            toggle mute
     G1 held + F1/F4   previous / next layer
-    G2 held + Fn      swap fader n between two remembered positions (A/B),
-                      or, on a layer with pages (Extension.PAGED), G2 + F1/F4
-                      is previous / next page
+    G2 held + Fn      swap fader n between two remembered positions (A/B)
+    G2 held + F1/F4   on a layer with pages (Extension.PAGED): tapped, A/B
+      held down       swap as above; held PAGE_HOLD_S, previous / next page
     G1 + G2 + Fn      nothing (ambiguous); G1 or G2 alone: nothing
 
 While G1 is held (and there is more than one layer), every screen turns
@@ -74,6 +79,10 @@ SET_FLUSH_INTERVAL = 1.0 / SET_FLUSH_HZ
 # line) and no STATE: edge will ever release it — release it ourselves, or
 # that fader is deaf to the hand for good.
 GUARD_TIMEOUT_S = 5.0
+
+# On a paged layer, G2 + F1/F4 held this long steps the page; released
+# sooner, it is the A/B swap.
+PAGE_HOLD_S = 0.4
 
 # How often to look for the Pico while it is unplugged.
 RECONNECT_INTERVAL_S = 1.0
@@ -144,7 +153,7 @@ class Extension:
         """
 
     def on_page(self, delta):
-        """G2 + F1/F4 on a PAGED layer: step the page by `delta` (-1 / +1)."""
+        """G2 + F1/F4 held on a PAGED layer: step the page by `delta` (-1 / +1)."""
 
     def on_activate(self):
         """This extension's layer just became active and owns the faders."""
@@ -210,6 +219,13 @@ class Layer:
         with self._host._lock:
             return self.muted[idx]
 
+    def level(self, idx):
+        """This layer's level for a fader (the restore level when muted)."""
+        if not 0 <= idx < self.num_faders:
+            return None
+        with self._host._lock:
+            return self.setpoint[idx]
+
     def toggle_mute(self, idx):
         if not 0 <= idx < self.num_faders:
             return False
@@ -228,7 +244,273 @@ class Layer:
         self._host._layer_swap_ab(self, idx)
 
 
+# ----- pages of per-fader plugins ------------------------------------------
+
+def register_slots(host, cfg, register_one, name):
+    """
+    Register a per-fader plugin (one instance per fader, like pulse_sink) from
+    its whole config: a list of entries, or a dict
+        {"paging": "auto" | true | false, "faders": [...], <shared keys>}
+    whose other keys are defaults for every entry. An entry's `fader` is its
+    slot: 0-3 the first page, 4-7 the second, and so on; without one it takes
+    its place in the list, and `null` leaves that slot empty.
+
+    `paging` picks whether this plugin's layer has pages: true always, false
+    never (slots past the last fader are dropped), "auto" (default) only
+    when there are more slots than faders. A tapped G2 + fader button is the
+    A/B swap on both; held, G2 + F1/F4 pages. `register_one(host, entry)` registers one instance.
+    """
+    n = host.num_faders
+    shared = {}
+    paging = "auto"
+    if isinstance(cfg, dict) and "faders" in cfg:
+        shared = {k: v for k, v in cfg.items() if k not in ("faders", "paging")}
+        paging = cfg.get("paging", "auto")
+        entries = cfg["faders"] or []
+    elif isinstance(cfg, dict):
+        entries = [cfg]
+    else:
+        entries = list(cfg or [])
+    if paging not in ("auto", True, False):
+        log.error("%s: paging must be \"auto\", true or false, not %r; "
+                  "using auto", name, paging)
+        paging = "auto"
+
+    slots = {}
+    for position, entry in enumerate(entries):
+        if entry is None:
+            continue
+        try:
+            slot = int(entry.get("fader", position))
+        except (TypeError, ValueError):
+            log.error("%s: bad fader in %r; skipped", name, entry)
+            continue
+        if slot < 0 or slot in slots:
+            log.error("%s: fader %s is %s; skipped", name, slot,
+                      "negative" if slot < 0 else "given twice")
+            continue
+        slots[slot] = dict(shared, **entry)
+
+    paged = paging is True or (paging == "auto" and any(s >= n for s in slots))
+    group = None
+    if paged:
+        group = PagedGroup(host, max(slots, default=0) // n + 1)
+    for slot in sorted(slots):
+        if not paged and slot >= n:
+            log.error("%s: fader %d is past the last fader and paging is off; "
+                      "skipped", name, slot)
+            continue
+        target = group.view(slot) if paged else host
+        try:
+            register_one(target, dict(slots[slot], fader=slot % n))
+        except (KeyError, TypeError, ValueError) as e:
+            # One bad entry leaves its fader empty rather than stopping the host.
+            log.error("%s: fader %d: %s; left empty", name, slot, e)
+    if paged:
+        host.register(group)
+    return group
+
+
+class PagedGroup(Extension):
+    """
+    Per-fader plugin instances spread over pages of `num_faders`. Each one is
+    handed a `_PageView` as its host: the same API, written through to the
+    layer only while its page is shown, stored otherwise and applied when the
+    page comes up. G2 + F1/F4 held steps the page; the last screen shows it.
+    """
+
+    PAGED = True
+
+    def __init__(self, host, pages):
+        self.host = host
+        self.pages = max(1, pages)
+        self._page = 0
+        self._lock = threading.RLock()
+        self._views = {}
+        # (view, extension) for every registered instance, in slot order.
+        self._children = []
+
+    def view(self, slot):
+        with self._lock:
+            if slot not in self._views:
+                self._views[slot] = _PageView(self, slot)
+            return self._views[slot]
+
+    def _add(self, view, ext):
+        with self._lock:
+            self._children.append((view, ext))
+
+    @property
+    def page(self):
+        return self._page
+
+    def _shown(self, idx):
+        """View on fader `idx` of the current page, or None. Lock held."""
+        return self._views.get(self._page * self.host.num_faders + idx)
+
+    def _on_fader(self, idx):
+        """Extensions bound to fader `idx` of the current page."""
+        with self._lock:
+            view = self._shown(idx)
+            return [ext for v, ext in self._children if v is view]
+
+    def _show(self, idx, line1, line2):
+        """Display text, with the page on the last screen. Lock held."""
+        if idx == self.host.num_faders - 1:
+            page = f"{self._page + 1}/{self.pages}"
+            width = DISPLAY_LINE_MAX - len(page)
+            line2 = f"{_sanitize(line2)[:width - 1]:<{width}}{page}"
+        self.host.set_display(idx, line1, line2)
+
+    def _drive(self, idx):
+        """Bring fader `idx` in line with the current page. Lock held."""
+        view = self._shown(idx)
+        layer = self.host
+        if view is None:
+            layer.set_creases(idx, [])
+            self._show(idx, "-", "")
+            if layer.is_muted(idx):
+                layer.set_mute(idx, False, 0.0)
+            else:
+                layer.set_fader(idx, 0.0)
+            return
+        layer.set_creases(idx, view.creases or [])
+        self._show(idx, *(view.display or ("", "")))
+        if view.muted:
+            layer.set_mute(idx, True, view.level)
+        elif layer.is_muted(idx):
+            layer.set_mute(idx, False, view.level)
+        elif view.level is not None:
+            layer.set_fader(idx, view.level)
+
+    # ----- host hooks ------------------------------------------------------
+
+    def on_page(self, delta):
+        n = self.host.num_faders
+        with self._lock:
+            # The hand may have moved the outgoing faders; keep where.
+            for idx in range(n):
+                view = self._shown(idx)
+                if view is None:
+                    continue
+                level = self.host.level(idx)
+                if level is not None:
+                    view.level = level
+                view.muted = self.host.is_muted(idx)
+            self._page = (self._page + delta) % self.pages
+            log.info("page %d/%d", self._page + 1, self.pages)
+            for idx in range(n):
+                self._drive(idx)
+
+    def on_position(self, fader_idx, value):
+        for ext in self._on_fader(fader_idx):
+            ext.on_position(fader_idx, value)
+
+    def on_mute(self, fader_idx, muted):
+        with self._lock:
+            view = self._shown(fader_idx)
+            if view is not None:
+                view.muted = muted
+        for ext in self._on_fader(fader_idx):
+            ext.on_mute(fader_idx, muted)
+
+    def on_connect(self):
+        self._each("on_connect")
+        with self._lock:
+            # Empty faders on the shown page: nothing else drives them.
+            for idx in range(self.host.num_faders):
+                if self._shown(idx) is None:
+                    self._drive(idx)
+
+    def on_calibration(self, phase):
+        self._each("on_calibration", phase)
+
+    def on_button(self, button):
+        self._each("on_button", button)
+
+    def on_activate(self):
+        self._each("on_activate")
+
+    def on_deactivate(self):
+        self._each("on_deactivate")
+
+    def on_rail(self, ok, volts):
+        self._each("on_rail", ok, volts)
+
+    def stop(self):
+        self._each("stop")
+
+    def _each(self, hook, *args):
+        with self._lock:
+            children = [ext for _, ext in self._children]
+        for ext in children:
+            FaderHost._call(ext, hook, *args)
+
+
+class _PageView:
+    """One page slot's stand-in for the layer; see PagedGroup."""
+
+    def __init__(self, group, slot):
+        self._group = group
+        self.idx = slot % group.host.num_faders
+        self.page_no = slot // group.host.num_faders
+        self.level = None
+        self.muted = False
+        self.display = None
+        self.creases = None
+
+    @property
+    def num_faders(self):
+        return self._group.host.num_faders
+
+    def _visible(self):
+        return self._group._page == self.page_no
+
+    def register(self, ext):
+        self._group._add(self, ext)
+
+    def is_active(self):
+        with self._group._lock:
+            return self._visible() and self._group.host.is_active()
+
+    def set_fader(self, idx, value):
+        with self._group._lock:
+            self.level = max(0.0, min(100.0, float(value)))
+            if self._visible():
+                self._group.host.set_fader(self.idx, value)
+
+    def set_mute(self, idx, muted, level=None):
+        with self._group._lock:
+            self.muted = bool(muted)
+            if level is not None:
+                self.level = max(0.0, min(100.0, float(level)))
+            if self._visible():
+                self._group.host.set_mute(self.idx, muted, level)
+
+    def is_muted(self, idx):
+        with self._group._lock:
+            if self._visible():
+                return self._group.host.is_muted(self.idx)
+            return self.muted
+
+    def set_display(self, idx, line1, line2=""):
+        with self._group._lock:
+            self.display = (_sanitize(line1), _sanitize(line2))
+            if self._visible():
+                self._group._show(self.idx, *self.display)
+
+    def set_creases(self, idx, creases):
+        creases = [(float(p), float(w), int(ms)) for p, w, ms in creases]
+        with self._group._lock:
+            self.creases = creases
+            if self._visible():
+                self._group.host.set_creases(self.idx, creases)
+
+
 class FaderHost:
+    # Timer factory for the G2 + F1/F4 page hold; tests swap it out.
+    _hold_timer = threading.Timer
+
     def __init__(self, port=None, num_faders=4):
         self.num_faders = num_faders
         self._port = port
@@ -264,6 +546,9 @@ class FaderHost:
         self._creases = [None] * num_faders
         # Buttons currently held down, from BTN:/BTNUP: edges.
         self._held = set()
+        # G2 + F1/F4 down on a paged layer, not yet a tap or a hold:
+        # fader idx -> (layer, page step, timer).
+        self._page_holds = {}
         # True while G1 is held: the outer screens show the layer hint.
         self._hint = False
         # VM rail check result, None until the Pico reports it.
@@ -653,6 +938,7 @@ class FaderHost:
         if self._stop.is_set():
             return
         self._stop.set()
+        self._cancel_page_holds()
         for ext in self._extensions:
             try:
                 ext.stop()
@@ -701,10 +987,13 @@ class FaderHost:
             self._muted = [False] * self.num_faders
             self._pending = [None] * self.num_faders
             self._held.clear()
+            holds, self._page_holds = self._page_holds, {}
             if self._layers:
                 # The active layer mirrors the Pico, which is unmuted now;
                 # its extensions re-assert mutes from on_connect.
                 self._layers[self._active].muted = [False] * self.num_faders
+        for _, _, timer in holds.values():
+            timer.cancel()
         # G1 is no longer held: apply a pending switch, drop the hint.
         self._release_g1()
         self._resend_after_boot()
@@ -789,6 +1078,8 @@ class FaderHost:
                 self._held.discard(button)
             if button == "G1":
                 self._release_g1()
+            elif button.startswith("F") and button[1:].isdigit():
+                self._release_page_hold(int(button[1:]) - 1)
         elif line.startswith("MUTE:"):
             self._handle_mute(line[5:])
         elif line.startswith("RAIL:"):
@@ -917,14 +1208,62 @@ class FaderHost:
             elif layer is None:
                 pass  # mid-switch: the faders belong to no layer yet
             elif g2:
-                if not layer.paged:
+                if layer.paged and step is not None:
+                    self._arm_page_hold(layer, idx, step)
+                else:
                     self._layer_swap_ab(layer, idx)
-                elif step is not None:
-                    self._dispatch_to(layer, "on_page", step)
             else:
                 layer.toggle_mute(idx)
         if not pending:
             self._dispatch("on_button", button)
+
+    def _arm_page_hold(self, layer, idx, step):
+        """G2 + F1/F4 down on a paged layer: a page step if still held when
+        the timer fires, an A/B swap if released first."""
+        timer = self._hold_timer(PAGE_HOLD_S, self._page_hold_fired, (idx,))
+        timer.daemon = True
+        with self._lock:
+            old = self._page_holds.pop(idx, None)
+            self._page_holds[idx] = (layer, step, timer)
+        if old is not None:
+            old[2].cancel()
+        timer.start()
+
+    def _page_hold_fired(self, idx):
+        with self._lock:
+            hold = self._page_holds.pop(idx, None)
+        if hold is None or not self._is_live(hold[0]):
+            return
+        layer, step, _ = hold
+        self._clear_ab(layer)
+        self._dispatch_to(layer, "on_page", step)
+
+    def _release_page_hold(self, idx):
+        """Fader button up: a G2 + F1/F4 released before the hold is a tap."""
+        with self._lock:
+            hold = self._page_holds.pop(idx, None)
+        if hold is None:
+            return
+        layer, _, timer = hold
+        timer.cancel()
+        if self._is_live(layer):
+            self._layer_swap_ab(layer, idx)
+
+    def _cancel_page_holds(self):
+        with self._lock:
+            holds, self._page_holds = self._page_holds, {}
+        for _, _, timer in holds.values():
+            timer.cancel()
+
+    def _clear_ab(self, layer):
+        """A new page puts other things on the faders: A/B marks go."""
+        with self._lock:
+            layer.ab_other = [None] * self.num_faders
+            layer.ab_slot = [None] * self.num_faders
+            live = self._is_live(layer)
+        if live:
+            for idx in range(self.num_faders):
+                self._show_slot(idx, "")
 
     def _handle_mute(self, payload):
         parts = payload.split(",", 1)

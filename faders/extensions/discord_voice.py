@@ -9,7 +9,8 @@ Puts the people in your current Discord voice channel on the faders:
   - mute changed in Discord     -> fader parks / returns
   - screens                     -> user name on line 1, volume on line 2; the
                                    last screen also shows the page, "1/3"
-  - G2 + F1 / F4                -> previous / next page of four users
+  - G2 + F1 / F4 held           -> previous / next page of four users
+                                   (tapped: A/B swap, as on any layer)
   - haptic creases              -> every 50% of volume, stronger at 100%
 
 Yourself are left out: Discord has no local volume for your own voice. Users

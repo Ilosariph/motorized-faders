@@ -12,7 +12,7 @@ ROOT = pathlib.Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(ROOT))
 sys.path.insert(0, str(ROOT / "tests"))
 
-from test_host import FakeSerial, check, FAILURES, PASSES  # noqa: E402
+from test_host import ExpiredTimer, FakeSerial, FakeTimer, check, FAILURES, PASSES  # noqa: E402
 
 from faders.core import FaderHost  # noqa: E402
 from faders.extensions import voicemeeter as vm  # noqa: E402
@@ -209,6 +209,116 @@ def test_register_validates_target():
         check(True, "")
 
 
+def make_paged(cfg, remote=None):
+    remote = remote or FakeRemote()
+    client = vm.Client(remote, start=False)
+    host = FaderHost(port="/dev/null", num_faders=4)
+    host._ser = FakeSerial()
+    layer = host.add_layer("Voicemeeter")
+    original = vm._shared_client
+    vm._shared_client = lambda dll=None: client
+    try:
+        group = vm.register_all(layer, cfg)
+    finally:
+        vm._shared_client = original
+    return host, layer, client, remote, group
+
+
+def g2_step(host, button, held=True):
+    """G2 + button; `held` long enough to page, else a tap."""
+    original = host._hold_timer
+    host._hold_timer = ExpiredTimer if held else FakeTimer
+    try:
+        for line in ("BTN:G2", f"BTN:{button}", f"BTNUP:{button}", "BTNUP:G2"):
+            host._handle_line(line)
+    finally:
+        host._hold_timer = original
+
+
+def test_more_than_four_pages():
+    print("Pages")
+    remote = FakeRemote()
+    remote.params["Strip[0].Gain"] = 0.0
+    remote.params["Strip[4].Gain"] = -24.0
+    host, layer, client, remote, group = make_paged(
+        [{"strip": i} for i in range(6)], remote)
+    check(layer.paged and group.pages == 2, "six strips -> two pages")
+    host._handle_line("STATE:1,IDLE")
+    client.poll_once()
+    check(host._display[0] == ("In 1", "0.0 dB"), f"page 1 shown (got {host._display[0]})")
+    check(host._display[3][1].endswith("1/2"),
+          f"page on the last screen (got {host._display[3]})")
+    check(abs(host._pending[0] - 83.33) < 0.01, "page 1 strip drives fader 1")
+
+    host._pending = [None] * 4
+    g2_step(host, "F1")
+    check(host._display[0] == ("AUX", "-24.0 dB"),
+          f"G2 + F1 wraps to page 2 (got {host._display[0]})")
+    check(host._display[2] == ("-", "") and host._display[3][0] == "-",
+          f"empty slots blanked (got {host._display[2:]})")
+    check(host._display[3][1].endswith("2/2"), "page 2/2 shown")
+    check(abs(host._pending[0] - 50.0) < 0.01 and host._pending[2] == 0.0,
+          f"faders follow the page (got {host._pending})")
+    check(layer.ab_slot == [None] * 4, "G2 + F1 held pages, no A/B swap")
+
+    remote.sets.clear()
+    host._handle_line("STATE:1,IDLE")
+    host._handle_line("POS:25.0,0,0,0")
+    check(remote.sets == [("Strip[4].Gain", -42.0)],
+          f"drag on page 2 writes its strip (got {remote.sets})")
+
+    # Changes to strips on the hidden page are stored, not driven.
+    host._pending = [None] * 4
+    host._ser.written.clear()
+    remote.change("Strip[0].Gain", -60.0)
+    remote.change("Strip[1].Mute", 1.0)
+    client.poll_once()
+    check(host._pending == [None] * 4, f"hidden strip moves nothing (got {host._pending})")
+    check(not any(ln.startswith("MUTE:") for ln in host._ser.lines()),
+          "hidden mute parks nothing")
+
+    g2_step(host, "F4")
+    check(host._pending[0] == 0.0, f"page 1 back at its new level (got {host._pending})")
+    check(any(ln.startswith("MUTE:2,1,") for ln in host._ser.lines()),
+          f"hidden mute applied on page in (got {host._ser.lines()})")
+    host._handle_line("MUTE:2,1")
+    remote.sets.clear()
+    g2_step(host, "F4")
+    check(abs(layer.level(0) - 25.0) < 0.01, "page 2 fader returns to the hand's level")
+    check(remote.sets == [], f"paging writes nothing to Voicemeeter (got {remote.sets})")
+
+    host._handle_line("STATE:1,IDLE")
+    host._handle_line("POS:40,0,0,0")
+    g2_step(host, "F1", held=False)
+    check(layer.ab_slot[0] == "B" and group.page == 1,
+          "G2 + F1 tapped on a paged layer: A/B swap, same page")
+
+
+def test_g2_mode_setting():
+    print("paging setting")
+    entries = [{"strip": i} for i in range(6)]
+    host, layer, client, remote, group = make_paged({"paging": False, "faders": entries})
+    check(group is None and not layer.paged, "paging off: no pages")
+    check(len(layer.extensions) == 4, "paging off: entries past fader 4 skipped")
+    host._handle_line("POS:30,0,0,0")
+    g2_step(host, "F1", held=False)
+    check(layer.ab_slot[0] == "B", "paging off: G2 + F1 swaps A/B at once")
+
+    host, layer, client, remote, group = make_paged(
+        {"paging": True, "max": 0, "faders": entries[:2]})
+    check(layer.paged and group.pages == 1, "paging on: pages even when they fit")
+    check(all(ext.gain_max == 0 for _, ext in group._children),
+          "shared keys reach every entry")
+
+    host, layer, client, remote, group = make_paged(
+        [{"fader": 0, "strip": 0}, {"fader": 3, "bus": 0}])
+    check(group is None and len(layer.extensions) == 2, "four or fewer: A/B as before")
+
+    host, layer, client, remote, group = make_paged(
+        [{"fader": 0, "strip": 0, "bus": 0}, {"fader": 1, "strip": 1}])
+    check(len(layer.extensions) == 1, "bad entry skipped, the rest registered")
+
+
 def main():
     tests = [
         test_waits_for_voicemeeter_then_syncs,
@@ -217,6 +327,8 @@ def main():
         test_voicemeeter_changes_move_the_fader,
         test_no_dll_keeps_host_running,
         test_register_validates_target,
+        test_more_than_four_pages,
+        test_g2_mode_setting,
     ]
     for test in tests:
         test()

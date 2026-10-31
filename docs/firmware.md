@@ -109,8 +109,8 @@ firmware, protocol, or PCB change. Currently:
 | `F1`-`F4` | Toggle mute on the matching fader |
 | `G1` held + `F1` / `F4` | Previous / next layer. Screens name the layer while `G1` is held; faders move on its release |
 | `G2` held + `F1`-`F4` | A/B swap: store the fader's current position, move to the one stored by the last swap. The first swap only stores. Ignored while muted |
-| `G2` held + `F1` / `F4`, paged layer | Previous / next page (e.g. `discord_voice`), replaces A/B there |
-| `G1` / `G2` alone, `G1`/`G2` + `F2`/`F3` where unassigned | Nothing |
+| `G2` held + `F1` / `F4` held 0.4 s, paged layer | Previous / next page (e.g. `discord_voice`); tapped, still the A/B swap, made on the release |
+| `G1` / `G2` alone, `G1` + `F2`/`F3` | Nothing |
 
 Held modifiers never also mute. While a layer switch is settling, only further
 `G1` steps are taken.

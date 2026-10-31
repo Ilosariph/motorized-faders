@@ -36,6 +36,21 @@ slider range). Fader 0% maps to `min`, fader 100% maps to `max`; set
 
 `creases` (default true) turns the detents off when false.
 
+More strips/buses than faders: `fader` 4-7 is page 2, 8-11 page 3 and so on,
+stepped with G2 + F1 / F4 held and shown as "1/2" on the last screen (entries
+without `fader` fill the slots in list order). The dict form sets `paging`
+and shares keys between entries:
+    "voicemeeter": {
+        "paging": true,
+        "faders": [{"strip": 0}, {"strip": 1}, {"strip": 2}, {"strip": 3},
+                   {"bus": 0}, {"bus": 1}]
+    }
+G2 + a fader button tapped is the A/B swap either way; on a paged layer
+G2 + F1 / F4 held (core.PAGE_HOLD_S) steps the page instead. `paging`:
+"auto" (default) pages when a `fader` is past the last one; true always
+pages; false never pages (G2 + F1 / F4 swaps on press) and skips entries
+past the last fader.
+
 `dll` (optional, first instance wins) is the path to the Remote DLL when it
 is not found via the registry or the default install folder.
 """
@@ -48,7 +63,7 @@ import sys
 import threading
 import time
 
-from ..core import Extension
+from ..core import Extension, register_slots
 
 # Layer name when the config does not group plugins into layers itself.
 LAYER_NAME = "Voicemeeter"
@@ -87,6 +102,11 @@ _KINDS = {
 _UNINSTALL_KEY = (r"SOFTWARE\Microsoft\Windows\CurrentVersion\Uninstall"
                   r"\VB:Voicemeeter {17359A74-1236-5467}")
 _DEFAULT_DIR = r"C:\Program Files (x86)\VB\Voicemeeter"
+
+
+def register_all(host, cfg):
+    """The whole `voicemeeter` config: an entry list or a dict; see register_slots."""
+    return register_slots(host, cfg, register, "voicemeeter")
 
 
 def register(host, cfg):

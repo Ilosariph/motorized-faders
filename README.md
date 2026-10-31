@@ -134,6 +134,23 @@ it describes whatever that fader actually controls.
 sink names (`alsa_output.pci-0000_00_1f.3.analog-stereo`) do not fit a 128 px
 screen.
 
+More sinks than faders → pages: `fader` 4-7 is page 2, 8-11 page 3 (`G2` +
+`F1`/`F4`, `x/y` on the last screen; entries without `fader` fill slots in
+list order). The dict form sets `paging` and shares keys between
+entries:
+
+```json
+"pulse_sink": {
+  "paging": true,
+  "max": 150,
+  "faders": [{"sink": "sink-music"}, {"sink": "sink-comms"}, {"sink": "sink-apps"}]
+}
+```
+
+`paging`: `"auto"` (default) pages only when a `fader` is past the last one;
+`true` always pages; `false` never pages and skips entries past the last
+fader. A/B works either way (tap `G2` + `Fn`). Same for `voicemeeter`.
+
 #### Layers and buttons
 
 Plugins are grouped into **layers** that take turns owning the four faders.
@@ -153,8 +170,8 @@ Without a `layers` key every plugin is its own layer (`pulse_sink` → "Audio",
 |---|---|
 | `F1`-`F4` | Mute that fader |
 | `G1` + `F1` / `F4` | Previous / next layer — screens show the name while `G1` is held, faders move on its release |
-| `G2` + `Fn` | A/B position swap (layers without pages, e.g. Audio) |
-| `G2` + `F1` / `F4` | Previous / next page (paged layers, e.g. Discord, Home with >4 entities) |
+| `G2` + `Fn` (tap) | A/B position swap |
+| `G2` + `F1` / `F4` (hold 0.4 s) | Previous / next page (paged layers: Discord, Home / Audio / Voicemeeter with >4 entries or `"paging": true`) |
 
 #### Discord
 
@@ -185,7 +202,7 @@ client (Vesktop/arRPC lack voice RPC) and your own Discord application:
 - **Switch** (`switch.*`, `input_boolean.*`): fader bottom = off, above = on;
   button toggles.
 
-Entries fill the faders in order; more than four → pages (`G2` + `F1`/`F4`,
+Entries fill the faders in order; more than four → pages (hold `G2` + `F1`/`F4`,
 `x/y` on the last screen). `null` leaves a fader empty, e.g. to keep a
 blind's pair on one page. Needs a long-lived access token (HA profile →
 Security):
@@ -225,7 +242,8 @@ label set in Voicemeeter (or `label`) and the gain.
 ```
 
 `strip` / `bus` are 0-based, left to right as in Voicemeeter's window.
-`min`/`max` are dB (default -60 / +12, the full slider). Talks to the Remote
+`min`/`max` are dB (default -60 / +12, the full slider). More than four
+entries → pages, and `"paging"` works as for `pulse_sink`. Talks to the Remote
 API DLL shipped with Voicemeeter via ctypes — only `pyserial` needed:
 
 ```powershell

@@ -15,7 +15,7 @@ Binds faders to Home Assistant entities:
 Two faders on one cover, one per attribute, give position and angle.
 
 Entries fill the faders in order; more than fit become pages of four, stepped
-with G2 + F1 / F4 and shown as "1/2" on the last screen. A `null` entry
+with G2 + F1 / F4 held and shown as "1/2" on the last screen. A `null` entry
 leaves its fader empty, e.g. to start a blind's pair on a new page.
 
 Screens show the label on line 1 and the state on line 2. Creases: every 25%
@@ -534,8 +534,8 @@ class HomeAssistantExtension(Extension):
         self.verify_ssl = verify_ssl
         n = host.num_faders
         self._slots = list(slots)
-        # G2 + F1/F4 pages only when there is more than one page; otherwise
-        # the layer keeps its A/B swap.
+        # Held G2 + F1/F4 pages only when there is more than one page;
+        # otherwise G2 + F1/F4 swaps A/B on press, no hold to wait out.
         self.PAGED = len(self._slots) > n
         self._page = 0
         # Binding each fader shows, None for an empty slot.

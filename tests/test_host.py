@@ -101,6 +101,32 @@ class RecordingExtension(Extension):
         self.calibrations.append(phase)
 
 
+class FakeTimer:
+    """Stands in for threading.Timer in the G2 page hold; `fire` = held long."""
+
+    def __init__(self, interval, fn, args=()):
+        self.fn, self.args = fn, args
+        self.cancelled = False
+        self.daemon = False
+
+    def start(self):
+        pass
+
+    def cancel(self):
+        self.cancelled = True
+
+    def fire(self):
+        if not self.cancelled:
+            self.fn(*self.args)
+
+
+class ExpiredTimer(FakeTimer):
+    """A hold that is already long enough: G2 + F1/F4 pages on press."""
+
+    def start(self):
+        self.fire()
+
+
 def make_host(num_faders=4):
     host = FaderHost(port="/dev/null", num_faders=num_faders)
     host._ser = FakeSerial()
@@ -482,14 +508,35 @@ def test_hand_level_kept_per_layer():
 
 def test_g2_pages_on_a_paged_layer():
     host, audio, chat, a, b = make_layered_host()
+    host._hold_timer = FakeTimer
     host.step_layer(1)
     host._ser.written.clear()
     host._handle_line("BTN:G2")
-    for n in (1, 2, 3, 4):
-        host._handle_line(f"BTN:F{n}")
-        host._handle_line(f"BTNUP:F{n}")
-    check(b.pages == [-1, 1], f"G2 + F1/F4 page back/forward (got {b.pages})")
-    check(host._ser.lines() == [], "no A/B swap, no mute on a paged layer")
+    host._handle_line("BTN:F4")
+    timer = host._page_holds[3][2]
+    host._handle_line("BTNUP:F4")
+    check(timer.cancelled and b.pages == [], "G2 + F4 tapped: no page")
+    check(host._ser.lines() == ["SLOT:4,B"],
+          f"G2 + F4 tapped: A/B swap on a paged layer (got {host._ser.lines()})")
+
+    host._ser.written.clear()
+    host._handle_line("BTN:F4")
+    host._page_holds[3][2].fire()
+    check(b.pages == [1], f"G2 + F4 held: next page (got {b.pages})")
+    check(host._ser.lines() == ["SLOT:4,"],
+          f"a new page clears the A/B marks (got {host._ser.lines()})")
+    host._handle_line("BTNUP:F4")
+    check(chat.ab_slot[3] is None, "release after the hold swaps nothing")
+
+    host._handle_line("BTN:F1")
+    host._page_holds[0][2].fire()
+    host._handle_line("BTNUP:F1")
+    check(b.pages == [1, -1], f"G2 + F1 held: previous page (got {b.pages})")
+
+    host._handle_line("BTN:F2")
+    check(chat.ab_slot[1] == "B" and not host._page_holds,
+          "G2 + F2: A/B at once, no hold")
+    check(not any(host.is_muted(i) for i in range(4)), "nothing muted")
 
 
 def test_creases_sent_and_replayed():
@@ -910,6 +957,64 @@ def test_pulse_sink_reads_mute_at_startup():
         ps.threading.Thread = original_thread
 
 
+def test_pulse_sink_pages():
+    print("pulse_sink pages")
+    import faders.extensions.pulse_sink as ps
+
+    volumes = {f"sink-{i}": 10 * (i + 1) for i in range(6)}
+    calls = []
+
+    def fake_check_output(cmd, **kwargs):
+        if "get-sink-volume" in cmd:
+            return f"Volume: front-left: 1 /  {volumes[cmd[-1]]}% / 0 dB\n"
+        if "get-sink-mute" in cmd:
+            return "Mute: no\n"
+        if "list" in cmd:
+            return "".join(f"{i}\tsink-{i}\tm\ts16le\tRUNNING\n" for i in range(6))
+        raise AssertionError(cmd)
+
+    class FakePopen:
+        def __init__(self, cmd, **kwargs):
+            calls.append(cmd)
+
+    original = (ps.subprocess.check_output, ps.subprocess.Popen, ps.threading.Thread)
+    ps.subprocess.check_output = fake_check_output
+    ps.subprocess.Popen = FakePopen
+    ps.threading.Thread = lambda *a, **k: types.SimpleNamespace(
+        start=lambda: None, join=lambda *a, **k: None)
+    try:
+        host = FaderHost(port="/dev/null", num_faders=4)
+        host._ser = FakeSerial()
+        layer = host.add_layer("Audio")
+        group = ps.register_all(layer, {"faders": [
+            {"sink": f"sink-{i}", "label": f"S{i}"} for i in range(6)]})
+        check(layer.paged and group.pages == 2, "six sinks -> two pages")
+        host._on_connected()
+        check(host._display[3] == ("S3", f"{'vol 40%':<{DISPLAY_LINE_MAX - 3}}1/2"),
+              f"last screen carries the page (got {host._display[3]})")
+        host._pending = [None] * 4
+        host._hold_timer = ExpiredTimer
+        host._handle_button("G2")
+        host._handle_button("F4")
+        check(host._display[1] == ("S5", "vol 60%"), f"page 2 shown (got {host._display[1]})")
+        check(host._pending[:2] == [50.0, 60.0] and host._pending[2:] == [0.0, 0.0],
+              f"faders follow page 2 (got {host._pending})")
+        calls.clear()
+        host._held.clear()
+        host._handle_line("STATE:2,IDLE")
+        host._handle_line("POS:0,75,0,0")
+        check(["pactl", "set-sink-volume", "sink-5", "75.0%"] in calls,
+              f"page 2 fader writes its own sink (got {calls})")
+
+        host2 = FaderHost(port="/dev/null", num_faders=4)
+        layer2 = host2.add_layer("Audio")
+        ps.register_all(layer2, [{"fader": i, "sink": f"sink-{i}"} for i in range(4)])
+        check(not layer2.paged and len(layer2.extensions) == 4,
+              "four sinks with fader keys: plain A/B layer")
+    finally:
+        ps.subprocess.check_output, ps.subprocess.Popen, ps.threading.Thread = original
+
+
 def test_config_defaults_to_four_faders():
     print("Config")
     import json
@@ -961,6 +1066,7 @@ def main():
         test_set_flush_builds_sparse_lines,
         test_pulse_sink_display_and_mute,
         test_pulse_sink_reads_mute_at_startup,
+        test_pulse_sink_pages,
         test_config_defaults_to_four_faders,
     ]
     for test in tests:

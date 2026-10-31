@@ -31,6 +31,21 @@ can't accidentally pin a sink to clipping.
 often long (`alsa_output.pci-0000_00_1f.3.analog-stereo`), which does not fit a
 128 px screen, so a short label is usually worth setting.
 
+More sinks than faders: `fader` 4-7 is page 2, 8-11 page 3 and so on, stepped
+with G2 + F1 / F4 held and shown as "1/2" on the last screen (entries without
+`fader` fill the slots in list order). The dict form sets `paging` and
+shares keys between entries:
+    "pulse_sink": {
+        "paging": true,
+        "max": 150,
+        "faders": [{"sink": "sink-music"}, {"sink": "sink-comms"}, ...]
+    }
+G2 + a fader button tapped is the A/B swap either way; on a paged layer
+G2 + F1 / F4 held (core.PAGE_HOLD_S) steps the page instead. `paging`:
+"auto" (default) pages when a `fader` is past the last one; true always
+pages; false never pages (G2 + F1 / F4 swaps on press) and skips entries
+past the last fader.
+
 Pure subprocess — no Python deps. Works on PipeWire's pactl shim too.
 """
 
@@ -41,7 +56,7 @@ import sys
 import threading
 import time
 
-from ..core import Extension
+from ..core import Extension, register_slots
 
 PACTL = "pactl"
 
@@ -73,6 +88,11 @@ _EVENT_RE = re.compile(r"Event '(?P<ev>\w+)' on sink #(?P<idx>\d+)")
 _VOLUME_RE = re.compile(r"/\s*(\d+)%\s*/")
 # `pactl get-sink-mute <sink>` returns "Mute: yes" or "Mute: no".
 _MUTE_RE = re.compile(r"Mute:\s*(yes|no)")
+
+
+def register_all(host, cfg):
+    """The whole `pulse_sink` config: an entry list or a dict; see register_slots."""
+    return register_slots(host, cfg, register, "pulse_sink")
 
 
 def register(host, cfg):

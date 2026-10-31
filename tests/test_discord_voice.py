@@ -19,7 +19,7 @@ ROOT = pathlib.Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(ROOT))
 sys.path.insert(0, str(ROOT / "tests"))
 
-from test_host import FakeSerial, _wait_for, check, FAILURES, PASSES  # noqa: E402
+from test_host import ExpiredTimer, FakeSerial, _wait_for, check, FAILURES, PASSES  # noqa: E402
 
 from faders.core import FaderHost  # noqa: E402
 from faders.extensions import discord_voice as dv  # noqa: E402
@@ -170,9 +170,10 @@ def test_paging():
     check(host._display[3] == ("user5", "vol 105%          1/2"),
           f"page 1/2 on the last screen (got {host._display[3]})")
     host._pending = [None] * 4
+    host._hold_timer = ExpiredTimer  # F1/F4 held long enough to page
     host._handle_line("BTN:G2")
     host._handle_line("BTN:F4")
-    check(ext._page == 1, "G2 + F4 -> next page")
+    check(ext._page == 1, "G2 + F4 held -> next page")
     check(host._display[0][0] == "user6" and host._display[1][0] == "user7",
           f"second page users shown (got {host._display[:2]})")
     check(host._display[2][0] == "-" and host._display[3][1].endswith("2/2"),
