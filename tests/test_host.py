@@ -321,7 +321,7 @@ def test_layer_switch_applies_on_g1_release():
     host._handle_line("BTN:G1")
     host._handle_line("BTN:F4")
     sent = host._ser.lines()
-    check("DISP:2,Chat,layer 2/2" in sent, f"target layer named at once (got {sent})")
+    check("MENU:2,selected,Chat" in sent, f"target layer named at once (got {sent})")
     check(not any(ln.startswith(("MUTE:", "CREASES:")) for ln in sent)
           and host._pending == [None] * 4, "no motion while G1 is held")
     check(not audio.is_active() and not chat.is_active(), "no layer live mid-switch")
@@ -354,7 +354,7 @@ def test_repeated_steps_apply_only_the_last():
     host._handle_line("BTN:G1")
     host._handle_line("BTN:F4")
     host._handle_line("BTN:F4")
-    check("DISP:2,C,layer 3/3" in host._ser.lines(), "second step names C")
+    check("MENU:2,selected,C" in host._ser.lines(), "second step names C")
     check(host._pending[0] is None, "intermediate layer B never moves the faders")
     host._handle_line("BTNUP:G1")
     check(layers[2].is_active() and host._pending[0] == 10.0,
@@ -385,7 +385,7 @@ def test_stepping_back_to_the_active_layer_does_not_move():
     check(a.mutes == [] and b.activations == [], "no activation for a no-op switch")
 
 
-def test_g1_hint_names_neighbour_layers():
+def test_g1_menu_names_layers():
     host = FaderHost(port="/dev/null", num_faders=4)
     host._ser = FakeSerial()
     layers = [host.add_layer(n) for n in ("A", "B", "C")]
@@ -395,17 +395,17 @@ def test_g1_hint_names_neighbour_layers():
     host._ser.written.clear()
 
     host._handle_line("BTN:G1")
-    check(host._ser.lines() == ["DISP:1,C,< prev 3/3", "DISP:4,B,next > 2/3"],
-          f"G1 names previous / next layer on screens 1 and 4 (got {host._ser.lines()})")
+    check(host._ser.lines() == ["MENU:1,< prev,C", "MENU:2,selected,A",
+                                "MENU:3,layer,1/3", "MENU:4,next >,B"],
+          f"G1 turns every screen into a menu card (got {host._ser.lines()})")
     layers[0].set_display(0, "Music", "vol 60%")
-    check(host._display[0] == ("C", "< prev 3/3"), "layer writes do not cover the hint")
+    check(host._display[0] == ("menu", "< prev", "C"), "layer writes do not cover the menu")
 
     host._ser.written.clear()
     host._handle_line("BTN:F4")
-    sent = host._ser.lines()
-    check("DISP:1,A,< prev 1/3" in sent and "DISP:4,C,next > 3/3" in sent,
-          f"hint follows the step target (got {sent})")
-    check("DISP:2,B,layer 2/3" in sent, "middle screens name the target")
+    check(host._ser.lines() == ["MENU:1,< prev,A", "MENU:2,selected,B",
+                                "MENU:3,layer,2/3", "MENU:4,next >,C"],
+          f"menu follows the step target (got {host._ser.lines()})")
 
     host._ser.written.clear()
     host._handle_line("BTNUP:G1")
@@ -418,12 +418,19 @@ def test_g1_hint_names_neighbour_layers():
     host2._handle_line("BTN:G1")
     host2._ser.written.clear()
     host2._handle_line("BTNUP:G1")
-    check(host2._ser.lines() == ["DISP:1,Music,vol 60%", "DISP:4,,"],
-          f"release restores the layer screens (got {host2._ser.lines()})")
+    check(host2._ser.lines() == ["DISP:1,Music,vol 60%"] + [f"DISP:{i},," for i in (2, 3, 4)],
+          f"release without a step restores the layer screens (got {host2._ser.lines()})")
+
+    # A replugged Pico gets the menu back, not as DISP: text.
+    host2._handle_line("BTN:G1")
+    host2._ser.written.clear()
+    host2._resend_after_boot()
+    check("MENU:2,selected,Audio" in host2._ser.lines(),
+          f"menu re-sent after boot (got {host2._ser.lines()})")
 
     host3, _ = make_host()
     host3._handle_line("BTN:G1")
-    check(host3._ser.lines() == [], "one layer: no hint")
+    check(host3._ser.lines() == [], "one layer: no menu")
 
 
 def test_switch_replays_mute_with_level():
@@ -935,7 +942,7 @@ def main():
         test_layer_switch_applies_on_g1_release,
         test_repeated_steps_apply_only_the_last,
         test_stepping_back_to_the_active_layer_does_not_move,
-        test_g1_hint_names_neighbour_layers,
+        test_g1_menu_names_layers,
         test_switch_replays_mute_with_level,
         test_hand_level_kept_per_layer,
         test_g2_pages_on_a_paged_layer,

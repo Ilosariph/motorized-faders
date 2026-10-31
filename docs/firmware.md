@@ -52,6 +52,7 @@ prefix ignores it.
 | `MUTE:idx,0\|1[,pos]` | Mute/unmute fader `idx` (1-based). Optional `pos` sets the position unmute returns to (mute) or drives to (unmute) instead of reading the fader |
 | `DISP:idx,line1,line2` | Display text for fader `idx` (1-based) |
 | `SLOT:idx,A\|B` | A/B slot badge for fader `idx`; empty clears it |
+| `MENU:idx,label,name` | Menu card on fader `idx`'s screen (no bar), until the next `DISP:` |
 | `CREASES:idx,pos:power:ms,...` | Haptic detents for fader `idx`, see below. No entries clears |
 | `TUNE:kp,ki,kd,minmove,deadband,deadband_exit` | Live PID gains, empty slot keeps value, echoed as `DBG:tune ... loop=Nms`, lost on reset. See [pid_tuning.md](pid_tuning.md) |
 
@@ -192,14 +193,17 @@ same fader would label it differently with no firmware change.
 ```
 +------------------------------+
 | Music                        |  line1, scale 2 (scale 1 if too long)
-| vol 78%                      |  line2
-|                              |
+| vol 78%                      |  line2, scale 2 (scale 1 if too long)
 | [####################----]   |  position bar, firmware-owned
-| A                    78.2%   |  A/B badge (host, SLOT:), live position
+| A                            |  A/B badge (host, SLOT:)
 +------------------------------+
 ```
 
-Muted replaces the readout with a solid full-width bar along the bottom,
+`MENU:idx,label,name` replaces all of that with a menu card — `label` small
+on top, `name` centred below as large as fits — until the next `DISP:`. The
+host uses it while G1 is held: `< prev`, `selected`, `layer n/N`, `next >`.
+
+Muted adds a solid full-width bar along the bottom,
 `MUTE  NN%` knocked out of it, where `NN` is the position unmute returns to.
 The otherwise empty position bar shows that same restore position as a thin
 strip, so dragging a muted fader to pick a new restore level is visible. The SSD1306 is **monochrome** — there is no colour to use,

@@ -38,6 +38,8 @@ Serial protocol (115200 baud, USB). All lines newline-terminated:
     DISP:idx,line1,line2     display text for fader idx (1-based). Content is
                              whatever the active host plugin wants to show.
     SLOT:idx,A|B             A/B slot badge for fader idx; empty clears it.
+    MENU:idx,label,name      menu card on fader idx's screen (label small,
+                             name large, no bar) until the next DISP:.
     CREASES:idx,pos:power:ms,...
                              haptic detents for fader idx: a pulse of
                              `power` % for `ms` against the hand as it drags
@@ -234,7 +236,7 @@ NUM_FADERS = len(FADER_ENABLED)
 POS_INTERVAL_MS = 50   # send position every 50ms (~20Hz)
 MAX_DT_S = 0.1         # cap dt to prevent derivative spike on first PID call
 BUTTON_POLL_MS = 15    # buttons are slow; no need to read them every loop
-DISPLAY_POLL_MS = 100  # rate limit for redraws, which still only run on change
+DISPLAY_POLL_MS = 100  # rate limit for bar-only redraws; content changes skip it
 
 # The SSD1306's RC reset needs ~5 ms to release before the first command.
 DISPLAY_RESET_MS = 10
@@ -714,6 +716,8 @@ def _handle_command(line, faders, screens):
             _handle_disp(line[5:], screens)
         elif line.startswith("SLOT:"):
             _handle_slot(line[5:], screens)
+        elif line.startswith("MENU:"):
+            _handle_menu(line[5:], screens)
         elif line.startswith("CREASES:"):
             _handle_creases(line[8:], faders)
         elif line.startswith("TUNE:"):
@@ -765,6 +769,16 @@ def _handle_disp(payload, screens):
     line1 = parts[1] if len(parts) > 1 else ""
     line2 = parts[2] if len(parts) > 2 else ""
     screens[idx].set_lines(line1, line2)
+
+
+def _handle_menu(payload, screens):
+    parts = payload.split(",", 2)
+    idx = _parse_index(parts[0])
+    if screens[idx] is None:
+        return
+    label = parts[1] if len(parts) > 1 else ""
+    name = parts[2] if len(parts) > 2 else ""
+    screens[idx].set_menu(label, name)
 
 
 def _handle_slot(payload, screens):
@@ -996,7 +1010,15 @@ def main():
             fader is not None and (fader.state == "MOVING" or fader.nudging)
             for fader in faders
         )
-        if not moving and ticks_diff(now, last_display_poll) >= DISPLAY_POLL_MS:
+        #
+        # New text, mute or badge skips the rate limit: a layer switch changes
+        # all four screens, and at one frame per 100 ms they trickled in over
+        # ~400 ms. Back to back, still one frame per loop pass, they take
+        # ~4 frame times.
+        content = any(
+            screen is not None and screen.content_changed() for screen in screens
+        )
+        if not moving and (content or ticks_diff(now, last_display_poll) >= DISPLAY_POLL_MS):
             last_display_poll = now
             for idx, screen in enumerate(screens):
                 if screen is None:

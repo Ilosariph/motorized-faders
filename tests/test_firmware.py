@@ -714,6 +714,11 @@ def test_disp_command():
     check(screens[1].line1 == "a" and screens[1].line2 == "b,c",
           f"commas in text preserved (got {screens[1].line2!r})")
 
+    fw._handle_command("MENU:1,< prev,Discord", rig.faders, screens)
+    check(screens[0].menu == ("< prev", "Discord"), "MENU sets the card")
+    fw._handle_command("DISP:1,sink-music,vol 78%", rig.faders, screens)
+    check(screens[0].menu is None, "DISP ends the card")
+
     fw._handle_command("DISP:3,only-line1", rig.faders, screens)
     check(screens[2].line1 == "only-line1" and screens[2].line2 == "",
           "missing line2 defaults to empty")
@@ -1111,6 +1116,25 @@ def test_display_redraws_only_on_change():
 
     screen.draw(force=True)
     check(disp.shown == 5, "force=True redraws regardless")
+
+    # Content changes skip the main loop's rate limit; bar moves do not.
+    check(not screen.content_changed(), "nothing pending after a draw")
+    screen.set_position(80.0)
+    check(screen.needs_redraw() and not screen.content_changed(),
+          "bar-only change waits for the rate limit")
+    screen.set_restore(30.0)
+    check(not screen.content_changed(), "restore marker counts as bar")
+    screen.set_lines("other", "vol 2")
+    check(screen.content_changed(), "text change is content")
+    screen.draw()
+    screen.set_slot("A")
+    check(screen.content_changed(), "badge change is content")
+    screen.draw()
+    screen.set_muted(False)
+    check(screen.content_changed(), "mute change is content")
+    screen.draw()
+    screen.set_menu("< prev", "Audio")
+    check(screen.content_changed(), "menu card is content")
 
 
 # ---------------------------------------------------------------------------

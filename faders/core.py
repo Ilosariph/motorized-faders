@@ -14,6 +14,7 @@ Talks the Pico protocol from `pico/main.py`:
                    MUTE:idx,0|1[,pos] (mute/unmute a fader, optional restore)
                    DISP:idx,l1,l2     (display text for a fader)
                    SLOT:idx,A|B       (A/B slot badge, empty clears)
+                   MENU:idx,label,name (menu card until the next DISP:)
                    CREASES:idx,pos:power:ms,...  (haptic detents)
 
 Extensions subclass `Extension`. The host calls `on_position(idx, value)` when a
@@ -39,8 +40,9 @@ action. Current mapping:
                       is previous / next page
     G1 + G2 + Fn      nothing (ambiguous); G1 or G2 alone: nothing
 
-While G1 is held (and there is more than one layer), screens 1 and 4 name
-the previous and next layer, so a switch can be aimed before it is made.
+While G1 is held (and there is more than one layer), every screen turns
+into a menu card: `< prev` on 1, the selected layer on 2, its number on 3,
+`next >` on 4, so a switch can be aimed before it is made.
 
 A layer switch is applied when G1 is released: while it is held, steps only
 retarget the screens, so stepping through several layers does not drive the
@@ -321,8 +323,8 @@ class FaderHost:
 
     def step_layer(self, delta):
         """
-        Switch `delta` layers on. While G1 is held, only the screens name
-        the target; the faders follow on its release. Otherwise at once.
+        Switch `delta` layers on. While G1 is held, only the menu cards
+        follow the target; the faders do on its release. Otherwise at once.
         """
         with self._lock:
             if len(self._layers) < 2:
@@ -338,33 +340,33 @@ class FaderHost:
             return
         log.info("layer -> %s (%d/%d), applying on G1 release", target.name,
                  position, total)
-        hinted = self._hinted()
-        for idx in range(self.num_faders):
-            if idx not in hinted:
-                self._show(idx, target.name, f"layer {position}/{total}")
-        if hinted:
-            self._show_hint()
+        self._show_hint()
 
     def _hinted(self):
-        """Faders whose screens the G1 layer hint holds: none, or 1 and N."""
+        """Faders whose screens the G1 layer menu holds: none, or all."""
         with self._lock:
             if not self._hint or len(self._layers) < 2:
                 return ()
-            return (0, self.num_faders - 1)
+            return tuple(range(self.num_faders))
 
     def _show_hint(self):
-        """Screens 1 and N: the layers G1 + F1 / F4 would step to."""
+        """Menu cards: previous, selected, its number, next."""
         with self._lock:
             if len(self._layers) < 2:
                 return
-            base = self._active if self._target is None else self._target
+            sel = self._active if self._target is None else self._target
             total = len(self._layers)
-            prev = (base - 1) % total
-            nxt = (base + 1) % total
-            prev_name = self._layers[prev].name
-            next_name = self._layers[nxt].name
-        self._show(0, prev_name, f"< prev {prev + 1}/{total}")
-        self._show(self.num_faders - 1, next_name, f"next > {nxt + 1}/{total}")
+            names = [layer.name for layer in self._layers]
+        n = self.num_faders
+        cards = {
+            0: ("< prev", names[(sel - 1) % total]),
+            n - 1: ("next >", names[(sel + 1) % total]),
+        }
+        middle = [("selected", names[sel]), ("layer", f"{sel + 1}/{total}")]
+        for idx, card in zip(range(1, n - 1), middle):
+            cards[idx] = card
+        for idx in range(n):
+            self._show_menu(idx, *cards.get(idx, ("", "")))
 
     def _release_g1(self):
         """
@@ -378,6 +380,7 @@ class FaderHost:
             layer = self._layers[self._active] if self._layers else None
             texts = {idx: layer.display[idx] or ("", "") for idx in hinted}
         if pending:
+            # Redraws every screen, which ends the menu cards.
             self._finish_switch()
             return
         for idx, text in texts.items():
@@ -549,6 +552,15 @@ class FaderHost:
                 return  # unchanged — the Pico redraws on change only
             self._display[idx] = (line1, line2)
         self._send(f"DISP:{idx + 1},{line1},{line2}")
+
+    def _show_menu(self, idx, label, name):
+        """Menu card; held in _display as a 3-tuple so a DISP: never matches it."""
+        label, name = _sanitize(label), _sanitize(name)
+        with self._lock:
+            if self._display[idx] == ("menu", label, name):
+                return
+            self._display[idx] = ("menu", label, name)
+        self._send(f"MENU:{idx + 1},{label},{name}")
 
     def _show_slot(self, idx, slot):
         with self._lock:
@@ -802,7 +814,9 @@ class FaderHost:
             slots = list(self._slots)
             creases = list(self._creases)
         for idx, text in enumerate(display):
-            if text is not None:
+            if text is not None and len(text) == 3:
+                self._send(f"MENU:{idx + 1},{text[1]},{text[2]}")
+            elif text is not None:
                 self._send(f"DISP:{idx + 1},{text[0]},{text[1]}")
         for idx, slot in enumerate(slots):
             if slot:
