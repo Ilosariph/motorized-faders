@@ -181,6 +181,9 @@ client (Vesktop/arRPC lack voice RPC) and your own Discord application:
   Covers get one command when the fader comes to rest; the fader follows HA
   once the cover stops moving.
 
+- **Switch** (`switch.*`, `input_boolean.*`): fader bottom = off, above = on;
+  button toggles.
+
 Entries fill the faders in order; more than four → pages (`G2` + `F1`/`F4`,
 `x/y` on the last screen). `null` leaves a fader empty, e.g. to keep a
 blind's pair on one page. Needs a long-lived access token (HA profile →
@@ -200,7 +203,9 @@ Security):
 ```
 
 `token` inline also works (keep the config private); `"verify_ssl": false`
-for a self-signed https URL.
+for a self-signed https URL. `"follow": false` on an entry ignores the values
+HA reports for it (the fader alone is the truth) — for a device whose reports
+are wrong, e.g. a cover stuck at 1% until its travel is calibrated.
 
 The host survives the Pico being unplugged: it waits for the port to come
 back (it may return as a different `ttyACM` node), then replays display text,

@@ -45,6 +45,12 @@ then (a Nix-generated config sits in the world-readable store, so prefer the
 file there). `url` may be https; certificates are verified unless
 `"verify_ssl": false`. `label` defaults to the entity's friendly name.
 `creases` (default true, per fader) turns the detents off when false.
+`switch.*` / `input_boolean.*` entities work like a light that only
+switches: fader bottom = off, anywhere above = on, button toggles.
+`follow` (default true, per fader): false ignores the values HA reports and
+keeps the fader as the only truth, for a device whose position reports are
+wrong (e.g. an uncalibrated cover stuck reporting 1%). The fader still sends
+every change; availability and the name still come from HA.
 """
 
 import base64
@@ -88,6 +94,9 @@ FOLLOW_EPSILON_PCT = 2.0
 
 log = logging.getLogger("faders.home_assistant")
 
+# Entities that only switch on and off, handled like an on/off light.
+SWITCH_DOMAINS = ("switch", "input_boolean")
+
 # A fader not bound to anything known yet: the next sync drives it.
 _UNKNOWN = object()
 
@@ -96,10 +105,16 @@ def register(host, cfg):
     token = cfg.get("token")
     if not token and cfg.get("token_file"):
         token = Path(cfg["token_file"]).expanduser().read_text().strip()
-    slots = [None if f is None else
-             Binding(str(f["entity"]), f.get("attribute"), f.get("label"),
-                     bool(f.get("creases", True)))
-             for f in cfg.get("faders", [])]
+    slots = []
+    for f in cfg.get("faders", []):
+        try:
+            slots.append(None if f is None else
+                         Binding(str(f["entity"]), f.get("attribute"), f.get("label"),
+                                 bool(f.get("creases", True)), bool(f.get("follow", True))))
+        except ValueError as e:
+            # One bad entry leaves its fader empty rather than stopping the host.
+            log.error("%s; fader left empty", e)
+            slots.append(None)
     ext = HomeAssistantExtension(
         host=host,
         url=str(cfg["url"]),
@@ -388,17 +403,26 @@ class Binding:
         "tilt": (0.5, True, 3.0),
     }
 
-    def __init__(self, entity, attribute=None, label=None, creases=True):
+    def __init__(self, entity, attribute=None, label=None, creases=True, follow=True):
         self.entity = entity
-        domain = entity.split(".", 1)[0]
+        self.domain = domain = entity.split(".", 1)[0]
+        # Light that dims / cover that takes a position (else only on/off,
+        # open/close).
+        self.settable = True
         if domain == "light":
             self.kind = "brightness"
+        elif domain in SWITCH_DOMAINS:
+            # Behaves as a light that only switches.
+            self.kind = "brightness"
+            self.settable = False
         elif domain == "cover":
             self.kind = "tilt" if attribute == "tilt" else "position"
         else:
-            raise ValueError(f"{entity}: only light.* and cover.* entities are supported")
+            raise ValueError(f"{entity}: only light, cover and "
+                             f"{'/'.join(SWITCH_DOMAINS)} entities are supported")
         self.label = label
         self.creases = creases
+        self.follow = follow
         self.name = label or entity
         self.available = False
         # Per HA: off / closed (value at the bottom), and the value 0-100.
@@ -412,9 +436,6 @@ class Binding:
         # Mute state this binding last gave its fader, so the Pico's
         # confirmation of it is not taken for a button press.
         self.muted = False
-        # Light that dims / cover that takes a position (else only on/off,
-        # open/close).
-        self.settable = True
         self.moving = False
         self.last_write_t = -1e9
         self.sent_t = -1e9
@@ -447,6 +468,8 @@ class Binding:
             modes = attrs.get("supported_color_modes")
             if modes is not None:
                 self.settable = any(m != "onoff" for m in modes)
+            if not self.follow:
+                return
             self.off = s != "on"
             if self.off:
                 self.value = 0.0
@@ -456,8 +479,10 @@ class Binding:
                 self.value = round(float(attrs["brightness"]) / 255.0 * 100.0, 1)
         else:
             key = "current_tilt_position" if self.kind == "tilt" else "current_position"
-            self.moving = s in ("opening", "closing")
             self.settable = key in attrs
+            if not self.follow:
+                return
+            self.moving = s in ("opening", "closing")
             if attrs.get(key) is not None:
                 self.value = float(attrs[key])
             elif self.kind == "position" and s in ("open", "closed"):
@@ -487,9 +512,9 @@ class Binding:
         """(domain, service, data) that sets the entity to fader `value`."""
         if self.kind == "brightness":
             if value < OFF_BELOW_PCT:
-                return "light", "turn_off", {}
+                return self.domain, "turn_off", {}
             if not self.settable:
-                return "light", "turn_on", {}
+                return self.domain, "turn_on", {}
             return "light", "turn_on", {"brightness": max(1, round(value / 100.0 * 255))}
         if self.kind == "tilt":
             if not self.settable:
@@ -698,7 +723,7 @@ class HomeAssistantExtension(Extension):
             elif b.restore is None:
                 # Unknown level: let HA bring back the entity's own.
                 b.value = 100.0
-                call = (("light", "turn_on", {}) if b.kind == "brightness"
+                call = ((b.domain, "turn_on", {}) if b.kind == "brightness"
                         else b.service_for(100.0))
             else:
                 b.value = b.level = b.restore

@@ -267,6 +267,45 @@ def test_open_close_only_cover():
           f"upper half opens (got {ext._client.calls()})")
 
 
+def test_no_follow():
+    host, layer, ext = make([("cover.b", "position", "Blinds", True, False)],
+                            {"cover.b": cover(1, 0)})
+    check(host._display[0] == ("Blinds", "--") and host._pending[0] is None,
+          f"reported value ignored at start (got {host._display[0]}, {host._pending[0]})")
+    touch(host, 0, 60.0)
+    _wait_for(lambda: ext._client.calls())
+    check(ext._client.calls() == [("cover.b", "set_cover_position", {"position": 60})], "fader still writes")
+    settle(ext)
+    host._pending = [None] * 4
+    ext.handle_event(change("cover.b", current_position=1))
+    settle(ext)
+    check(host._pending[0] is None and host._display[0][1] == "open 60%",
+          f"bogus report does not move the fader (got {host._pending[0]}, {host._display[0]})")
+    press(host, 0, True)
+    press(host, 0, False)
+    check(ext._client.calls()[-2:] == [("cover.b", "set_cover_position", {"position": 0}),
+                                       ("cover.b", "set_cover_position", {"position": 60})],
+          f"mute / unmute still work (got {ext._client.calls()})")
+    host._ser.written.clear()
+    ext.handle_event(change("cover.b", "unavailable"))
+    check(host._display[0][1] == "unavailable", "availability still followed")
+
+
+def test_switch():
+    host, layer, ext = make([("switch.printer", None, "3D")], {"switch.printer": {"s": "on", "a": {}}})
+    check(host._display[0] == ("3D", "on") and host._pending[0] == 100.0,
+          f"switch on -> fader top (got {host._display[0]}, {host._pending[0]})")
+    check(layer.creases[0] == [], "no creases on a switch")
+    press(host, 0, True)
+    check(ext._client.calls() == [("switch.printer", "turn_off", {})], f"mute -> switch.turn_off (got {ext._client.calls()})")
+    press(host, 0, False)
+    check(ext._client.calls()[-1] == ("switch.printer", "turn_on", {}), "unmute -> switch.turn_on")
+    settle(ext)
+    touch(host, 0, 0.0)
+    _wait_for(lambda: len(ext._client.calls()) == 3)
+    check(ext._client.calls()[-1] == ("switch.printer", "turn_off", {}), "bottom -> off")
+
+
 def test_paging():
     print("Paging")
     entries = [f"light.l{i}" for i in range(5)] + [None, ("cover.b", "position")]
@@ -445,10 +484,19 @@ def test_config():
     check(slots[1] is None and slots[0].kind == "brightness" and slots[2].kind == "tilt",
           f"slots parsed (got {slots})")
     try:
-        ha.Binding("switch.x")
+        ha.Binding("sensor.x")
         check(False, "unsupported domain rejected")
     except ValueError:
         check(True, "")
+    captured.clear()
+    ha.HomeAssistantExtension = Probe
+    try:
+        ha.register(layer, {"url": "http://ha", "token": "t",
+                            "faders": [{"entity": "sensor.x"}, {"entity": "light.a"}]})
+    finally:
+        ha.HomeAssistantExtension = real
+    check(captured["slots"][0] is None and captured["slots"][1].entity == "light.a",
+          "bad entry leaves its fader empty instead of crashing")
 
 
 def main():
@@ -460,6 +508,8 @@ def main():
         test_cover_position_and_tilt,
         test_cover_mute_while_travelling,
         test_open_close_only_cover,
+        test_no_follow,
+        test_switch,
         test_paging,
         test_inactive_layer_and_status,
         test_entity_diff,
