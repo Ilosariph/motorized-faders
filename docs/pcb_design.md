@@ -18,7 +18,8 @@ this document is the single-board version.
 | Motor driver | 2× TB6612FNG — **dual footprint**: SSOP-24 land + breakout header, same nets |
 | Display | SSD1306 128×64 **SPI** (I2C can't address 4 — only 0x3C/0x3D exist) |
 | Buttons | Resistor ladder on 2 spare MCP3208 channels — costs 0 GPIO |
-| Faders | RSA0N11M9 100 mm 10 kΩ, case-mounted, soldered wire — not on PCB |
+| Faders | RSA0N11M9 100 mm 10 kΩ, case-mounted, not on PCB |
+| Connectors | JST-XH, keyed: **one 5-pin per fader**, 8-pin per display |
 | Pin map | Fixed: SPI0 on GP16/18/19, PWM on 4 distinct slices, GP0/1 spare |
 | MCU | Keep the existing RP2040 module — bare RP2040 not needed |
 | Motor power | USB-C PD trigger, **jumper-set 9 V** (PD has no 10 V PDO) |
@@ -227,18 +228,22 @@ also feeds the faders and both TB6612FNG VCC pins. The module regulates its own
 VIN from VBUS offloads the Pico regulator entirely. This is what the onboard
 regulator is for.
 
-### PCB footprint: fit the 8-pin header
+### PCB footprint: 8-pin JST-XH
 
 Displays are panel-mounted in the case and wired back with jumpers, so the
-module never sits on the PCB. Fit an **8-pin header footprint** matching the
-Adafruit 326 pinout, with the `3Vo` position present but no-connect.
+module never sits on the PCB. Fit an **8-pin JST-XH** (B8B-XH-A, footprint
+`Connector_JST:JST_XH_B8B-XH-A_1x08_P2.50mm_Vertical`) in the Adafruit 326 pin
+order, with the `3Vo` position present but no-connect — same connector family as
+the faders, keyed, one plug per display. Cable end at the module: 8-pin Dupont
+female (2.54 mm) onto the module's own header, wired straight through pin for
+pin.
 
 Label the pads on silkscreen in module order
 (`Data Clk DC Rst CS 3Vo VIN GND`) — that is what gets read with jumpers in
 hand, so matching the module's own labels beats using generic SPI names.
 
-An 8-pin footprint still accepts a generic 7-pin SPI module or a 4-pin I2C one;
-only the pad count changes, not the signals.
+Generic 7-pin SPI or 4-pin I2C modules still work: only the module-side end of
+the cable changes, not the board.
 
 **Flying-lead caution:** SPI over long leads is more fragile than I2C — faster
 clock, no acknowledgement. Keep display leads under ~15 cm. If glitches appear,
@@ -458,49 +463,62 @@ availability.
 
 **Mounting:** M3 screws, 4 mm, into the 3D-printed case — already proven in the
 prototype. Faders are **not board-mounted**: they mount to the case and connect
-by soldered wire, so the PCB carries no fader mechanical load and its outline is
+by cable, so the PCB carries no fader mechanical load and its outline is
 not driven by fader pitch.
 
-### Wiring — 2.54 mm headers, not soldered wire
+### Wiring — one JST-XH connector per fader
 
-Everything off-board connects through 2.54 mm pin headers with crimp housings,
-not soldered wire. **Five conductors per fader, 20 total:**
+Everything off-board connects through **JST-XH** (2.50 mm pitch, keyed shrouded
+header, crimp housing), not soldered wire or bare pin headers. **One 5-pin
+connector per fader** carries all five conductors, so a fader is connected or
+disconnected with a single plug:
 
-| Net | To | Notes |
-|-----|----|-------|
-| Wiper | MCP3208 CHn via 10 kΩ RC filter | keep away from motor leads |
-| 3.3 V | fader terminal 3 | same net as MCP3208 VREF — ratiometric |
-| GND | fader terminal 1 | |
-| Motor + | TB6612FNG AO1 / BO1 | |
-| Motor - | TB6612FNG AO2 / BO2 | |
+| Pin | Net | To | Notes |
+|-----|-----|----|-------|
+| 1 | `MOTOR_A` | TB6612FNG AO1 / BO1 | motor + |
+| 2 | `MOTOR_B` | TB6612FNG AO2 / BO2 | motor - |
+| 3 | GND | fader terminal 1 | guard between motor and analog pins |
+| 4 | `WIPER` | MCP3208 CHn via 10 kΩ RC filter | fader terminal 2 |
+| 5 | 3.3 V | fader terminal 3 | same net as MCP3208 VREF — ratiometric |
 
-Split per fader across two headers, placed adjacent so one bundle location
-serves each fader:
+Reference `J_F1`..`J_F4`, part **B5B-XH-A** (footprint
+`Connector_JST:JST_XH_B5B-XH-A_1x05_P2.50mm_Vertical`), mating housing
+**XHP-5** with SXH-001T-P0.6 crimps.
 
-| Header | Pins | Carries |
-|--------|------|---------|
-| `J_Fn_MOT` | 1x02 | motor pair |
-| `J_Fn_GEN` | 1x03 | wiper, 3.3 V, GND |
+**Why this pin order:** the motor pair sits together at one end, GND separates
+it from the analog pins, and pins 3-4-5 run in the same order as the fader's
+own terminals 1-2-3, so the analog side of the harness is a straight run.
+
+**Why JST-XH:** keyed, so a plug cannot go in backwards — with 3.3 V and GND
+on the same connector, a reversed plain header would short the rail through
+the wiper track. XH is THT, hand-solderable, rated 3 A per contact (motor peak
+is 800 mA), and the same family has an 8-pin version for the displays. The
+2.50 mm pitch is **not** 2.54 mm: do not mix XH housings with Dupont headers.
+
+The B5B-XH-A body is 14.9 mm long; run it along the board's y axis (as the old
+2+3 headers were stacked) so it fits the 15 mm fader-to-fader spacing with room
+to grip the plug.
+
+**Layout not yet updated.** The schematic carries the XH connectors; the routed
+`.kicad_pcb` still has the old 1x02 + 1x03 fader headers and 2.54 mm display
+headers. Run *Tools → Update PCB from Schematic* (F8), place the new
+footprints, and re-route the fader and display connector tracks.
 
 **No strain-relief holes needed.** They existed to protect solder joints from
-flex; a header/socket pair moves the mechanical interface off the joint
+flex; a header/housing pair moves the mechanical interface off the joint
 entirely — the connector body takes the strain and the board side is
 unplugging, not repair.
 
-Displays use 1x08, buttons 1x02, the PD board 1x04. Label pin 1 on silkscreen
-for every header.
-
-**Polarization:** plain 2.54 mm headers are not keyed, so a 3-pin fader plug can
-go on backwards, putting 3.3 V where GND belongs. The differing pin counts
-(2 / 3 / 4 / 8) at least prevent cross-type mistakes. JST-XH footprints solve it
-properly if the swap is made before routing — worth considering given repeated
-plugging during PID tuning.
+Displays use JST-XH 1x08 (see [PCB footprint](#pcb-footprint-8-pin-jst-xh)),
+buttons and the PD board stay on 2.54 mm 1x02 / 1x04 pin headers. Label pin 1
+on silkscreen for every connector.
 
 **Keep wiper and motor wires in separate bundles.** The motor pair carries
 switched current at 20 kHz; the wiper is a high-impedance analog line. Coupling
-happens over *bundled length*, not at the connector — so headers a few mm apart
-on the board are fine, but running both in one 20 cm harness is not. Twist each
-motor pair.
+happens over *bundled length*, not at the connector — so sharing one 5-pin
+housing is fine, but running all five wires as one 20 cm harness is not. Split
+the cable into two bundles right behind the housing: twisted motor pair (pins
+1-2) and the GND/wiper/3.3 V trio (pins 3-5), routed apart to the fader.
 
 Button wiring is slow and low-impedance, so it can share a bundle with
 anything.
@@ -540,6 +558,9 @@ RP2040 module's header end for its USB connector.
 | RP2040 module (existing) | 1 | headers | GP4/GP5 not exposed |
 | Female header, 20-pos, 2.54 mm | 2 | THT | RP2040 module |
 | Female header, 8-pos, 2.54 mm | 4 | THT | driver breakouts, 2 per TB6612FNG |
+| JST-XH B5B-XH-A (5-pin, vertical) | 4 | THT | one per fader, `J_F1`..`J_F4` |
+| JST-XH B8B-XH-A (8-pin, vertical) | 4 | THT | one per display, `J_DISP1`..`J_DISP4` |
+| JST XHP-5 / XHP-8 housing + SXH-001T-P0.6 crimps | 4 + 4, ~60 crimps | crimp | cable side |
 | Adafruit 326 OLED 0.96in SSD1306 | 4 | 8-pin module | one per fader; cut jumpers for SPI |
 
 ### Passives — 0805 throughout
@@ -600,8 +621,8 @@ barrel jack or fuse needed. PD boards current-limit at the source.
 | Alps RSA0N11M9 fader (100 mm, 10 kΩ) | 4 |
 | Tactile button (per-fader) | 4 |
 | Tactile button (general) | 2 |
-| Display wire pads, 8-pin | 4 |
-| Fader wire pads, 5 per fader | 20 nets | soldered wire, no connectors |
+| Display connector, JST-XH 8-pin | 4 |
+| Fader connector, JST-XH 5-pin | 4 | one plug per fader |
 
 ---
 
