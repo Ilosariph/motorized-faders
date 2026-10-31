@@ -139,7 +139,8 @@ screen.
 Plugins are grouped into **layers** that take turns owning the four faders.
 Each layer remembers its own fader levels, mutes, screens and creases.
 Without a `layers` key every plugin is its own layer (`pulse_sink` → "Audio",
-`discord_voice` → "Discord", `home_assistant` → "Home"); to choose, list them:
+`discord_voice` → "Discord", `home_assistant` → "Home", `voicemeeter` →
+"Voicemeeter"); to choose, list them:
 
 ```json
 "layers": [
@@ -207,6 +208,33 @@ for a self-signed https URL. `"follow": false` on an entry ignores the values
 HA reports for it (the fader alone is the truth) — for a device whose reports
 are wrong, e.g. a cover stuck at 1% until its travel is calibrated.
 
+#### Voicemeeter (Windows)
+
+`voicemeeter` binds faders to Voicemeeter (Basic, Banana or Potato) input
+strips and output buses, the way `pulse_sink` binds them to sinks: the fader
+sets the gain in dB, gain changed in Voicemeeter moves the fader, and the
+fader button toggles the strip's/bus's mute (both ways). Screens show the
+label set in Voicemeeter (or `label`) and the gain.
+
+```json
+"voicemeeter": [
+  {"fader": 0, "strip": 0, "label": "Mic"},
+  {"fader": 1, "strip": 3},
+  {"fader": 3, "bus": 0, "min": -40, "max": 0}
+]
+```
+
+`strip` / `bus` are 0-based, left to right as in Voicemeeter's window.
+`min`/`max` are dB (default -60 / +12, the full slider). Talks to the Remote
+API DLL shipped with Voicemeeter via ctypes — only `pyserial` needed:
+
+```powershell
+pip install pyserial
+python -m faders.run --config my-config.json
+```
+
+Voicemeeter may start after the host or restart; faders resync when it shows up.
+
 The host survives the Pico being unplugged: it waits for the port to come
 back (it may return as a different `ttyACM` node), then replays display text,
 A/B badges and creases, and extensions re-seed fader positions and mute via
@@ -264,6 +292,7 @@ python3 tests/run_all.py
 | `faders/extensions/pulse_sink.py` | Binds a fader to a PulseAudio/PipeWire sink |
 | `faders/extensions/discord_voice.py` | Voice-channel users on the faders: volume, mute, pages |
 | `faders/extensions/home_assistant.py` | HA lights (brightness, on/off) and covers (position, tilt), paged |
+| `faders/extensions/voicemeeter.py` | Binds a fader to a Voicemeeter strip or bus (Windows) |
 | `tests/` | Test suites — run `python3 tests/run_all.py`, no hardware required |
 | `docs/upload.md` | How to flash firmware to the Pico (Thonny + mpremote) |
 | `docs/pid_tuning.md` | How to tune the PID controller |
