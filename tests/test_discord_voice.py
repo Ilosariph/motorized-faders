@@ -167,7 +167,7 @@ def test_paging():
     print("Paging")
     users = [state(str(i), f"user{i}", 100 + i) for i in range(2, 8)]  # 6 users
     host, layer, ext = make(users)
-    check(host._display[3] == ("user5", "vol 105%          1/2"),
+    check(host._display[3] == ("user5", "vol 105%\t1/2"),
           f"page 1/2 on the last screen (got {host._display[3]})")
     host._pending = [None] * 4
     host._hold_timer = ExpiredTimer  # F1/F4 held long enough to page

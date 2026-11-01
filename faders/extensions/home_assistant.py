@@ -68,7 +68,7 @@ import time
 import urllib.parse
 from pathlib import Path
 
-from ..core import DISPLAY_LINE_MAX, Extension
+from ..core import Extension, with_page
 
 # Layer name when the config does not group plugins into layers itself.
 LAYER_NAME = "Home"
@@ -623,9 +623,7 @@ class HomeAssistantExtension(Extension):
         else:
             line1, line2 = "-", ""
         if self.PAGED and idx == n - 1:
-            page = f"{self._page + 1}/{self.page_count()}"
-            width = DISPLAY_LINE_MAX - len(page)
-            line2 = f"{line2[:width - 1]:<{width}}{page}"
+            line2 = with_page(line2, f"{self._page + 1}/{self.page_count()}")
         self.host.set_display(idx, line1, line2)
 
     def _follow(self, b):

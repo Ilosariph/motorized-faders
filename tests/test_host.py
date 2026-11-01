@@ -990,7 +990,7 @@ def test_pulse_sink_pages():
             {"sink": f"sink-{i}", "label": f"S{i}"} for i in range(6)]})
         check(layer.paged and group.pages == 2, "six sinks -> two pages")
         host._on_connected()
-        check(host._display[3] == ("S3", f"{'vol 40%':<{DISPLAY_LINE_MAX - 3}}1/2"),
+        check(host._display[3] == ("S3", "vol 40%\t1/2"),
               f"last screen carries the page (got {host._display[3]})")
         host._pending = [None] * 4
         host._hold_timer = ExpiredTimer

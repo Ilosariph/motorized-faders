@@ -104,11 +104,26 @@ DISPLAY_LINE_MAX = 21
 
 
 def _sanitize(text):
-    """Strip protocol delimiters from display text and trim it to width."""
+    """
+    Strip protocol delimiters from display text and trim it to width. Only
+    spaces are trimmed, so a PAGE_SEP survives with no text before it.
+    """
     if text is None:
         return ""
     cleaned = str(text).replace(",", " ").replace("\n", " ").replace("\r", " ")
-    return cleaned.strip()[:DISPLAY_LINE_MAX]
+    return cleaned.strip(" ")[:DISPLAY_LINE_MAX]
+
+
+# Separates a page indicator from the text of line 2. The Pico splits it off
+# and draws it small in the top-right corner, so the page never pushes line 2
+# out of its large font.
+PAGE_SEP = "\t"
+
+
+def with_page(line2, page):
+    """Line 2 carrying `page` (e.g. "1/2") for the top-right corner."""
+    text = _sanitize(line2)[:DISPLAY_LINE_MAX - len(page) - len(PAGE_SEP)]
+    return f"{text}{PAGE_SEP}{page}"
 
 
 def find_pico_port():
@@ -357,9 +372,7 @@ class PagedGroup(Extension):
     def _show(self, idx, line1, line2):
         """Display text, with the page on the last screen. Lock held."""
         if idx == self.host.num_faders - 1:
-            page = f"{self._page + 1}/{self.pages}"
-            width = DISPLAY_LINE_MAX - len(page)
-            line2 = f"{_sanitize(line2)[:width - 1]:<{width}}{page}"
+            line2 = with_page(line2, f"{self._page + 1}/{self.pages}")
         self.host.set_display(idx, line1, line2)
 
     def _drive(self, idx):

@@ -1071,6 +1071,56 @@ def test_muted_screen_shows_restore_position():
     check(lit(fs.SLOT_X, badge_y), "slot badge drawn bottom-left")
 
 
+def test_page_in_top_right_corner():
+    print("Display: page indicator")
+    sys.path.insert(0, str(pathlib.Path(__file__).resolve().parent.parent / "pico"))
+    from lib import fader_screen as fs
+    from lib.ssd1306_spi import SSD1306_SPI
+
+    class Sink:
+        def write(self, b): pass
+        def value(self, v=None): pass
+
+    class Recorder(SSD1306_SPI):
+        def text(self, string, x, y, colour=1, scale=1):
+            self.calls.append((string, x, y, scale))
+            super().text(string, x, y, colour, scale)
+
+    disp = Recorder(Sink(), Sink(), Sink())
+    screen = fs.FaderScreen(disp)
+
+    def drawn():
+        disp.calls = []
+        screen.draw(force=True)
+        return {c[0]: c[1:] for c in disp.calls}
+
+    screen.set_lines("Master", "vol 100%\t1/2")
+    check(screen.line2 == "vol 100%" and screen.page == "1/2",
+          f"page split off line2 (got {screen.line2!r}, {screen.page!r})")
+    calls = drawn()
+    check(calls.get("vol 100%", (0, 0, 0))[2] == 2,
+          f"line2 keeps scale 2 with a page (got {calls})")
+    check(calls.get("Master", (0, 0, 0))[2] == 2, "short line1 keeps scale 2")
+    x, y, scale = calls.get("1/2", (0, 99, 0))
+    check(y == 0 and scale == 1 and x + 3 * fs.CHAR_W <= fs.WIDTH
+          and x > 2 + 6 * fs.CHAR_W * 2,
+          f"page small, top-right, clear of line1 (got {calls.get('1/2')})")
+
+    screen.set_lines("3d Drucker", "on\t2/2")
+    calls = drawn()
+    check(calls.get("3d Drucker", (0, 0, 0))[2] == 1,
+          "line1 too long beside the page drops to scale 1")
+
+    screen.set_lines("3d Drucker", "on")
+    calls = drawn()
+    check(screen.page == "" and calls.get("3d Drucker", (0, 0, 0))[2] == 2,
+          "no page: line1 gets the full width")
+
+    screen.draw(force=True)
+    screen.set_lines("3d Drucker", "on\t1/2")
+    check(screen.content_changed(), "page change is a content change")
+
+
 def test_display_redraws_only_on_change():
     print("Display gating")
     sys.path.insert(0, str(pathlib.Path(__file__).resolve().parent.parent / "pico"))
@@ -1177,6 +1227,7 @@ def main():
         test_creases_command,
         test_slot_command,
         test_muted_screen_shows_restore_position,
+        test_page_in_top_right_corner,
         test_display_redraws_only_on_change,
     ]
     for test in tests:

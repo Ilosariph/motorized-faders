@@ -65,7 +65,7 @@ import urllib.request
 import uuid
 from pathlib import Path
 
-from ..core import Extension
+from ..core import Extension, with_page
 
 # Layer name when the config does not group plugins into layers itself.
 LAYER_NAME = "Discord"
@@ -101,8 +101,6 @@ SELF_ECHO_WINDOW_S = 0.5
 CREASE_STEP = 50
 CREASE_NORMAL = (55.0, 10)
 CREASE_BIG = (70.0, 18)      # 100%: the user's own level, unboosted
-
-DISPLAY_LINE2_MAX = 21
 
 # Slider % <-> RPC amplitude %, fitted to the desktop client: below 100% the
 # slider is a power curve (UI 30/60 -> RPC 4/24), above it every further 100%
@@ -493,10 +491,8 @@ class DiscordVoiceExtension(Extension):
         else:
             line1, line2 = "-", ""
         if idx == n - 1:
-            # Page right-aligned after the volume, always shown.
-            page = f"{self._page + 1}/{self.page_count()}"
-            width = DISPLAY_LINE2_MAX - len(page)
-            line2 = f"{line2[:width - 1]:<{width}}{page}"
+            # Page in the top-right corner, always shown.
+            line2 = with_page(line2, f"{self._page + 1}/{self.page_count()}")
         self.host.set_display(idx, line1, line2)
 
     def _set_status(self, status):

@@ -7,13 +7,15 @@ from data it already has. This keeps the firmware plugin-agnostic — pulse_sink
 sends a sink name and volume, a future plugin sends whatever it wants.
 
     +------------------------------+
-    | sink-music                   |  line1 (scale 2)
+    | sink-music               1/2 |  line1 (scale 2), page (scale 1)
     | vol 78%                      |  line2 (scale 2)
     | [##################------]   |  position bar, from read_position()
     | A                            |  A/B slot badge (host)
     +------------------------------+
 
-Each line drops to scale 1 when it is too long to fit doubled.
+Each line drops to scale 1 when it is too long to fit doubled. The page
+arrives on line2 after a tab (PAGE_SEP) and takes the top-right corner; line1
+then fits in the room left of it.
 
 Muted, the bar is empty but for a thin strip showing where unmute will
 return the fader, and a solid bar replaces the bottom row:
@@ -64,6 +66,12 @@ GLYPH_H = 7
 
 _MUTE_LABEL = "MUTE"
 
+# Page indicator ("1/2"): sent after this on line2, drawn top-right.
+PAGE_SEP = "\t"
+PAGE_Y = 0
+LINE1_X = 2
+LINE1_GAP = 4  # between line1 and the page
+
 # Restore strip inside the empty bar while muted: thin, so it reads as a
 # marker rather than as the fader's live position.
 RESTORE_H = 4
@@ -79,6 +87,7 @@ class FaderScreen:
         self.display = display
         self.line1 = ""
         self.line2 = ""
+        self.page = ""
         self.muted = False
         self.position = 0.0
         self.restore = 0.0
@@ -90,9 +99,11 @@ class FaderScreen:
     # ----- state ----------------------------------------------------------
 
     def set_lines(self, line1, line2):
-        """Fader text; also ends a menu card."""
+        """Fader text; also ends a menu card. A page rides on line2."""
+        line2, _, page = line2.partition(PAGE_SEP)
         self.line1 = line1
         self.line2 = line2
+        self.page = page
         self.menu = None
 
     def set_menu(self, label, name):
@@ -125,13 +136,14 @@ class FaderScreen:
         if self._drawn is None:
             return True
         fp = self._fingerprint()
-        return fp[:3] != self._drawn[:3] or fp[5:] != self._drawn[5:]
+        return fp[:4] != self._drawn[:4] or fp[6:] != self._drawn[6:]
 
     def _fingerprint(self):
         # Quantise position so sub-epsilon jitter doesn't trigger redraws.
         return (
             self.line1,
             self.line2,
+            self.page,
             self.muted,
             int(self.position / POSITION_EPSILON),
             int(self.restore / POSITION_EPSILON) if self.muted else None,
@@ -159,10 +171,16 @@ class FaderScreen:
         # must be readable at a glance from across a desk. Falls back to
         # scale 1 when the text is too long to fit doubled, since a truncated
         # sink name is worse than a smaller legible one.
-        if len(self.line1) <= _MAX_CHARS_SCALE2:
-            d.text(self.line1, 2, 0, 1, scale=2)
+        # The page, if any, takes the top-right corner and line1 the rest.
+        room = WIDTH - LINE1_X
+        if self.page:
+            page_x = WIDTH - len(self.page) * CHAR_W
+            d.text(self.page, page_x, PAGE_Y, 1)
+            room = page_x - LINE1_GAP - LINE1_X
+        if len(self.line1) <= room // (CHAR_W * 2):
+            d.text(self.line1, LINE1_X, 0, 1, scale=2)
         else:
-            d.text(self.line1[:_MAX_CHARS_SCALE1], 2, 4, 1)
+            d.text(self.line1[:room // CHAR_W], LINE1_X, 4, 1)
 
         # line2 likewise: the plugin's value (volume), the other thing to read
         # at a glance. The bar already shows the fader's own position.

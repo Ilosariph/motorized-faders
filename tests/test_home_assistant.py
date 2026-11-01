@@ -322,7 +322,7 @@ def test_paging():
     check(host._display[2] == ("cover.b", "unavailable"), "no state yet: unavailable")
     check(host._pending[0] == 78.4 and host._pending[1] == 0.0,
           f"faders driven to the page (got {host._pending})")
-    check(host._display[3] == ("-", "2/2"), f"page 2/2 (got {host._display[3]})")
+    check(host._display[3] == ("-", "\t2/2"), f"page 2/2 (got {host._display[3]})")
 
     # Off-page change: no fader moves, but the state is kept for later.
     host._pending = [None] * 4

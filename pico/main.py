@@ -37,6 +37,8 @@ Serial protocol (115200 baud, USB). All lines newline-terminated:
                              controls while it may still be moving.
     DISP:idx,line1,line2     display text for fader idx (1-based). Content is
                              whatever the active host plugin wants to show.
+                             A tab in line2 starts the page ("1/2"), drawn
+                             small in the top-right corner.
     SLOT:idx,A|B             A/B slot badge for fader idx; empty clears it.
     MENU:idx,label,name      menu card on fader idx's screen (label small,
                              name large, no bar) until the next DISP:.
