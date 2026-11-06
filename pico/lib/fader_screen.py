@@ -13,6 +13,12 @@ sends a sink name and volume, a future plugin sends whatever it wants.
     | A                            |  A/B slot badge (host)
     +------------------------------+
 
+While G2 is held (`set_peek`), a tick through the bar marks where an A/B swap
+would send the fader, with the other slot's letter under it:
+
+    | [##########|#######------]   |
+    |            A                 |
+
 Each line drops to scale 1 when it is too long to fit doubled. The page
 arrives on line2 after a tab (PAGE_SEP) and takes the top-right corner; line1
 then fits in the room left of it.
@@ -81,6 +87,9 @@ SLOT_X = 1
 SLOT_W = CHAR_W + 3
 SLOT_H = MUTE_BAR_H  # same row as the readout and the mute label
 
+# Other-slot mark while G2 is held: tick inside the bar, letter just below.
+MARK_LABEL_Y = BAR_Y + BAR_H
+
 
 class FaderScreen:
     def __init__(self, display):
@@ -92,6 +101,10 @@ class FaderScreen:
         self.position = 0.0
         self.restore = 0.0
         self.slot = ""
+        # Position stored for the slot not active (A/B swap target), or None.
+        self.other = None
+        # G2 held: show where the other slot is.
+        self.peek = False
         # (label, name) while a menu card replaces the layout, else None.
         self.menu = None
         self._drawn = None  # last rendered tuple; None forces a first draw
@@ -119,16 +132,24 @@ class FaderScreen:
         """Where unmute will return the fader. Drawn only while muted."""
         self.restore = position
 
-    def set_slot(self, slot):
-        """A/B slot badge text from the host; empty hides it."""
+    def set_slot(self, slot, other=None):
+        """
+        A/B slot badge text from the host; empty hides it. `other` is the
+        position stored for the other slot, marked on the bar while peeking.
+        """
         self.slot = slot[:1]
+        self.other = other if self.slot else None
+
+    def set_peek(self, peek):
+        """G2 held: mark the other slot's position on the bar."""
+        self.peek = bool(peek)
 
     def needs_redraw(self):
         return self._fingerprint() != self._drawn
 
     def content_changed(self):
         """
-        Text, mute, badge or menu differ from the panel. Bar and restore marker
+        Text, mute, badge, G2 mark or menu differ from the panel. Bar and restore marker
         are left out: they follow a hand on the fader and can wait for the
         rate limit; content changes come in bursts (a layer switch) and
         should land on every screen at once.
@@ -149,6 +170,7 @@ class FaderScreen:
             int(self.restore / POSITION_EPSILON) if self.muted else None,
             self.slot,
             self.menu,
+            self._mark_x(),
         )
 
     # ----- rendering ------------------------------------------------------
@@ -193,6 +215,8 @@ class FaderScreen:
         if self.muted:
             self._draw_restore()
             self._draw_mute_bar()
+        else:
+            self._draw_mark()
         self._draw_slot()
 
         d.show()
@@ -215,6 +239,25 @@ class FaderScreen:
         if filled > 0:
             y = BAR_Y + (BAR_H - RESTORE_H) // 2
             d.fill_rect(BAR_X + 2, y, filled, RESTORE_H, 1)
+
+    def _mark_x(self):
+        """Column of the other-slot tick, or None when there is none to show."""
+        if not self.peek or self.other is None or self.muted:
+            return None
+        fraction = max(0.0, min(100.0, self.other)) / 100.0
+        return BAR_X + 2 + min(BAR_W - 5, int((BAR_W - 4) * fraction))
+
+    def _draw_mark(self):
+        x = self._mark_x()
+        if x is None:
+            return
+        d = self.display
+        # Inverted against the fill, so it shows on both sides of its edge.
+        filled_end = BAR_X + 2 + int((BAR_W - 4) * max(0.0, min(100.0, self.position)) / 100.0)
+        d.vline(x, BAR_Y + 1, BAR_H - 2, 0 if x < filled_end else 1)
+        letter = "A" if self.slot == "B" else "B"
+        lx = max(0, min(WIDTH - CHAR_W + 1, x - 2))
+        d.text(letter, lx, MARK_LABEL_Y, 1)
 
     def _draw_slot(self):
         if not self.slot:

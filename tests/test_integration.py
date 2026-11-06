@@ -249,8 +249,10 @@ class FakeScreen:
         self.position = p
     def set_restore(self, p):
         self.restore = p
-    def set_slot(self, slot):
+    def set_slot(self, slot, other=None):
         self.slot = slot
+    def set_peek(self, peek):
+        pass
     def draw(self, force=False):
         return False
 

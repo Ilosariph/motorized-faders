@@ -72,6 +72,11 @@ class ButtonLadder:
                 return name
         return None
 
+    @property
+    def held(self):
+        """Button held down now (debounced), or None."""
+        return self._held
+
     def poll(self):
         self.released = None
         reading = self._classify(self._read())

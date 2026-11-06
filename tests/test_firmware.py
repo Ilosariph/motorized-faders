@@ -1017,6 +1017,9 @@ def test_slot_command():
     fw._handle_command("SLOT:2,A", rig.faders, screens)
     check(screens[1].slot == "A", "SLOT sets fader 2's badge")
     check(screens[0].slot == "", "other faders untouched")
+    fw._handle_command("SLOT:2,B,42.5", rig.faders, screens)
+    check(screens[1].slot == "B" and screens[1].other == 42.5,
+          "SLOT carries the other slot's position")
     fw._handle_command("SLOT:2,", rig.faders, screens)
     check(screens[1].slot == "", "empty SLOT clears the badge")
     fw._handle_command("SLOT:9,A", rig.faders, screens)
@@ -1069,6 +1072,33 @@ def test_muted_screen_shows_restore_position():
     screen.set_slot("B")
     check(screen.draw() is True, "slot change redraws")
     check(lit(fs.SLOT_X, badge_y), "slot badge drawn bottom-left")
+
+    # G2 mark: tick at the other slot's position, letter under it.
+    screen.set_position(80.0)
+    screen.set_slot("B", 25.0)
+    screen.draw()
+    mark_x = fs.BAR_X + 2 + int(inner * 0.25)
+    check(not any(lit(mark_x + dx, fs.MARK_LABEL_Y + r)
+                  for dx in range(-2, 4) for r in range(7)),
+          "no G2: no other-slot letter")
+    screen.set_peek(True)
+    check(screen.content_changed(), "G2 press counts as content (no rate limit)")
+    screen.draw()
+    check(not lit(mark_x, mid_y), "G2: tick cut through the fill at A's position")
+    check(lit(mark_x - 1, mid_y), "tick is one column")
+    check(any(lit(mark_x + dx, fs.MARK_LABEL_Y + r)
+              for dx in range(-2, 4) for r in range(7)),
+          "G2: other slot's letter under the tick")
+    screen.set_position(10.0)
+    screen.draw(force=True)
+    check(lit(mark_x, mid_y), "tick drawn lit beyond the fill")
+    screen.set_muted(True)
+    screen.draw()
+    check(not any(lit(mark_x + dx, fs.MARK_LABEL_Y + r)
+                  for dx in range(-2, 4) for r in range(7)),
+          "muted: no mark")
+    screen.set_muted(False)
+    screen.set_peek(False)
 
 
 def test_page_in_top_right_corner():

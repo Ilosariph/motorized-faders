@@ -39,7 +39,9 @@ Serial protocol (115200 baud, USB). All lines newline-terminated:
                              whatever the active host plugin wants to show.
                              A tab in line2 starts the page ("1/2"), drawn
                              small in the top-right corner.
-    SLOT:idx,A|B             A/B slot badge for fader idx; empty clears it.
+    SLOT:idx,A|B[,pos]       A/B slot badge for fader idx; empty clears it.
+                             `pos` is the other slot's stored position,
+                             marked on the bar while G2 is held.
     MENU:idx,label,name      menu card on fader idx's screen (label small,
                              name large, no bar) until the next DISP:.
     CREASES:idx,pos:power:ms,...
@@ -784,10 +786,12 @@ def _handle_menu(payload, screens):
 
 
 def _handle_slot(payload, screens):
-    parts = payload.split(",", 1)
+    parts = payload.split(",")
     idx = _parse_index(parts[0])
+    slot = parts[1].strip() if len(parts) > 1 else ""
+    other = float(parts[2]) if len(parts) > 2 and parts[2].strip() else None
     if screens[idx] is not None:
-        screens[idx].set_slot(parts[1].strip() if len(parts) > 1 else "")
+        screens[idx].set_slot(slot, other)
 
 
 def _handle_creases(payload, faders):
@@ -970,6 +974,12 @@ def main():
                     _emit("BTNUP:{}".format(ladder.released))
                 if pressed is not None:
                     _emit("BTN:{}".format(pressed))
+            # G2 held: screens mark the other A/B slot. Local, so it shows
+            # without a host round trip.
+            peek = general_buttons.held == "G2"
+            for screen in screens:
+                if screen is not None:
+                    screen.set_peek(peek)
 
         # Telemetry: 20Hz heartbeat while engaged (MOVING/SETTLING),
         # on-change-only while idle (user moved fader by hand).

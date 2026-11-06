@@ -239,7 +239,7 @@ def test_g2_held_fader_button_swaps_ab():
 
     host._handle_line("BTN:G2")
     host._handle_line("BTN:F1")
-    check(host._ser.lines() == ["SLOT:1,B"],
+    check(host._ser.lines() == ["SLOT:1,B,30.0"],
           f"first swap only marks A and shows B (got {host._ser.lines()})")
     check(host._pending[0] is None, "first swap moves nothing")
     check(not host.is_muted(0), "G2 + F1 does not mute")
@@ -250,7 +250,8 @@ def test_g2_held_fader_button_swaps_ab():
     ext.positions.clear()
     host._handle_line("BTN:F1")
     check(host._pending[0] == 30.0, f"second swap returns to A (got {host._pending[0]})")
-    check(host._ser.lines()[-1] == "SLOT:1,A", "badge shows A")
+    check(host._ser.lines()[-1] == "SLOT:1,A,70.0",
+          "badge shows A, B's level for the G2 mark")
     check(ext.positions == [(0, 30.0)], f"extensions told the new level (got {ext.positions})")
     check(not any(host._pending[1:]), "only fader 1 moves")
 
@@ -259,12 +260,13 @@ def test_g2_held_fader_button_swaps_ab():
     host._handle_line("POS:30.0,50.0,50.0,50.0")
     host._handle_line("BTN:F1")
     check(host._pending[0] == 70.0, f"third swap returns to B (got {host._pending[0]})")
-    check(host._ser.lines()[-1] == "SLOT:1,B", "badge shows B")
+    check(host._ser.lines()[-1] == "SLOT:1,B,30.0",
+          "badge shows B, A's level for the G2 mark")
 
     # A rebooted Pico gets its badges back.
     host._ser.written.clear()
     host._handle_line("CAL:done")
-    check(host._ser.lines() == ["SLOT:1,B"],
+    check(host._ser.lines() == ["SLOT:1,B,30.0"],
           f"slots resent after calibration (got {host._ser.lines()})")
 
     # Released G2: fader buttons mute again.
@@ -533,7 +535,7 @@ def test_g2_pages_on_a_paged_layer():
     timer = host._page_holds[3][2]
     host._handle_line("BTNUP:F4")
     check(timer.cancelled and b.pages == [], "G2 + F4 tapped: no page")
-    check(host._ser.lines() == ["SLOT:4,B"],
+    check(host._ser.lines() == ["SLOT:4,B,0.0"],
           f"G2 + F4 tapped: A/B swap on a paged layer (got {host._ser.lines()})")
 
     host._ser.written.clear()

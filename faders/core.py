@@ -13,7 +13,9 @@ Talks the Pico protocol from `pico/main.py`:
     host -> Pico:  SET:f1,f2,f3,f4    (setpoints, 0-100%)
                    MUTE:idx,0|1[,pos] (mute/unmute a fader, optional restore)
                    DISP:idx,l1,l2     (display text for a fader)
-                   SLOT:idx,A|B       (A/B slot badge, empty clears)
+                   SLOT:idx,A|B,pos   (A/B slot badge + other slot's
+                                       position, shown while G2 held;
+                                       empty clears)
                    MENU:idx,label,name (menu card until the next DISP:)
                    CREASES:idx,pos:power:ms,...  (haptic detents)
 
@@ -722,6 +724,7 @@ class FaderHost:
             with self._lock:
                 text = layer.display[idx]
                 slot = layer.ab_slot[idx]
+                other = layer.ab_other[idx]
                 creases = layer.creases[idx]
                 muted = layer.muted[idx]
                 level = layer.setpoint[idx]
@@ -731,7 +734,7 @@ class FaderHost:
                     current = self._setpoints[idx]
             if idx not in hinted:
                 self._show(idx, *(text or ("", "")))
-            self._show_slot(idx, slot or "")
+            self._show_slot(idx, slot or "", other)
             if moved:
                 self._push_creases(idx, creases or [])
             if muted:
@@ -881,7 +884,10 @@ class FaderHost:
             self._display[idx] = ("menu", label, name)
         self._send(f"MENU:{idx + 1},{label},{name}")
 
-    def _show_slot(self, idx, slot):
+    def _show_slot(self, idx, slot, other=None):
+        """Badge `slot`; `other` is the other slot's position, for the G2 mark."""
+        if slot and other is not None:
+            slot = f"{slot},{other:.1f}"
         with self._lock:
             if (self._slots[idx] or "") == slot:
                 return
@@ -933,7 +939,7 @@ class FaderHost:
             layer.ab_slot[idx] = slot
             live = self._is_live(layer)
         if live:
-            self._show_slot(idx, slot)
+            self._show_slot(idx, slot, current)
         log.info("fader %d: A/B swap to %s (%s)", idx + 1, slot,
                  "marked" if target is None else f"{target:.1f}%")
         if target is None:
