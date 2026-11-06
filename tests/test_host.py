@@ -165,9 +165,26 @@ def test_loopback_suppression():
           "position echoed back during our own move is suppressed")
 
     host._handle_line("STATE:2,IDLE")
-    host._handle_line("POS:0,80.0,0,0")
-    check((1, 80.0) in ext.positions,
+    host._handle_line("POS:0,85.0,0,0")
+    check((1, 85.0) in ext.positions,
           "position forwarded again once the Pico reports IDLE")
+
+
+def test_settled_short_is_not_a_hand_move():
+    print("Settle band")
+    host, audio, chat, a, b = make_layered_host()
+    audio.set_fader(0, 50.0)
+    host._handle_line("STATE:1,IDLE")
+    # The motor stopped inside its deadband, then the ADC flickers.
+    host._handle_line("POS:50.8,0,0,0")
+    host._handle_line("POS:51.1,0,0,0")
+    f0 = lambda: [p for p in a.positions if p[0] == 0]
+    check(f0() == [], f"settle offset not forwarded (got {f0()})")
+    check(audio.level(0) == 50.0, f"layer keeps the commanded level (got {audio.level(0)})")
+    host._handle_line("POS:55.0,0,0,0")
+    check(f0() == [(0, 55.0)], f"hand move past the band forwarded (got {f0()})")
+    host._handle_line("POS:54.5,0,0,0")
+    check(f0()[-1] == (0, 54.5), "small moves forwarded once out of the band")
 
 
 def test_button_toggles_mute():
@@ -1080,6 +1097,7 @@ def main():
     tests = [
         test_position_parsing_four_faders,
         test_loopback_suppression,
+        test_settled_short_is_not_a_hand_move,
         test_button_toggles_mute,
         test_each_fader_button_maps_to_its_own_fader,
         test_general_buttons_have_no_function_yet,

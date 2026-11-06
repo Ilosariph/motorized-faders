@@ -95,6 +95,13 @@ APPLY_EPSILON_PCT = 0.5
 # is sitting parked, not placed by the hand at a new restore level.
 MUTE_PARK_ZONE_PCT = 3.0
 
+# Matches the firmware's DEADBAND_EXIT: a commanded move stops anywhere within
+# DEADBAND of its target, and ADC noise adds to that. Once the move is done, a
+# reading this close to the commanded value is the fader where it was put,
+# not the hand: taking it as a level would drift the value a little on every
+# layer switch.
+SETTLE_BAND_PCT = 2.0
+
 log = logging.getLogger("faders")
 
 
@@ -549,6 +556,9 @@ class FaderHost:
         self._self_driven = [False] * num_faders
         # When each guard was last armed, for the watchdog.
         self._self_driven_since = [0.0] * num_faders
+        # Value of the last commanded move, until the hand takes the fader
+        # out of SETTLE_BAND_PCT around it. None: no commanded value to hold.
+        self._commanded = [None] * num_faders
         # Mute state the Pico holds, mirrored from its MUTE: confirmations
         # rather than assumed from the commands we send.
         self._muted = [False] * num_faders
@@ -729,9 +739,14 @@ class FaderHost:
                     self._send_mute(idx, True, level)
             elif pico_muted:
                 self._send_mute(idx, False, level)
-            elif (moved and level is not None
-                    and abs(level - current) > APPLY_EPSILON_PCT):
-                self._queue_set(idx, level)
+            elif moved and level is not None:
+                if abs(level - current) > APPLY_EPSILON_PCT:
+                    self._queue_set(idx, level)
+                else:
+                    # Close enough to stay put, but still this layer's level:
+                    # noise around it must not be taken as a hand move.
+                    with self._lock:
+                        self._commanded[idx] = level
 
     # ----- public API ------------------------------------------------------
     # FaderHost's own setters act on the active layer, so a single-layer
@@ -797,6 +812,7 @@ class FaderHost:
     def _queue_set(self, idx, value):
         with self._lock:
             self._pending[idx] = value
+            self._commanded[idx] = value
             self._self_driven[idx] = True
             self._self_driven_since[idx] = time.monotonic()
 
@@ -828,6 +844,11 @@ class FaderHost:
             self._self_driven_since[idx] = time.monotonic()
             if level is not None and not muted:
                 self._setpoints[idx] = level
+            # Unmute returns to the level, or without one to where the fader
+            # was (the Pico keeps the commanded value within its band).
+            self._commanded[idx] = (
+                None if muted
+                else level if level is not None else self._setpoints[idx])
         line = f"MUTE:{idx + 1},{1 if muted else 0}"
         if level is not None:
             line += f",{level:.1f}"
@@ -997,6 +1018,7 @@ class FaderHost:
         with self._lock:
             self._states = ["IDLE"] * self.num_faders
             self._self_driven = [False] * self.num_faders
+            self._commanded = [None] * self.num_faders
             self._muted = [False] * self.num_faders
             self._pending = [None] * self.num_faders
             self._held.clear()
@@ -1148,6 +1170,13 @@ class FaderHost:
                         "fader %d: loopback guard stuck for %.1f s with the "
                         "Pico IDLE (lost SET:?); releasing", idx + 1, age)
                 layer = self._live_layer()
+                commanded = self._commanded[idx]
+                if not suppressed and commanded is not None:
+                    if abs(value - commanded) <= SETTLE_BAND_PCT:
+                        # Settled short of the target, or ADC noise: the
+                        # level is still the commanded one.
+                        continue
+                    self._commanded[idx] = None
                 if not suppressed:
                     # Human moved this fader. Track it as the current setpoint
                     # so the next SET: (which broadcasts every slot) doesn't
