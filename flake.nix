@@ -32,7 +32,12 @@
             makeWrapper ${python pkgs}/bin/python3 $out/bin/motorized-faders \
               --add-flags "-m faders.run" \
               --prefix PYTHONPATH : $out/lib/motorized-faders \
-              --prefix PATH : ${pkgs.lib.makeBinPath [ pkgs.pulseaudio ]}
+              --prefix PATH : ${pkgs.lib.makeBinPath [ pkgs.pulseaudio pkgs.pipewire ]}
+            # filter_param's saved values: status / reset to the originals.
+            makeWrapper ${python pkgs}/bin/python3 $out/bin/motorized-faders-fx \
+              --add-flags "-m faders.extensions.filter_param" \
+              --prefix PYTHONPATH : $out/lib/motorized-faders \
+              --prefix PATH : ${pkgs.lib.makeBinPath [ pkgs.pipewire ]}
           '';
           meta.mainProgram = "motorized-faders";
         };
@@ -46,7 +51,7 @@
       });
 
       devShells = forAllSystems (pkgs: {
-        default = pkgs.mkShell { packages = [ (python pkgs) pkgs.pulseaudio ]; };
+        default = pkgs.mkShell { packages = [ (python pkgs) pkgs.pulseaudio pkgs.pipewire ]; };
       });
 
       checks = forAllSystems (pkgs: {
@@ -145,6 +150,9 @@
               message = "services.motorized-faders: no such plugin ${name} "
                 + "(available: ${lib.concatStringsSep ", " builtinPlugins})";
             }) usedPlugins;
+
+            # motorized-faders-fx: filter_param's saved values.
+            environment.systemPackages = [ cfg.package ];
 
             # Logged-in user gets the Pico's tty without joining dialout.
             services.udev.extraRules = ''

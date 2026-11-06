@@ -158,7 +158,7 @@ Plugins are grouped into **layers** that take turns owning the four faders.
 Each layer remembers its own fader levels, mutes, screens and creases.
 Without a `layers` key every plugin is its own layer (`pulse_sink` → "Audio",
 `discord_voice` → "Discord", `home_assistant` → "Home", `voicemeeter` →
-"Voicemeeter"); to choose, list them:
+"Voicemeeter", `filter_param` → "FX"); to choose, list them:
 
 ```json
 "layers": [
@@ -172,7 +172,7 @@ Without a `layers` key every plugin is its own layer (`pulse_sink` → "Audio",
 | `F1`-`F4` | Mute that fader |
 | `G1` + `F1` / `F4` | Previous / next layer — screens show the name while `G1` is held, faders move on its release |
 | `G2` + `Fn` (tap) | A/B position swap |
-| `G2` + `F1` / `F4` (hold 0.4 s) | Previous / next page (paged layers: Discord, Home / Audio / Voicemeeter with >4 entries or `"paging": true`) |
+| `G2` + `F1` / `F4` (hold 0.4 s) | Previous / next page (paged layers: Discord, Home / Audio / Voicemeeter / FX with >4 entries or `"paging": true`) |
 
 #### Discord
 
@@ -254,6 +254,36 @@ python -m faders.run --config my-config.json
 
 Voicemeeter may start after the host or restart; faders resync when it shows up.
 
+#### PipeWire filter controls
+
+`filter_param` puts controls of plugins running in PipeWire `filter-chain`
+modules (an LSP compressor's threshold, ratio, makeup, a gate's threshold ...)
+on faders. The fader sets the control, changes made elsewhere move it, the
+screen shows the value in real units, and the button bypasses the plugin
+(every fader on that plugin parks while it is off). One detent marks the
+control's original value.
+
+```json
+"filter_param": {
+  "faders": [
+    {"param": "fx-comp-apps:al", "scale": "db",  "min": -40, "max": 0,  "label": "Apps thr"},
+    {"param": "fx-comp-apps:cr", "scale": "log", "min": 1,   "max": 10, "unit": ":1", "label": "Apps ratio"}
+  ]
+}
+```
+
+`param` is `<filter node name>:<LV2 port symbol>`, as `pw-dump` lists it
+under the node's `Props`. `scale`: `db` for controls that are linear gains
+(range in dB), `log` for times and ratios, `linear` otherwise. More than four
+entries → pages. Give it a layer of its own (a layer has one set of pages).
+
+Values set from the faders are saved to
+`~/.local/state/motorized-faders/filter_param.json` with the config's original
+next to each, and put back when PipeWire reloads the filter (restart, reboot).
+A changed value in the PipeWire config wins over a saved one.
+`motorized-faders-fx status` lists them, `motorized-faders-fx reset [param ...]`
+restores the originals. `"persist": false` turns saving off.
+
 The host survives the Pico being unplugged: it waits for the port to come
 back (it may return as a different `ttyACM` node), then replays display text,
 A/B badges and creases, and extensions re-seed fader positions and mute via
@@ -312,6 +342,7 @@ python3 tests/run_all.py
 | `faders/extensions/discord_voice.py` | Voice-channel users on the faders: volume, mute, pages |
 | `faders/extensions/home_assistant.py` | HA lights (brightness, on/off) and covers (position, tilt), paged |
 | `faders/extensions/voicemeeter.py` | Binds a fader to a Voicemeeter strip or bus (Windows) |
+| `faders/extensions/filter_param.py` | PipeWire filter-chain plugin controls (compressor, gate ...), saved across restarts |
 | `tests/` | Test suites — run `python3 tests/run_all.py`, no hardware required |
 | `docs/upload.md` | How to flash firmware to the Pico (Thonny + mpremote) |
 | `docs/pid_tuning.md` | How to tune the PID controller |
