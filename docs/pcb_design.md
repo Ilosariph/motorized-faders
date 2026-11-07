@@ -1,7 +1,7 @@
 # 4-Fader PCB — Design Notes
 
 Hardware design for a single-board 4-fader controller: 4 motorized faders, one
-button per fader, 2 general buttons, one display per fader.
+button per fader, 2-4 general buttons, one display per fader.
 
 This supersedes the 2-fader breadboard build in the [README](../README.md).
 The modular multi-board concept lives in [modular_design.md](modular_design.md);
@@ -17,12 +17,13 @@ this document is the single-board version.
 | Why not ADS1115 | ~215 Hz effective per channel — too slow for the PID loop |
 | Motor driver | 2× TB6612FNG — **dual footprint**: SSOP-24 land + breakout header, same nets |
 | Display | SSD1306 128×64 **SPI** (I2C can't address 4 — only 0x3C/0x3D exist) |
-| Buttons | Resistor ladder on 2 spare MCP3208 channels — costs 0 GPIO |
-| Faders | RSA0N11M9 100 mm 10 kΩ, case-mounted, soldered wire — not on PCB |
+| Buttons | Resistor ladder on 2 spare MCP3208 channels — costs 0 GPIO. 4 per-fader + 2-4 general, all optional |
+| Faders | RSA0N11M9 100 mm 10 kΩ, case-mounted, one 5-pin JST-XH harness each |
+| Connectors | **JST-XH 2.5 mm** for every off-board lead — keyed, 3 A |
 | Pin map | Fixed: SPI0 on GP16/18/19, PWM on 4 distinct slices, GP0/1 spare |
 | MCU | Keep the existing RP2040 module — bare RP2040 not needed |
-| Motor power | USB-C PD trigger, **jumper-set 9 V** (PD has no 10 V PDO) |
-| Rail check | Divider into spare ADC CH4 — catches silent 5 V fallback, 0 GPIO |
+| Motor power | **Pico USB alone**: CC/CV boost to 9 V + 1.25 F supercaps. PD trigger (jumper-set 9 V) optional, diode-OR'd |
+| Rail check | Divider into spare ADC CH4 — catches silent 5 V fallback, 0 GPIO. PD rail on CH5 |
 | Assembly | Fully hand-solderable, no hot air / reflow required |
 | Build order | Socket breakouts first, prove the board, then solder SSOP — **no respin** |
 
@@ -227,10 +228,10 @@ also feeds the faders and both TB6612FNG VCC pins. The module regulates its own
 VIN from VBUS offloads the Pico regulator entirely. This is what the onboard
 regulator is for.
 
-### PCB footprint: fit the 8-pin header
+### PCB footprint: 8-pin JST-XH
 
-Displays are panel-mounted in the case and wired back with jumpers, so the
-module never sits on the PCB. Fit an **8-pin header footprint** matching the
+Displays are panel-mounted in the case and wired back with an 8-wire harness,
+so the module never sits on the PCB. Fit an **8-pin JST-XH (`B8B-XH-A`)** matching the
 Adafruit 326 pinout, with the `3Vo` position present but no-connect.
 
 Label the pads on silkscreen in module order
@@ -248,17 +249,25 @@ drop the bus to ~500 kHz before suspecting anything else.
 
 ## Buttons: resistor ladder on spare ADC channels
 
-6 buttons on 2 spare MCP3208 channels, split **2 general + 4 per-fader**.
-Costs **zero GPIO**.
+Up to 8 buttons on 2 spare MCP3208 channels, split **4 general + 4 per-fader**.
+Costs **zero GPIO**. Both ladders use the **same four resistor values**, so one
+set of parts covers both.
+
+**Every button is optional.** The 10 kΩ pull-up is on the PCB, so an unfitted
+button reads idle and never fires. G3/G4 are the "add later" pair; firmware
+lists the fitted buttons in `GENERAL_BUTTONS` / `FADER_BUTTONS` and skips a
+channel entirely when its list is empty (see [firmware.md](firmware.md#buttons-firmware-reports-host-decides)).
 
 Grouping by function rather than 3+3 keeps the mapping obvious when reading the
 firmware or probing the board, and gives the 2-button channel wider margins.
 
 ```
-Channel 6 -- 2 general buttons
+Channel 6 -- 4 general buttons (G3/G4 optional)
 3.3V --[10k]--+--------------------> CH6
               +--[SW_G1]--[GND]          pressed: 0.00 V
-              +--[SW_G2]--[4.7k]--[GND]  pressed: 1.06 V
+              +--[SW_G2]--[2.2k]--[GND]  pressed: 0.60 V
+              +--[SW_G3]--[4.7k]--[GND]  pressed: 1.06 V
+              +--[SW_G4]--[10k]---[GND]  pressed: 1.65 V
                                          idle:    3.30 V
 
 Channel 7 -- 4 per-fader buttons
@@ -274,9 +283,12 @@ Bands are 600 mV or wider — trivially discriminated at 12 bits (1 LSB =
 0.8 mV). Add 100 nF to GND at each node for debounce. Buttons are slow, so
 ADC-rate polling is ample.
 
-Simultaneous presses on one channel read as the lowest-value button. The 2+4
-split means the two general buttons can never mask each other's neighbours,
-which is the case most likely to be pressed together.
+Simultaneous presses on one channel read as the lowest-value button. General
+and fader buttons sit on separate channels, so a held general button (G1/G2
+are modifiers) never masks a fader button.
+
+G2 was 4.7 kΩ when only two general buttons existed; it moved to 2.2 kΩ so
+CH6 mirrors CH7 exactly.
 
 ---
 
@@ -434,7 +446,7 @@ the faders — see [Ratiometric reference](#ratiometric-reference--do-not-skip-t
 | General buttons (2) | MCP3208 CH6 ladder |
 | Per-fader buttons (4) | MCP3208 CH7 ladder |
 | VM rail check | MCP3208 CH4 divider |
-| MCP3208 CH5 | spare |
+| PD rail sense (`PD_SENSE`) | MCP3208 CH5 divider — PD present or not |
 | Display RES | `DISP_RES` — shared RC power-on reset, no GPIO |
 
 ---
@@ -458,13 +470,14 @@ availability.
 
 **Mounting:** M3 screws, 4 mm, into the 3D-printed case — already proven in the
 prototype. Faders are **not board-mounted**: they mount to the case and connect
-by soldered wire, so the PCB carries no fader mechanical load and its outline is
+by a JST-XH harness, so the PCB carries no fader mechanical load and its outline is
 not driven by fader pitch.
 
-### Wiring — 2.54 mm headers, not soldered wire
+### Wiring — JST-XH connectors
 
-Everything off-board connects through 2.54 mm pin headers with crimp housings,
-not soldered wire. **Five conductors per fader, 20 total:**
+Everything off-board connects through **JST-XH (2.5 mm)** headers with crimped
+housings: keyed, latching, 3 A per contact. **Five conductors per fader, 20
+total:**
 
 | Net | To | Notes |
 |-----|----|-------|
@@ -474,33 +487,41 @@ not soldered wire. **Five conductors per fader, 20 total:**
 | Motor + | TB6612FNG AO1 / BO1 | |
 | Motor - | TB6612FNG AO2 / BO2 | |
 
-Split per fader across two headers, placed adjacent so one bundle location
-serves each fader:
+One 5-pin connector per fader (`J_F1`..`J_F4`, `B5B-XH-A`), so each fader
+is a single plug:
 
-| Header | Pins | Carries |
-|--------|------|---------|
-| `J_Fn_MOT` | 1x02 | motor pair |
-| `J_Fn_GEN` | 1x03 | wiper, 3.3 V, GND |
+| Pin | Net | Why here |
+|-----|-----|----------|
+| 1 | Motor + (`MOTOR_A`) | |
+| 2 | Motor - (`MOTOR_B`) | motor pair adjacent → twist together |
+| 3 | GND | guard between PWM and the analog pair |
+| 4 | 3.3 V | |
+| 5 | Wiper | farthest from the motor pins |
 
 **No strain-relief holes needed.** They existed to protect solder joints from
 flex; a header/socket pair moves the mechanical interface off the joint
 entirely — the connector body takes the strain and the board side is
 unplugging, not repair.
 
-Displays use 1x08, buttons 1x02, the PD board 1x04. Label pin 1 on silkscreen
-for every header.
+Displays use XH 8-pin, buttons XH 2-pin, the PD board and the boost module XH
+4-pin. Label pin 1 on silkscreen for every connector.
 
-**Polarization:** plain 2.54 mm headers are not keyed, so a 3-pin fader plug can
-go on backwards, putting 3.3 V where GND belongs. The differing pin counts
-(2 / 3 / 4 / 8) at least prevent cross-type mistakes. JST-XH footprints solve it
-properly if the swap is made before routing — worth considering given repeated
-plugging during PID tuning.
+**Polarization is solved by the housing:** XH is keyed, so a plug cannot go on
+reversed (the old 2.54 mm headers allowed 3.3 V onto GND). Pin counts still
+differ by type (2 / 4 / 5 / 8) except PD vs boost — both 4-pin, so label them.
 
-**Keep wiper and motor wires in separate bundles.** The motor pair carries
-switched current at 20 kHz; the wiper is a high-impedance analog line. Coupling
-happens over *bundled length*, not at the connector — so headers a few mm apart
-on the board are fine, but running both in one 20 cm harness is not. Twist each
-motor pair.
+**Wiper and motor share one harness — mitigate the coupling.** The motor pair
+carries switched current at 20 kHz; the wiper is a high-impedance analog line,
+and coupling happens over *bundled length*. One 5-wire harness per fader is the
+convenience trade; keep it in check:
+
+- Twist the motor pair (pins 1-2) inside the harness.
+- Pin 3 GND sits between motor and analog wires.
+- Keep the harness ≤ 20 cm.
+- The 10 kΩ / 10 nF wiper filter attenuates 20 kHz by ~22 dB.
+
+Bench check: compare `POS:` noise with motors idle vs. driving. If it jumps,
+run the wiper as a separate shielded wire on the same plug.
 
 Button wiring is slow and low-impedance, so it can share a bundle with
 anything.
@@ -512,6 +533,8 @@ Through-hole pads or 1 mm loops, labelled:
 | Test point | Why |
 |------------|-----|
 | VM | confirm 9 V (or 10 V on the bench) before enabling motors |
+| +9V at the OR output (`TP_9V1`) | VM right at the diodes, next to the power block |
+| `+9V_BOOST` (`TP_9V_BOOST1`) | boost output / supercap charge, before `D_BOOST1` |
 | 3.3 V | regulator sanity |
 | GND | x2, spread apart — scope ground for probing |
 | Wiper 1 | scope the analog path, verify RC filter effect |
@@ -555,14 +578,13 @@ downside at this density.
 No separate 3.3 V or 5 V bulk capacitor: the Pico regulates 3.3 V on-module
 with its own bulk, and there is no 5 V rail on this PCB — logic power comes
 from the Pico's USB. 100 nF decoupling is sufficient at these currents.
-| 10 kΩ | 9 | 2x STBY pull-up, 4x ADC filter, 2x ladder top, 1x ladder |
-| 4.7 kΩ | 2 | button ladder (SW_G2, SW_F3) |
-| 2.2 kΩ | 1 | button ladder (SW_F2) |
-| 10 kΩ | 1 | VM divider, top leg (counted in the 9 above) |
-| 3.3 kΩ | 1 | VM divider, bottom leg |
+| 10 kΩ | 12 | 2x STBY pull-up, 4x ADC filter, 2x ladder top, 2x ladder (SW_F4, SW_G4), VM + PD divider top |
+| 4.7 kΩ | 4 | button ladder (SW_F3, SW_G3), 2x supercap balance |
+| 2.2 kΩ | 2 | button ladder (SW_F2, SW_G2) |
+| 3.3 kΩ | 2 | VM + PD divider, bottom leg |
 | 10 kΩ + 100 nF | 1 ea | `DISP_RES` RC power-on reset, shared by all 4 displays |
 | 10 nF X7R | 4 | RC filter on each wiper |
-| 100 nF | 2 | button ladder debounce |
+| 100 nF | 3 | button ladder debounce x2, PD_SENSE |
 
 ### Wiper RC filter — high value, near-free
 
@@ -586,12 +608,15 @@ that averaging to be reduced, buying loop rate back.
 
 | Part | Qty | Note |
 |------|-----|------|
-| USB-C PD trigger (HUSB238) | 1 | jumper-set to 9 V, feeds VM only |
-| USB-C PD charger, >=45 W | 1 | must offer a 9 V PDO; 4 motors x 800 mA = 3.2 A peak |
-| 10 kΩ + 3.3 kΩ | 1 ea | VM divider into MCP3208 CH4 for rail verification |
+| CC/CV boost module (XL6009-class, adjustable CV + CC) | 1 | 5 V → 9.3 V, CC ~120 mA; off-board on `J_BOOST1` |
+| Supercap 2.5 F 5.4 V, Eaton `PHV-5R4V255-R` | 2 | series → 1.25 F @ 10.8 V |
+| Schottky 5 A 40 V, `B540C-13-F` (SMC) | 2 | diode-OR, `D_BOOST1` / `D_PD1` |
+| 100 uF electrolytic | 1 | boost input, `C_BOOST_IN1` |
+| USB-C PD trigger (HUSB238) | 0-1 | **optional** — jumper-set 9 V, extra current headroom |
+| 10 kΩ + 3.3 kΩ | 2 ea | VM divider (CH4), PD divider (CH5) |
 
-Logic power comes from the Pico's own USB-C to the PC — no buck converter,
-barrel jack or fuse needed. PD boards current-limit at the source.
+Logic and, by default, motor power come from the Pico's own USB to the PC — no
+barrel jack or fuse. See [USB-only power](#usb-only-power).
 
 ### Mechanical / connectors
 
@@ -599,9 +624,9 @@ barrel jack or fuse needed. PD boards current-limit at the source.
 |------|-----|
 | Alps RSA0N11M9 fader (100 mm, 10 kΩ) | 4 |
 | Tactile button (per-fader) | 4 |
-| Tactile button (general) | 2 |
-| Display wire pads, 8-pin | 4 |
-| Fader wire pads, 5 per fader | 20 nets | soldered wire, no connectors |
+| Tactile button (general) | 2-4 |
+| JST-XH headers: 4x B5B (faders), 4x B8B (displays), 8x B2B (buttons), 2x B4B (PD, boost) | 18 |
+| JST-XH housings + crimp contacts, matching | 18 / ~68 |
 
 ---
 
@@ -609,9 +634,11 @@ barrel jack or fuse needed. PD boards current-limit at the source.
 
 | Rail | Source | Feeds |
 |------|--------|-------|
-| 5 V logic | Pico USB-C from the PC | RP2040 module, **display VIN x4** |
+| 5 V logic | Pico USB-C from the PC | RP2040 module, **display VIN x4**, boost module input |
 | 3.3 V | Pico onboard regulator | fader wipers, TB6612FNG VCC, MCP3208, displays |
-| 9 V motor | USB-C PD trigger board | TB6612FNG VM only |
+| `+9V_BOOST` | boost module from 5 V | supercap stack, then `D_BOOST1` |
+| `+9V_PD` | USB-C PD trigger board (optional) | `D_PD1`, PD_SENSE divider |
+| `+9V` (VM) | diode-OR of the two above | TB6612FNG VM, bulk caps, VM_SENSE |
 
 3.3 V draw is negligible: TB6612FNG VCC is ~1 mA each and four faders at 3.3 V
 into 10 kΩ is ~1.3 mA total, against the Pico regulator's 300 mA.
@@ -621,8 +648,69 @@ draw ~160 mA, which would consume over half that budget. They have their own
 regulators, so their VIN goes to 5 V (Pico VBUS) instead.
 
 **Common ground is mandatory.** With two independent USB sources, the PD
-ground and the Pico's USB ground must be tied together on the PCB. Without it
+ground and the Pico's USB ground must be tied together on the PCB. Both boost
+module ground pins go to `GNDPWR`, so its input return also crosses the one
+`NT1` net tie rather than adding a second GND/GNDPWR bridge. Without it
 the TB6612FNG's logic inputs have no valid reference to its motor rail.
+
+### USB-only power
+
+The rig runs from the Pico's USB cable alone; the PD board is an optional
+extra. **5 V → 9 V needs a boost**, and a USB 2.0 port only supplies 500 mA:
+
+| | Power |
+|---|---|
+| USB 2.0 port | 2.5 W (5 V x 500 mA) |
+| Pico + 4 displays | ~1 W |
+| Left for the boost input | ~1.3 W → ~120 mA at 9 V |
+| 4 faders moving at once | ~10-30 W, for ~0.5-1 s |
+
+The gap is bridged by storage: the boost trickle-charges supercaps, and motor
+bursts come out of the caps.
+
+```
+Pico VBUS (+5V) ─► J_BOOST1 ─► boost module, CV 9.3 V, CC ~120 mA
+                               │
+               +9V_BOOST ◄─────┘──┬── C_SC1 ─ SC_MID ─ C_SC2 ── GNDPWR
+                                  │   (R_SC_BAL1/2 4.7 kΩ across each)
+                                  └─► D_BOOST1 ──┐
+J_PD1 ─► +9V_PD ─► D_PD1 ───────────────────────┴─► +9V (VM)
+             └─[10k]─┬─► PD_SENSE (CH5)
+                   [3.3k] + 100 nF ─ GND
+```
+
+**Why a CC/CV module, not a plain boost (MT3608 etc.).** Empty supercaps look
+like a short. A plain boost would pull amps from the USB port until the host
+cuts it or the Pico browns out. The CC limit makes the charge current — and so
+the USB draw — fixed. Set it on the bench into a dummy load before connecting
+the caps: CV 9.3 V, then CC so the module input stays ≤ ~300 mA.
+
+**Why the caps sit before the OR diode.** A PD charger switching onto 1.25 F
+sees a dead short and trips its OCP. On the boost side, only the CC-limited
+boost ever charges them. The PD path keeps just the 2x 100 uF bulk it always
+had.
+
+**Diode-OR, no logic.** The higher source wins: boost 9.3 V − 0.45 V ≈ 8.85 V,
+PD 9 V − 0.45 V ≈ 8.55 V. The caps carry each burst; once they sag below the
+PD level, PD takes over. If the PD charger silently falls back to 5 V, its
+diode simply blocks and the boost carries VM. The module's own diode (async
+boost) and `D_BOOST1` stop back-feeding. Both land inside the existing
+9 V ± 1.2 V rail band.
+
+**Energy.** Usable 9 → 6 V: ½ · 1.25 F · (81 − 36) ≈ 28 J, against ~10-20 J for
+a 4-fader burst. Recharge ~20 s at 1.1 W; from empty ~50 s, which the firmware
+waits out at boot (screens show `Charging`). Below 6 V the firmware pauses the
+motors and resumes at 7.5 V — see [firmware.md](firmware.md#droop-guard).
+
+**Cell derating:** 9.3 V across two 5.4 V cells is 4.65 V each. The 4.7 kΩ
+balance resistors (2 mA, ~20 mW total) keep the split even as leakage drifts.
+
+**Footprint caveat:** `C_SC1/2` use a placeholder `CP_Radial_D10.0mm_P5.00mm`.
+The PHV-5R4V255-R lead pitch is 5.3 mm and its body is not a round can —
+check the datasheet drawing and fix the footprint before ordering boards.
+
+**`docs/vm_power_switch.md`:** its high-side switch now goes between the OR
+node and `+9V`; the net names are compatible, nothing is built yet.
 
 ### 9 V, not 10 V — USB PD has no 10 V PDO
 
@@ -674,7 +762,10 @@ stall. Identical symptoms to a stiff fader or a bad motor solder joint, so the
 wrong layer gets debugged.
 
 **Catch it with a divider into a spare ADC channel** — MCP3208 CH4 is free
-after the two button ladders, so this costs **zero GPIO**:
+after the two button ladders, so this costs **zero GPIO**. (With USB-only
+power the boost covers a PD fallback anyway; the check still catches a dead
+boost or sagging rail. CH5 measures the PD rail itself, before its diode, so
+firmware can report which source is present.)
 
 ```
 VM (9 V) --[10k]--+--------> MCP3208 CH4
@@ -951,12 +1042,13 @@ Yageo RC0805 series, pattern `RC0805FR-07<value>L`:
 
 | Value | MPN | Per board | Purpose |
 |-------|-----|-----------|---------|
-| 10 kΩ | `RC0805FR-0710KL` | 9 | 2x STBY pull-up, 4x ADC filter, 2x ladder top, 1x ladder |
-| 4.7 kΩ | `RC0805FR-074K7L` | 2 | button ladder (general SW_G2, per-fader SW_F3) |
-| 2.2 kΩ | `RC0805FR-072K2L` | 1 | button ladder (per-fader SW_F2) |
+| 10 kΩ | `RC0805FR-0710KL` | 12 | 2x STBY pull-up, 4x ADC filter, 2x ladder top, SW_F4, SW_G4, VM + PD divider top |
+| 4.7 kΩ | `RC0805FR-074K7L` | 4 | SW_F3, SW_G3, 2x supercap balance |
+| 2.2 kΩ | `RC0805FR-072K2L` | 2 | SW_F2, SW_G2 |
+| 3.3 kΩ | `RC0805FR-073K3L` | 2 | VM + PD divider bottom |
 
-The 4.7 kΩ and 2.2 kΩ come from the **2 general + 4 per-fader** ladder split;
-the earlier 3.3 kΩ belonged to the abandoned 3+3 grouping and is not needed.
+No new values for the USB-only power or the extra buttons: both ladders use
+0 / 2.2k / 4.7k / 10k, and the PD divider copies the VM one.
 
 Ladder values are not critical — the bands are 600 mV or wider against a 0.8 mV
 LSB, so anything close works. Substitute from stock rather than reordering for
@@ -1122,6 +1214,16 @@ every position report. The sweep now runs until the wiper stops changing
 motor. No hardware impact.
 
 ## Open Items
+
+- **PCB update for this revision** (schematic done): Update PCB from Schematic,
+  then reroute every JST-XH connector (2.5 mm pitch, larger body), place the
+  power block (`J_BOOST1`, `C_SC1/2`, `D_BOOST1`, `D_PD1`, PD divider,
+  `TP_9V1`, `TP_9V_BOOST1`) and
+  `SW_G3/G4`. `+9V_BOOST` / `+9V_PD` / `+9V` ≥ 1.5 mm, `+5V` to `J_BOOST1`
+  ≥ 0.8 mm. Main sheet is now A3 for the new block.
+- Supercap footprint: replace the placeholder with the PHV-5R4V255-R drawing.
+- Bench: set boost CV/CC before fitting caps; measure USB current ≤ 500 mA and
+  VBUS ≥ 4.6 V while charging; scope VM through a 4-fader burst.
 
 - Fix the board outline and M3 hole positions once the case layout is decided.
   Faders are case-mounted, so the PCB outline is otherwise unconstrained.

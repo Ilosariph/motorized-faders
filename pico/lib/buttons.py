@@ -1,31 +1,39 @@
 """
-Button ladder decode — 6 buttons on 2 spare MCP3208 channels.
+Button ladder decode — up to 8 buttons on 2 spare MCP3208 channels.
 
 Wiring per docs/pcb_design.md: a 10k top resistor to 3.3 V, each button
 shorting the node to GND through its own series resistor. Idle reads full
 scale; a press reads 3.3 V * Rs / (10k + Rs).
 
-    CH6: SW_G1 (0R), SW_G2 (4k7)
+    CH6: SW_G1 (0R), SW_G2 (2k2), SW_G3 (4k7), SW_G4 (10k)
     CH7: SW_F1 (0R), SW_F2 (2k2), SW_F3 (4k7), SW_F4 (10k)
 
+Both channels use the same four values, so one resistor set covers both.
+G3/G4 are optional: an unfitted button reads idle, i.e. never pressed.
+
 Simultaneous presses on one channel read as the lowest-value button, which is
-why the 2 general buttons sit on their own channel.
+why the general buttons sit on their own channel.
 """
 
 R_TOP = 10000.0
 
 # (name, series resistance to GND) per channel, any order.
-GENERAL_LADDER = (("G1", 0.0), ("G2", 4700.0))
+GENERAL_LADDER = (("G1", 0.0), ("G2", 2200.0), ("G3", 4700.0), ("G4", 10000.0))
 FADER_LADDER = (("F1", 0.0), ("F2", 2200.0), ("F3", 4700.0), ("F4", 10000.0))
 
-# Fraction of full scale. Idle is 1.0; the widest real band is ~0.09 wide, so
-# half the gap to the nearest neighbour is a generous window.
+# Fraction of full scale. Idle is 1.0, the highest press (10k) is 0.5, so this
+# sits well clear of both.
 IDLE_THRESHOLD = 0.92
 
 # A press must read the same band on this many consecutive polls to count.
 # The 100 nF at each ladder node handles contact bounce; this covers the
 # settling ramp through the band boundaries.
 DEBOUNCE_SAMPLES = 2
+
+
+def select(ladder, names):
+    """The entries of `ladder` whose name is in `names`, order kept."""
+    return tuple(entry for entry in ladder if entry[0] in names)
 
 
 def _expected(series_r):

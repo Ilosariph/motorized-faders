@@ -11,16 +11,20 @@ motor drivers + Alps motorized faders.
 | ADC | RP2040 internal (GP26/27) | MCP3208, 12-bit SPI |
 | Drivers | 1x TB6612FNG breakout | 2x TB6612FNG |
 | Displays | none | 4x SSD1306 128x64 SPI |
-| Buttons | none | 4 per-fader + 2 general, ADC ladder |
-| Motor rail | 10 V bench supply | 9 V USB-C PD trigger |
+| Buttons | none | 4 per-fader + 2-4 general, ADC ladder, all optional |
+| Motor rail | 10 V bench supply | 9 V from Pico USB (boost + supercaps), USB-C PD optional |
 | Docs | this file | [pcb_design.md](docs/pcb_design.md), [firmware.md](docs/firmware.md) |
 
 The wiring below is the **2-fader breadboard** build. For the 4-fader PCB see
 [docs/pcb_design.md](docs/pcb_design.md) (hardware) and
 [docs/firmware.md](docs/firmware.md) (protocol, mute, displays, buttons).
 
-Firmware in `pico/` is the **4-fader** version. It needs the MCP3208 and will
-report `RAIL:fail` without the PD rail; the 2-fader build is kept in git
+Firmware in `pico/` is the **4-fader** version. It needs the MCP3208. Motor power
+comes from the Pico's USB alone — a CC/CV boost charges supercaps that cover
+4-fader bursts, so the first boot waits ~50 s while they charge. A USB-C PD
+trigger can be plugged in as well for more current headroom (see
+[pcb_design.md](docs/pcb_design.md#usb-only-power)). Without any VM it reports
+`RAIL:fail`; the 2-fader build is kept in git
 history.
 
 ---

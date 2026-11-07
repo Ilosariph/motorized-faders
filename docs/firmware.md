@@ -37,10 +37,12 @@ prefix ignores it.
 | `POS:f1,f2,f3,f4` | Position, 0-100%. 20 Hz while engaged, on-change while idle |
 | `RAW:r1,r2,r3,r4` | Raw ADC 0-65535, sent only while engaged, diagnostics |
 | `STATE:idx,IDLE\|MOVING\|SETTLING` | State edge, `idx` 1-based |
-| `BTN:F1..F4\|G1\|G2` | Button press edge |
-| `BTNUP:F1..F4\|G1\|G2` | Button release edge |
+| `BTN:F1..F4\|G1..G4` | Button press edge |
+| `BTNUP:F1..F4\|G1..G4` | Button release edge |
 | `MUTE:idx,0\|1` | Mute state confirmation |
-| `RAIL:ok,<volts>` / `RAIL:fail,<volts>` | VM check at boot |
+| `PWR_SRC:pd\|usb` | Motor power source at boot: PD rail present (CH5), or boost from USB only |
+| `RAIL:ok,<volts>` / `RAIL:fail,<volts>` | VM check at boot, after the charge wait |
+| `VM:low,<volts>` / `VM:ok,<volts>` | Motors paused on VM droop / resumed |
 | `CAL:start` / `CAL:done` | Calibration phase |
 | `DBG:<text>` | Diagnostics |
 
@@ -111,11 +113,18 @@ firmware, protocol, or PCB change. Currently:
 | `G2` held + `F1`-`F4` | A/B swap: store the fader's current position, move to the one stored by the last swap. The first swap only stores. Ignored while muted |
 | `G2` held + `F1` / `F4` held 0.4 s, paged layer | Previous / next page (e.g. `discord_voice`); tapped, still the A/B swap, made on the release |
 | `G1` / `G2` alone, `G1` + `F2`/`F3` | Nothing |
+| `G3`, `G4` | Nothing built in — optional buttons, reported to extensions only |
 
 Held modifiers never also mute. While a layer switch is settling, only further
 `G1` steps are taken.
 
 All presses are also reported to extensions via `on_button`.
+
+**No button is required.** An unfitted button reads idle (the 10 kΩ pull-up is
+on the PCB), so it simply never fires. `GENERAL_BUTTONS` / `FADER_BUTTONS` in
+`main.py` list the fitted ones; a channel whose tuple is empty is never
+polled — needed if that ladder's parts are left off, since a floating input
+would decode as phantom presses.
 
 Edges only: a held button reports `BTN:` once and `BTNUP:` once on release.
 The host tracks what is held from those, which is what makes `G2` usable as
@@ -128,11 +137,11 @@ Thresholds are derived from the resistor values, not hardcoded ADC counts, so
 the BOM and the firmware cannot drift apart:
 
 ```
-CH6: G1 = 0R, G2 = 4k7                        -> 0.00 V, 1.06 V
+CH6: G1 = 0R, G2 = 2k2, G3 = 4k7, G4 = 10k    -> 0.00, 0.60, 1.06, 1.65 V
 CH7: F1 = 0R, F2 = 2k2, F3 = 4k7, F4 = 10k    -> 0.00, 0.60, 1.06, 1.65 V
 ```
 
-Each band's boundary is the midpoint to its neighbour, leaving ≥±3% of
+Both channels use the same four resistor values. Each band's boundary is the midpoint to its neighbour, leaving ≥±3% of
 full-scale margin — far more than resistor tolerance needs. A press must read
 the same band twice running (`DEBOUNCE_SAMPLES`) to count, on top of the 100 nF
 at each node.
@@ -244,6 +253,36 @@ fault is visible rather than silent.
 | 5 V | 1.24 V | fail — PD fell back |
 | 9 V | 2.23 V | ok |
 | 12 V | 2.98 V | fail — wrong jumper |
+
+### Power source and charge wait
+
+VM is a diode-OR of the PD trigger and a CC/CV boost from the Pico's USB that
+charges supercaps (see [pcb_design.md](pcb_design.md#usb-only-power)). Boot:
+
+```
+boot -> PWR_SRC:pd|usb       (CH5: PD rail before its diode >= PD_PRESENT_V)
+     -> wait until VM >= VM_START_V (8 V), max VM_CHARGE_TIMEOUT_MS (180 s)
+        screens + DBG:charging show VM in 0.1 V steps
+     -> rail check as above
+```
+
+With PD, or caps still charged from a warm reboot, the wait is instant. From
+empty caps on USB alone it takes ~50 s. A dead boost times out into
+`RAIL:fail`.
+
+### Droop guard
+
+All four faders moving at once drain the caps faster than USB refills them.
+`VmGuard` reads VM every `VM_POLL_MS` (50 ms) while running:
+
+| VM | Action |
+|----|--------|
+| < `VM_LOW_V` (6 V) | `VM:low` — STBY low, every motor coasts, paused faders keep state and setpoint |
+| >= `VM_RESUME_V` (7.5 V) | `VM:ok` — STBY high, interrupted moves re-engaged |
+
+Paused faders skip `update()`, so neither the stall guard nor
+`MOVE_TIMEOUT_MS` blames the fader for a stop the rail caused; re-engaging
+restarts both timers.
 
 ---
 
