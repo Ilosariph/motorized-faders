@@ -4,10 +4,12 @@ FaderHost — serial transport + extension dispatch for the motorized fader rig.
 Talks the Pico protocol from `pico/main.py`:
     Pico -> host:  POS:f1,f2,f3,f4    (position, 0-100%)
                    STATE:idx,IDLE|MOVING|SETTLING
-                   BTN:F1..F4|G1|G2   (button press edge)
-                   BTNUP:F1..F4|G1|G2 (button release edge)
+                   BTN:F1..F4|G1..G4  (button press edge)
+                   BTNUP:F1..F4|G1..G4 (button release edge)
                    MUTE:idx,0|1       (mute state confirmation)
+                   PWR_SRC:pd|usb     (motor power source at boot)
                    RAIL:ok|fail,volts (VM rail check at boot)
+                   VM:low|ok,volts    (motors paused / resumed on VM droop)
                    CAL:start | CAL:done
                    RAW:..., DBG:...   (ignored)
     host -> Pico:  SET:f1,f2,f3,f4    (setpoints, 0-100%)
@@ -148,7 +150,7 @@ class Extension:
     def on_button(self, button):
         """
         Called for every button press the Pico reports: 'F1'-'F4' (per-fader)
-        or 'G1'/'G2' (general). Mute is already handled by the host for F*
+        or 'G1'-'G4' (general; G3/G4 optional, no built-in meaning). Mute is already handled by the host for F*
         buttons; this hook exists for extensions that want the raw event.
         """
 
@@ -1084,6 +1086,14 @@ class FaderHost:
             self._handle_mute(line[5:])
         elif line.startswith("RAIL:"):
             self._handle_rail(line[5:])
+        elif line.startswith("PWR_SRC:"):
+            log.info("Pico motor power: %s", line[8:].strip())
+        elif line.startswith("VM:"):
+            state, _, volts = line[3:].strip().partition(",")
+            if state == "low":
+                log.warning("VM sagged to %s V, motors paused", volts)
+            else:
+                log.info("VM recovered to %s V, motors resumed", volts)
         elif line.startswith("CAL:"):
             phase = "start" if "start" in line else "done"
             log.info("Pico calibration %s", phase)
@@ -1300,7 +1310,8 @@ class FaderHost:
         if not ok:
             sys.stderr.write(
                 f"[faders] VM rail check FAILED at {volts} V — motors "
-                "disabled by firmware. Check the HUSB238 9 V jumper.\n"
+                "disabled by firmware. Check the boost module (CV 9.3 V) "
+                "or the HUSB238 9 V jumper.\n"
             )
         self._dispatch_all("on_rail", ok, volts)
 

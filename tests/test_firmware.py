@@ -790,7 +790,10 @@ def test_button_ladder_decode():
 
     # Both ladders must use disjoint, correctly ordered bands.
     gen = ButtonLadder(lambda: 4095, GENERAL_LADDER, 4095)
-    check([n for _, n in gen._bands] == ["G1", "G2"], "general ladder ordered")
+    check([n for _, n in gen._bands] == ["G1", "G2", "G3", "G4"],
+          "general ladder ordered")
+    check([r for _, r in GENERAL_LADDER] == [r for _, r in FADER_LADDER],
+          "general ladder reuses the fader ladder's resistor values")
     check([n for _, n in ladder._bands] == ["F1", "F2", "F3", "F4"],
           "fader ladder ordered")
 
@@ -822,13 +825,66 @@ def test_button_release_edge():
             seen.append((pressed, ladder.released))
         return [p for p, _ in seen if p], [r for _, r in seen if r]
 
-    check(hold(4700.0) == (["G2"], []), "G2 press reports no release")
-    check(hold(4700.0) == ([], []), "held G2 reports nothing further")
+    check(hold(2200.0) == (["G2"], []), "G2 press reports no release")
+    check(hold(2200.0) == ([], []), "held G2 reports nothing further")
     check(hold(None) == ([], ["G2"]), "letting go reports G2 released, once")
     check(hold(None) == ([], []), "idle reports no release")
-    hold(4700.0)
+    hold(2200.0)
     check(hold(0.0) == (["G1"], ["G2"]),
           "G2 -> G1 on one channel is a release plus a press")
+
+
+def test_general_ladder_decodes_g3_g4():
+    sys.path.insert(0, str(pathlib.Path(__file__).resolve().parent.parent / "pico"))
+    from lib.buttons import DEBOUNCE_SAMPLES, GENERAL_LADDER, ButtonLadder, R_TOP
+    level = [4095]
+    ladder = ButtonLadder(lambda: level[0], GENERAL_LADDER, 4095)
+    for name, series_r in GENERAL_LADDER:
+        level[0] = int(series_r / (R_TOP + series_r) * 4095)
+        events = [e for e in (ladder.poll() for _ in range(DEBOUNCE_SAMPLES + 1)) if e]
+        check(events == [name], f"{name} decodes on the general channel (got {events})")
+        level[0] = 4095
+        for _ in range(DEBOUNCE_SAMPLES + 1):
+            ladder.poll()
+
+
+def test_buttons_are_optional():
+    print("Buttons optional")
+    fw = load_firmware()
+
+    class Adc:
+        def __init__(self):
+            self.reads = []
+
+        def read(self, ch):
+            self.reads.append(ch)
+            return 0  # floating/grounded input: would be a press if polled
+
+    def ladders_for(general, fader):
+        fw.GENERAL_BUTTONS = general
+        fw.FADER_BUTTONS = fader
+        adc = Adc()
+        ladders = fw.build_button_ladders(adc)
+        events = []
+        for ladder in ladders:
+            for _ in range(5):
+                pressed = ladder.poll()
+                if pressed:
+                    events.append(pressed)
+        return ladders, adc, events
+
+    ladders, adc, events = ladders_for((), ())
+    check(ladders == [] and adc.reads == [] and events == [],
+          "no buttons configured: no ladder, channel never read, no BTN:")
+
+    ladders, adc, events = ladders_for((), ("F1", "F2", "F3", "F4"))
+    check(len(ladders) == 1 and fw.ADC_CH_GENERAL_BTN not in adc.reads,
+          "general buttons off: CH6 never read")
+
+    ladders, adc, events = ladders_for(("G1", "G2"), ())
+    check([n for _, n in ladders[0]._bands] == ["G1", "G2"],
+          "subset config builds only the fitted buttons")
+    check(fw.ADC_CH_FADER_BTN not in adc.reads, "fader buttons off: CH7 never read")
 
 
 def test_simultaneous_press_reads_lowest():
@@ -864,6 +920,84 @@ def test_vm_rail_check():
               f"{label}: divider measures {volts} V (got {measured:.2f})")
         check(ok is should_pass,
               f"{label}: gate {'accepts' if should_pass else 'rejects'}")
+
+
+class _Seq:
+    """Callable returning successive readings, repeating the last."""
+
+    def __init__(self, values):
+        self.values = list(values)
+
+    def __call__(self):
+        return self.values.pop(0) if len(self.values) > 1 else self.values[0]
+
+
+def test_power_source_detection():
+    print("Power source")
+    for pd_volts, expected in ((9.0, "pd"), (8.6, "pd"), (5.0, "usb"), (0.0, "usb")):
+        rig = Rig()
+        fw = rig.fw
+        ratio = fw.VM_DIVIDER_BOTTOM / (fw.VM_DIVIDER_TOP + fw.VM_DIVIDER_BOTTOM)
+        rig.button_level[fw.ADC_CH_PD_SENSE] = int(
+            pd_volts * ratio / fw.ADC_VREF * fw.MCP_FULL_SCALE)
+        got = fw.power_source(rig.adc)
+        check(got == expected, f"PD rail {pd_volts} V -> {expected} (got {got})")
+
+
+def test_wait_for_vm():
+    fw = load_firmware()
+    fw._delay = stubs.advance
+    progress = []
+    ramp = _Seq([0.0, 2.0, 4.0, 6.0, 7.9, 8.2])
+    vm = fw.wait_for_vm(ramp, progress.append)
+    check(vm >= fw.VM_START_V, f"charging caps: waits until VM >= start (got {vm})")
+    check(progress == [0.0, 2.0, 4.0, 6.0, 7.9], "progress reported while charging")
+
+    start = stubs.now_ms()
+    vm = fw.wait_for_vm(lambda: 9.0)
+    check(vm == 9.0 and stubs.now_ms() == start, "charged rail: no wait at all")
+
+    start = stubs.now_ms()
+    vm = fw.wait_for_vm(lambda: 3.0, timeout_ms=2000)
+    waited = stubs.now_ms() - start
+    check(vm == 3.0 and 2000 <= waited < 2000 + fw.VM_CHARGE_POLL_MS * 2,
+          f"dead boost: gives up after the timeout (waited {waited} ms)")
+    check(abs(vm - fw.VM_EXPECTED_V) > fw.VM_TOLERANCE_V,
+          "timed-out reading still fails the rail check")
+
+
+def test_vm_guard_pauses_and_resumes():
+    print("VM guard")
+    rig = Rig()
+    fw = rig.fw
+    rig.calibrate_all()
+    vm = [9.0]
+    guard = fw.VmGuard(lambda: vm[0], rig.stby)
+    fader = rig.faders[0]
+    fader.engage(90.0)
+    rig.run_for(20)
+
+    def poll():
+        stubs.advance(fw.VM_POLL_MS)
+        return guard.poll(rig.faders)
+
+    vm[0] = 8.0
+    check(poll() is None and not guard.paused, "healthy VM: no edge")
+    vm[0] = 5.5
+    check(poll() == "low" and guard.paused, "sag below VM_LOW_V pauses")
+    check(rig.stby.value() == 0, "pause drops STBY")
+    check(all(m.pwm.duty_u16() == 0 for m in rig.motors), "pause coasts every motor")
+    check(fader.state != "IDLE", "paused move keeps its state")
+    vm[0] = 7.0
+    check(poll() is None and guard.paused, "hysteresis: 7 V does not resume")
+    # A long pause must not trip the move timeout once resumed.
+    stubs.advance(fw.MOVE_TIMEOUT_MS * 2)
+    vm[0] = 8.0
+    check(poll() == "ok" and not guard.paused, "recovery above VM_RESUME_V resumes")
+    check(rig.stby.value() == 1, "resume raises STBY")
+    rig.run_for(2000)
+    check(close(fader.read_position(), 90.0, 1.5) and not fader.stalled,
+          f"interrupted move completes after resume (at {fader.read_position():.1f})")
 
 
 def test_rail_divider_values_match_doc():
@@ -1170,8 +1304,13 @@ def main():
         test_mute_to_absent_fader_is_safe,
         test_button_ladder_decode,
         test_button_release_edge,
+        test_general_ladder_decodes_g3_g4,
+        test_buttons_are_optional,
         test_simultaneous_press_reads_lowest,
         test_vm_rail_check,
+        test_power_source_detection,
+        test_wait_for_vm,
+        test_vm_guard_pauses_and_resumes,
         test_rail_divider_values_match_doc,
         test_creases_pulse_against_a_hand_drag,
         test_creases_command,

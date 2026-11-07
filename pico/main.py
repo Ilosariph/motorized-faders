@@ -6,9 +6,11 @@ Hardware per docs/pcb_design.md:
   ADC:      MCP3208 12-bit 8-channel SPI, VREF ratiometric with fader supply
   Drivers:  2x TB6612FNG, faders 1-2 on driver A, faders 3-4 on driver B
   Displays: 4x SSD1306 128x64 SPI (Adafruit 326), shared SCK/MOSI/DC, own CS
-  Buttons:  resistor ladders on MCP3208 CH6 (2 general) and CH7 (4 per-fader)
+  Buttons:  resistor ladders on MCP3208 CH6 (4 general, G3/G4 optional) and
+            CH7 (4 per-fader); any subset may be fitted, see *_BUTTONS below
   Rail:     VM divider into MCP3208 CH4, checked at boot before enabling STBY
-  Motor:    9 V from a USB-C PD trigger (PD has no 10 V PDO)
+  Motor:    9 V, diode-OR of a CC/CV boost from Pico USB (supercap-buffered)
+            and an optional USB-C PD trigger; PD rail divider into CH5
 
 SPI0 is shared between the MCP3208 and all four displays. Safe because the
 displays are write-only, so only the MCP3208 ever drives MISO.
@@ -19,10 +21,12 @@ Serial protocol (115200 baud, USB). All lines newline-terminated:
     POS:f1,f2,f3,f4          position, 0-100%, one slot per fader
     RAW:r1,r2,r3,r4          raw ADC 0-65535, diagnostics, sent while engaged
     STATE:idx,IDLE|MOVING|SETTLING       idx is 1-based
-    BTN:F1..F4|G1|G2         button press edge; the host assigns meaning
-    BTNUP:F1..F4|G1|G2       button release edge, for hold combos
+    BTN:F1..F4|G1..G4        button press edge; the host assigns meaning
+    BTNUP:F1..F4|G1..G4      button release edge, for hold combos
     MUTE:idx,0|1             mute state confirmation, idx is 1-based
+    PWR_SRC:pd|usb           motor power source at boot (PD rail present?)
     RAIL:ok,<volts> | RAIL:fail,<volts>  VM check result at boot
+    VM:low,<volts> | VM:ok,<volts>       motors paused / resumed on VM droop
     CAL:start | CAL:done
     DBG:<text>
 
@@ -58,7 +62,7 @@ import select
 from machine import Pin, SPI
 from utime import ticks_ms, ticks_diff
 
-from lib.buttons import ButtonLadder, FADER_LADDER, GENERAL_LADDER
+from lib.buttons import ButtonLadder, FADER_LADDER, GENERAL_LADDER, select
 from lib.fader_screen import FaderScreen
 from lib.mcp3208 import MCP3208
 from lib.ssd1306_spi import SSD1306_SPI
@@ -203,6 +207,7 @@ SPI_BAUDRATE = 1_000_000
 # MCP3208 channel assignment
 ADC_CH_FADER = (0, 1, 2, 3)
 ADC_CH_VM_RAIL = 4
+ADC_CH_PD_SENSE = 5
 ADC_CH_GENERAL_BTN = 6
 ADC_CH_FADER_BTN = 7
 
@@ -224,11 +229,35 @@ VM_DIVIDER_BOTTOM = 3300.0   # ohms, CH4 -> GND
 VM_EXPECTED_V = 9.0
 VM_TOLERANCE_V = 1.2        # accepts a sagging 9 V, rejects 5 V and 12 V
 
+# PD rail, before its OR diode, on CH5 through the same 10k/3.3k divider.
+# Above this the trigger negotiated 9 V; a 5 V fallback or no PD board reads
+# below it and the boost carries VM alone.
+PD_PRESENT_V = 7.5
+
+# USB-only boot: the boost charges the supercaps at its CC limit, which takes
+# ~50 s from empty. Wait for VM instead of failing the rail check outright.
+VM_START_V = 8.0
+VM_CHARGE_TIMEOUT_MS = 180000
+VM_CHARGE_POLL_MS = 250
+
+# Droop guard: a burst on all four faders drains the supercaps faster than
+# USB refills them. Below VM_LOW_V the motors stall rather than move, so pause
+# them (STBY low) and resume the interrupted moves once VM recovers.
+VM_LOW_V = 6.0
+VM_RESUME_V = 7.5
+VM_POLL_MS = 50
+
 # ---------------------------------------------------------------------------
 # Hardware configuration — set False for any fader not connected
 # ---------------------------------------------------------------------------
 FADER_ENABLED = (True, True, True, True)
 NUM_FADERS = len(FADER_ENABLED)
+
+# Buttons that are fitted. None are required: drop a name to ignore it, use ()
+# to stop polling a channel at all — which matters when that channel's ladder
+# parts are not fitted, since a floating input would read as phantom presses.
+GENERAL_BUTTONS = ("G1", "G2", "G3", "G4")
+FADER_BUTTONS = ("F1", "F2", "F3", "F4")
 
 # ---------------------------------------------------------------------------
 # Serial / timing
@@ -684,12 +713,93 @@ def _emit(line):
     sys.stdout.write(line + "\n")
 
 
-def read_vm_rail(adc):
-    """Return the VM rail voltage measured through the CH4 divider."""
-    counts = sum(adc.read(ADC_CH_VM_RAIL) for _ in range(8)) // 8
+def read_divider(adc, channel):
+    """Return a rail voltage measured through a 10k/3.3k divider."""
+    counts = sum(adc.read(channel) for _ in range(8)) // 8
     at_adc = counts / MCP_FULL_SCALE * ADC_VREF
     ratio = VM_DIVIDER_BOTTOM / (VM_DIVIDER_TOP + VM_DIVIDER_BOTTOM)
     return at_adc / ratio
+
+
+def read_vm_rail(adc):
+    """Return the VM rail voltage measured through the CH4 divider."""
+    return read_divider(adc, ADC_CH_VM_RAIL)
+
+
+def power_source(adc):
+    """'pd' if the PD trigger is delivering 9 V, else 'usb' (boost only)."""
+    return "pd" if read_divider(adc, ADC_CH_PD_SENSE) >= PD_PRESENT_V else "usb"
+
+
+def wait_for_vm(read_vm, on_progress=None, timeout_ms=VM_CHARGE_TIMEOUT_MS):
+    """
+    Block until VM reaches VM_START_V or `timeout_ms` passes; return the last
+    reading. Instant with PD or charged caps. `on_progress(volts)` is called
+    each poll while waiting, for the screens.
+    """
+    start = ticks_ms()
+    vm = read_vm()
+    while vm < VM_START_V and ticks_diff(ticks_ms(), start) < timeout_ms:
+        if on_progress is not None:
+            on_progress(vm)
+        _delay(VM_CHARGE_POLL_MS)
+        vm = read_vm()
+    return vm
+
+
+class VmGuard:
+    """
+    Pauses every motor while VM sags below VM_LOW_V and resumes above
+    VM_RESUME_V. Paused faders keep their state and setpoint; the main loop
+    skips their update() so neither the stall guard nor the move timeout
+    fires on a move the rail, not the fader, stopped. Resuming re-engages
+    them, which restarts those timers.
+    """
+
+    def __init__(self, read_vm, stby):
+        self._read = read_vm
+        self._stby = stby
+        self._last_poll = ticks_ms()
+        self.paused = False
+        self.volts = 0.0  # last reading, for the VM: line
+
+    def poll(self, faders):
+        """Check VM at most every VM_POLL_MS. Returns 'low'/'ok' on an edge."""
+        now = ticks_ms()
+        if ticks_diff(now, self._last_poll) < VM_POLL_MS:
+            return None
+        self._last_poll = now
+        vm = self._read()
+        self.volts = vm
+        if not self.paused and vm < VM_LOW_V:
+            self.paused = True
+            self._stby.value(0)
+            for fader in faders:
+                if fader is not None:
+                    fader.motor.stop()
+            return "low"
+        if self.paused and vm >= VM_RESUME_V:
+            self.paused = False
+            self._stby.value(1)
+            for fader in faders:
+                if fader is not None and fader.state != "IDLE":
+                    fader.engage(fader.setpoint)
+            return "ok"
+        return None
+
+
+def build_button_ladders(adc):
+    """One ButtonLadder per channel with at least one fitted button."""
+    ladders = []
+    for channel, ladder, names in (
+        (ADC_CH_FADER_BTN, FADER_LADDER, FADER_BUTTONS),
+        (ADC_CH_GENERAL_BTN, GENERAL_LADDER, GENERAL_BUTTONS),
+    ):
+        fitted = select(ladder, names)
+        if fitted:
+            ladders.append(ButtonLadder(
+                lambda ch=channel: adc.read(ch), fitted, MCP_FULL_SCALE))
+    return ladders
 
 
 def _parse_index(text):
@@ -879,7 +989,24 @@ def main():
     # Gate on a measured rail, never on the assumption that PD negotiated the
     # voltage we asked for. The HUSB238 falls back to 5 V silently, which at
     # the bench looks like a stiff fader or a bad motor joint.
-    vm = read_vm_rail(adc)
+    _emit("PWR_SRC:" + power_source(adc))
+
+    shown = [None]
+
+    def show_charging(volts):
+        # The caps climb ~0.1 V/s on the boost's CC limit: report per 0.1 V
+        # step, not per poll.
+        text = "VM {:.1f}V".format(volts)
+        if text == shown[0]:
+            return
+        shown[0] = text
+        _emit("DBG:charging " + text)
+        for screen in screens:
+            if screen is not None:
+                screen.set_lines("Charging", text)
+                screen.draw(force=True)
+
+    vm = wait_for_vm(lambda: read_vm_rail(adc), show_charging)
     rail_ok = abs(vm - VM_EXPECTED_V) <= VM_TOLERANCE_V
     _emit("RAIL:{},{:.2f}".format("ok" if rail_ok else "fail", vm))
 
@@ -900,12 +1027,8 @@ def main():
             )
         )
 
-    general_buttons = ButtonLadder(
-        lambda: adc.read(ADC_CH_GENERAL_BTN), GENERAL_LADDER, MCP_FULL_SCALE
-    )
-    fader_buttons = ButtonLadder(
-        lambda: adc.read(ADC_CH_FADER_BTN), FADER_LADDER, MCP_FULL_SCALE
-    )
+    button_ladders = build_button_ladders(adc)
+    vm_guard = VmGuard(lambda: read_vm_rail(adc), stby) if rail_ok else None
 
     if not rail_ok:
         # Leave STBY low, skip calibration. Buttons and displays still work,
@@ -938,9 +1061,19 @@ def main():
     input_buf = ""
 
     while True:
+        if vm_guard is not None:
+            edge = vm_guard.poll(faders)
+            if edge is not None:
+                _emit("VM:{},{:.2f}".format(edge, vm_guard.volts))
+
         positions = [0.0] * NUM_FADERS
+        paused = vm_guard is not None and vm_guard.paused
         for idx, fader in enumerate(faders):
-            if fader is not None:
+            if fader is None:
+                continue
+            if paused:
+                positions[idx] = fader.read_position()
+            else:
                 positions[idx] = fader.update()
 
         # Emit STATE: edges so the host can detect "move complete" without
@@ -962,7 +1095,7 @@ def main():
         # firmware.
         if ticks_diff(now, last_button_poll) >= BUTTON_POLL_MS:
             last_button_poll = now
-            for ladder in (fader_buttons, general_buttons):
+            for ladder in button_ladders:
                 pressed = ladder.poll()
                 if ladder.released is not None:
                     _emit("BTNUP:{}".format(ladder.released))
