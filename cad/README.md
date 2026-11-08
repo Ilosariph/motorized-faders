@@ -32,7 +32,7 @@ right of fader 4, G2 level with the fader buttons.
 | Button caps | 11 mm round, press fit on the 3.8 square plunger (3.9 socket), stem guided in the hole, head 0.6 mm above the panel. Engraved labels: mute icon on fader buttons, `B` on G2, `A` on G1 (`fader_caps`, `gen_caps`) | printed |
 | HUSB238 PD board | 2 standoffs (8 mm) at back wall right of PCB, USB-C facing out; heat-set inserts | M2x5, M2 insert 3.2 mm |
 | Panel -> base | 6 countersunk screws into heat-set inserts; back-middle boss hangs off the back wall above the PCB | M3x6, M3 insert 4.0 mm |
-| PCB (`motorized-faders.kicad_pcb`, 155 x 93) | 4 standoffs (5 mm), KiCad top edge (Pico USB end) 0.5 mm off back wall; heat-set inserts | M3x6, M3 insert 4.0 mm |
+| PCB (`motorized-faders.kicad_pcb`, 155 x 110) | 4 standoffs (5 mm), KiCad top edge (Pico USB end) 0.5 mm off back wall; heat-set inserts | M3x6, M3 insert 4.0 mm |
 
 `btn_type` = `"mx"` (Cherry MX plate cutout) or `"round"` (`round_hole_d`
 panel pushbutton) are alternatives to the default `"tact"`. Back wall has two USB-C openings (15 x 9 mm, fits bulky overmolds). The

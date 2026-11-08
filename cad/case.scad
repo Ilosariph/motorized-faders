@@ -154,13 +154,13 @@ rib_t = 2;
 rib_h = 7;
 
 // ---------------------------------------------------------------- PCB
-// motorized-faders/motorized-faders.kicad_pcb: Edge.Cuts 55,43 -> 210,136,
+// motorized-faders/motorized-faders.kicad_pcb: Edge.Cuts 55,43 -> 210,153,
 // 4x M3 at 5 mm inset. KiCad top edge (y=43, Pico USB end) faces the back
 // wall; Pico USB-C centre is 48.89 from the left edge, face ~4.3 mm inside.
-pcb_size  = [155, 93];
+pcb_size  = [155, 110];
 pcb_back_gap = 0.5;    // board edge -> back wall inner face
-pcb_pos   = [wall + boss_d + 0.5, D - wall - pcb_back_gap - 93];  // front-left corner
-pcb_holes = [[5, 5], [150, 5], [5, 88], [150, 88]];
+pcb_pos   = [wall + boss_d + 0.5, D - wall - pcb_back_gap - pcb_size.y];  // front-left corner
+pcb_holes = [[5, 5], [150, 5], [5, pcb_size.y - 5], [150, pcb_size.y - 5]];
 pico_usb_x = 48.89;
 pcb_standoff_h = 5;
 // Pico USB-C centre above floor top: directly soldered vs on female headers
