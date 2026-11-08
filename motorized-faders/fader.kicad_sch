@@ -306,7 +306,6 @@
 		)
 		(uuid "fa080abf-9365-4941-b98b-33edc74b45c3")
 	)
-
 	(symbol
 		(lib_id "Connector_Generic:Conn_01x05")
 		(at 154.94 58.42 180)

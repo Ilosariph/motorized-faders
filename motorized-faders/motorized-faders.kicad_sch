@@ -1497,6 +1497,172 @@
 			)
 			(embedded_fonts no)
 		)
+		(symbol "Device:D_Schottky"
+			(pin_numbers
+				(hide yes)
+			)
+			(pin_names
+				(offset 1.016)
+				(hide yes)
+			)
+			(exclude_from_sim no)
+			(in_bom yes)
+			(on_board yes)
+			(in_pos_files yes)
+			(duplicate_pin_numbers_are_jumpers no)
+			(property "Reference" "D"
+				(at 0 2.54 0)
+				(show_name no)
+				(do_not_autoplace no)
+				(effects
+					(font
+						(size 1.27 1.27)
+					)
+				)
+			)
+			(property "Value" "D_Schottky"
+				(at 0 -2.54 0)
+				(show_name no)
+				(do_not_autoplace no)
+				(effects
+					(font
+						(size 1.27 1.27)
+					)
+				)
+			)
+			(property "Footprint" ""
+				(at 0 0 0)
+				(show_name no)
+				(do_not_autoplace no)
+				(hide yes)
+				(effects
+					(font
+						(size 1.27 1.27)
+					)
+				)
+			)
+			(property "Datasheet" ""
+				(at 0 0 0)
+				(show_name no)
+				(do_not_autoplace no)
+				(hide yes)
+				(effects
+					(font
+						(size 1.27 1.27)
+					)
+				)
+			)
+			(property "Description" "Schottky diode"
+				(at 0 0 0)
+				(show_name no)
+				(do_not_autoplace no)
+				(hide yes)
+				(effects
+					(font
+						(size 1.27 1.27)
+					)
+				)
+			)
+			(property "ki_keywords" "diode Schottky"
+				(at 0 0 0)
+				(show_name no)
+				(do_not_autoplace no)
+				(hide yes)
+				(effects
+					(font
+						(size 1.27 1.27)
+					)
+				)
+			)
+			(property "ki_fp_filters" "TO-???* *_Diode_* *SingleDiode* D_*"
+				(at 0 0 0)
+				(show_name no)
+				(do_not_autoplace no)
+				(hide yes)
+				(effects
+					(font
+						(size 1.27 1.27)
+					)
+				)
+			)
+			(symbol "D_Schottky_0_1"
+				(polyline
+					(pts
+						(xy -1.905 0.635) (xy -1.905 1.27) (xy -1.27 1.27) (xy -1.27 -1.27) (xy -0.635 -1.27) (xy -0.635 -0.635)
+					)
+					(stroke
+						(width 0.254)
+						(type default)
+					)
+					(fill
+						(type none)
+					)
+				)
+				(polyline
+					(pts
+						(xy 1.27 1.27) (xy 1.27 -1.27) (xy -1.27 0) (xy 1.27 1.27)
+					)
+					(stroke
+						(width 0.254)
+						(type default)
+					)
+					(fill
+						(type none)
+					)
+				)
+				(polyline
+					(pts
+						(xy 1.27 0) (xy -1.27 0)
+					)
+					(stroke
+						(width 0)
+						(type default)
+					)
+					(fill
+						(type none)
+					)
+				)
+			)
+			(symbol "D_Schottky_1_1"
+				(pin passive line
+					(at -3.81 0 0)
+					(length 2.54)
+					(name "K"
+						(effects
+							(font
+								(size 1.27 1.27)
+							)
+						)
+					)
+					(number "1"
+						(effects
+							(font
+								(size 1.27 1.27)
+							)
+						)
+					)
+				)
+				(pin passive line
+					(at 3.81 0 180)
+					(length 2.54)
+					(name "A"
+						(effects
+							(font
+								(size 1.27 1.27)
+							)
+						)
+					)
+					(number "2"
+						(effects
+							(font
+								(size 1.27 1.27)
+							)
+						)
+					)
+				)
+			)
+			(embedded_fonts no)
+		)
 		(symbol "Device:NetTie_2"
 			(pin_numbers
 				(hide yes)
@@ -4352,172 +4518,6 @@
 			)
 			(embedded_fonts no)
 		)
-		(symbol "Device:D_Schottky"
-			(pin_numbers
-				(hide yes)
-			)
-			(pin_names
-				(offset 1.016)
-				(hide yes)
-			)
-			(exclude_from_sim no)
-			(in_bom yes)
-			(on_board yes)
-			(in_pos_files yes)
-			(duplicate_pin_numbers_are_jumpers no)
-			(property "Reference" "D"
-				(at 0 2.54 0)
-				(show_name no)
-				(do_not_autoplace no)
-				(effects
-					(font
-						(size 1.27 1.27)
-					)
-				)
-			)
-			(property "Value" "D_Schottky"
-				(at 0 -2.54 0)
-				(show_name no)
-				(do_not_autoplace no)
-				(effects
-					(font
-						(size 1.27 1.27)
-					)
-				)
-			)
-			(property "Footprint" ""
-				(at 0 0 0)
-				(show_name no)
-				(do_not_autoplace no)
-				(hide yes)
-				(effects
-					(font
-						(size 1.27 1.27)
-					)
-				)
-			)
-			(property "Datasheet" ""
-				(at 0 0 0)
-				(show_name no)
-				(do_not_autoplace no)
-				(hide yes)
-				(effects
-					(font
-						(size 1.27 1.27)
-					)
-				)
-			)
-			(property "Description" "Schottky diode"
-				(at 0 0 0)
-				(show_name no)
-				(do_not_autoplace no)
-				(hide yes)
-				(effects
-					(font
-						(size 1.27 1.27)
-					)
-				)
-			)
-			(property "ki_keywords" "diode Schottky"
-				(at 0 0 0)
-				(show_name no)
-				(do_not_autoplace no)
-				(hide yes)
-				(effects
-					(font
-						(size 1.27 1.27)
-					)
-				)
-			)
-			(property "ki_fp_filters" "TO-???* *_Diode_* *SingleDiode* D_*"
-				(at 0 0 0)
-				(show_name no)
-				(do_not_autoplace no)
-				(hide yes)
-				(effects
-					(font
-						(size 1.27 1.27)
-					)
-				)
-			)
-			(symbol "D_Schottky_0_1"
-				(polyline
-					(pts
-						(xy -1.905 0.635) (xy -1.905 1.27) (xy -1.27 1.27) (xy -1.27 -1.27) (xy -0.635 -1.27) (xy -0.635 -0.635)
-					)
-					(stroke
-						(width 0.254)
-						(type default)
-					)
-					(fill
-						(type none)
-					)
-				)
-				(polyline
-					(pts
-						(xy 1.27 1.27) (xy 1.27 -1.27) (xy -1.27 0) (xy 1.27 1.27)
-					)
-					(stroke
-						(width 0.254)
-						(type default)
-					)
-					(fill
-						(type none)
-					)
-				)
-				(polyline
-					(pts
-						(xy 1.27 0) (xy -1.27 0)
-					)
-					(stroke
-						(width 0)
-						(type default)
-					)
-					(fill
-						(type none)
-					)
-				)
-			)
-			(symbol "D_Schottky_1_1"
-				(pin passive line
-					(at -3.81 0 0)
-					(length 2.54)
-					(name "K"
-						(effects
-							(font
-								(size 1.27 1.27)
-							)
-						)
-					)
-					(number "1"
-						(effects
-							(font
-								(size 1.27 1.27)
-							)
-						)
-					)
-				)
-				(pin passive line
-					(at 3.81 0 180)
-					(length 2.54)
-					(name "A"
-						(effects
-							(font
-								(size 1.27 1.27)
-							)
-						)
-					)
-					(number "2"
-						(effects
-							(font
-								(size 1.27 1.27)
-							)
-						)
-					)
-				)
-			)
-			(embedded_fonts no)
-		)
 	)
 	(junction
 		(at 139.7 190.5)
@@ -4580,6 +4580,12 @@
 		(uuid "43ad04dc-79dc-4698-8695-5c6c2b804eec")
 	)
 	(junction
+		(at 133.35 233.68)
+		(diameter 0)
+		(color 0 0 0 0)
+		(uuid "4c7ba896-3ea8-4776-aef7-bf68ffa1a01d")
+	)
+	(junction
 		(at 259.08 134.62)
 		(diameter 0)
 		(color 0 0 0 0)
@@ -4608,6 +4614,12 @@
 		(diameter 0)
 		(color 0 0 0 0)
 		(uuid "84ebbeba-7a09-47f5-8666-b02dce332383")
+	)
+	(junction
+		(at 83.82 246.38)
+		(diameter 0)
+		(color 0 0 0 0)
+		(uuid "908c9408-95ff-4539-be4b-2dc731009843")
 	)
 	(junction
 		(at 52.07 189.23)
@@ -4658,10 +4670,28 @@
 		(uuid "d29f54b8-b073-46af-bb30-bf50ff8c4690")
 	)
 	(junction
+		(at 160.02 238.76)
+		(diameter 0)
+		(color 0 0 0 0)
+		(uuid "d924afc9-e2cc-41d3-a52e-bf4bb7c58f43")
+	)
+	(junction
+		(at 83.82 232.41)
+		(diameter 0)
+		(color 0 0 0 0)
+		(uuid "e0daba18-0ed0-4dad-bdfb-17057dad129b")
+	)
+	(junction
 		(at 36.83 135.89)
 		(diameter 0)
 		(color 0 0 0 0)
 		(uuid "ecbd96e8-915d-40ab-8e4a-1e82978ef84f")
+	)
+	(junction
+		(at 63.5 246.38)
+		(diameter 0)
+		(color 0 0 0 0)
+		(uuid "ee728496-9b4b-4581-a599-1060e2fd3f57")
 	)
 	(junction
 		(at 25.4 39.37)
@@ -4815,6 +4845,16 @@
 	)
 	(wire
 		(pts
+			(xy 30.48 228.6) (xy 30.48 231.14)
+		)
+		(stroke
+			(width 0)
+			(type default)
+		)
+		(uuid "07cc4489-34e4-4f31-8ed8-f64b73af79c4")
+	)
+	(wire
+		(pts
 			(xy 223.52 139.7) (xy 223.52 140.97)
 		)
 		(stroke
@@ -4822,6 +4862,16 @@
 			(type default)
 		)
 		(uuid "07cd0fdf-943f-44bd-9dd7-a38c999e4c63")
+	)
+	(wire
+		(pts
+			(xy 133.35 233.68) (xy 133.35 238.76)
+		)
+		(stroke
+			(width 0)
+			(type default)
+		)
+		(uuid "08073ca3-8050-4eda-b976-3676ab3d2f33")
 	)
 	(wire
 		(pts
@@ -4842,6 +4892,16 @@
 			(type default)
 		)
 		(uuid "08e38c4f-14dc-43ff-bdb0-6a2ec28eb972")
+	)
+	(wire
+		(pts
+			(xy 63.5 232.41) (xy 83.82 232.41)
+		)
+		(stroke
+			(width 0)
+			(type default)
+		)
+		(uuid "0907e8aa-7538-4ea8-aa8f-e61cf0c426e1")
 	)
 	(wire
 		(pts
@@ -5015,6 +5075,16 @@
 	)
 	(wire
 		(pts
+			(xy 172.72 238.76) (xy 172.72 240.03)
+		)
+		(stroke
+			(width 0)
+			(type default)
+		)
+		(uuid "15bd3f73-4a67-4708-81d1-78150b406b53")
+	)
+	(wire
+		(pts
 			(xy 74.93 127) (xy 77.47 127)
 		)
 		(stroke
@@ -5035,6 +5105,16 @@
 	)
 	(wire
 		(pts
+			(xy 27.94 223.52) (xy 35.56 223.52)
+		)
+		(stroke
+			(width 0)
+			(type default)
+		)
+		(uuid "192e7a6d-52a2-4efa-aba7-ae2dc04ab756")
+	)
+	(wire
+		(pts
 			(xy 156.21 137.16) (xy 156.21 139.7)
 		)
 		(stroke
@@ -5042,6 +5122,26 @@
 			(type default)
 		)
 		(uuid "1b442195-98ff-44a4-94c0-ecbe4d2112f4")
+	)
+	(wire
+		(pts
+			(xy 160.02 248.92) (xy 160.02 251.46)
+		)
+		(stroke
+			(width 0)
+			(type default)
+		)
+		(uuid "1be4128c-0b02-4642-ba92-e0b8f3829246")
+	)
+	(wire
+		(pts
+			(xy 133.35 233.68) (xy 138.43 233.68)
+		)
+		(stroke
+			(width 0)
+			(type default)
+		)
+		(uuid "1db3c96a-1dbe-426f-9fcf-f1765fdadb37")
 	)
 	(wire
 		(pts
@@ -5145,6 +5245,26 @@
 	)
 	(wire
 		(pts
+			(xy 63.5 242.57) (xy 63.5 246.38)
+		)
+		(stroke
+			(width 0)
+			(type default)
+		)
+		(uuid "299f375d-e23b-463f-998b-ccb8944b5ec1")
+	)
+	(wire
+		(pts
+			(xy 133.35 220.98) (xy 138.43 220.98)
+		)
+		(stroke
+			(width 0)
+			(type default)
+		)
+		(uuid "2a20612e-6b22-41c2-85ba-00cf5cb01ebd")
+	)
+	(wire
+		(pts
 			(xy 22.86 92.71) (xy 22.86 96.52)
 		)
 		(stroke
@@ -5175,6 +5295,16 @@
 	)
 	(wire
 		(pts
+			(xy 116.84 220.98) (xy 123.19 220.98)
+		)
+		(stroke
+			(width 0)
+			(type default)
+		)
+		(uuid "3091f674-f6fc-4adb-8d4c-3fa47f50cd4c")
+	)
+	(wire
+		(pts
 			(xy 179.07 55.88) (xy 181.61 55.88)
 		)
 		(stroke
@@ -5182,6 +5312,16 @@
 			(type default)
 		)
 		(uuid "30b22f95-7c3b-45a9-8711-fa0baeab6eb2")
+	)
+	(wire
+		(pts
+			(xy 83.82 232.41) (xy 93.98 232.41)
+		)
+		(stroke
+			(width 0)
+			(type default)
+		)
+		(uuid "30efdc15-7b0b-43b5-a9f9-2d8f63d5bf5f")
 	)
 	(wire
 		(pts
@@ -5202,6 +5342,16 @@
 			(type default)
 		)
 		(uuid "31832897-b0c3-40dc-a156-432d8069116d")
+	)
+	(wire
+		(pts
+			(xy 116.84 233.68) (xy 123.19 233.68)
+		)
+		(stroke
+			(width 0)
+			(type default)
+		)
+		(uuid "31856f95-475d-4231-b3fc-c367a14266ee")
 	)
 	(wire
 		(pts
@@ -5385,6 +5535,16 @@
 	)
 	(wire
 		(pts
+			(xy 83.82 242.57) (xy 83.82 246.38)
+		)
+		(stroke
+			(width 0)
+			(type default)
+		)
+		(uuid "4901ac26-a135-4a6e-b0be-37a590b2474d")
+	)
+	(wire
+		(pts
 			(xy 234.95 149.86) (xy 237.49 149.86)
 		)
 		(stroke
@@ -5402,6 +5562,16 @@
 			(type default)
 		)
 		(uuid "4a0b0bd3-ef4b-4ad0-b1a7-c2aebcccf052")
+	)
+	(wire
+		(pts
+			(xy 316.23 157.48) (xy 318.77 157.48)
+		)
+		(stroke
+			(width 0)
+			(type default)
+		)
+		(uuid "4a93d1ef-7cff-4d97-aa63-79ecd7de0ea2")
 	)
 	(wire
 		(pts
@@ -5442,6 +5612,16 @@
 			(type default)
 		)
 		(uuid "4eae0267-3a19-46ca-bc4b-ee79dba54f7f")
+	)
+	(wire
+		(pts
+			(xy 160.02 238.76) (xy 160.02 241.3)
+		)
+		(stroke
+			(width 0)
+			(type default)
+		)
+		(uuid "50090304-72d9-4a3b-be64-f95e67d02233")
 	)
 	(wire
 		(pts
@@ -5665,6 +5845,16 @@
 	)
 	(wire
 		(pts
+			(xy 304.8 146.05) (xy 304.8 148.59)
+		)
+		(stroke
+			(width 0)
+			(type default)
+		)
+		(uuid "63c8580f-38de-426b-af34-5c168c9830a7")
+	)
+	(wire
+		(pts
 			(xy 34.29 135.89) (xy 36.83 135.89)
 		)
 		(stroke
@@ -5792,6 +5982,26 @@
 			(type default)
 		)
 		(uuid "6d57deeb-481a-43ce-9aef-048dcf1a0865")
+	)
+	(wire
+		(pts
+			(xy 63.5 257.81) (xy 63.5 260.35)
+		)
+		(stroke
+			(width 0)
+			(type default)
+		)
+		(uuid "6ec1b990-9838-4c76-a6d7-3e37dd9a30ae")
+	)
+	(wire
+		(pts
+			(xy 172.72 247.65) (xy 172.72 250.19)
+		)
+		(stroke
+			(width 0)
+			(type default)
+		)
+		(uuid "6ef7937c-7e04-4395-b4ae-27747f97d7a8")
 	)
 	(wire
 		(pts
@@ -5985,6 +6195,16 @@
 	)
 	(wire
 		(pts
+			(xy 340.36 157.48) (xy 341.63 157.48)
+		)
+		(stroke
+			(width 0)
+			(type default)
+		)
+		(uuid "7fb9b52c-a544-410e-ba11-0b6d10317311")
+	)
+	(wire
+		(pts
 			(xy 278.13 69.85) (xy 280.67 69.85)
 		)
 		(stroke
@@ -6042,6 +6262,16 @@
 			(type default)
 		)
 		(uuid "854b6d92-4845-4106-b13d-e4e58f69ed10")
+	)
+	(wire
+		(pts
+			(xy 340.36 156.21) (xy 340.36 157.48)
+		)
+		(stroke
+			(width 0)
+			(type default)
+		)
+		(uuid "865b6ede-32a3-4061-a0ff-c8420f484708")
 	)
 	(wire
 		(pts
@@ -6112,6 +6342,16 @@
 			(type default)
 		)
 		(uuid "8c3dc93c-ca67-40fe-bd7b-c8beb136ef1f")
+	)
+	(wire
+		(pts
+			(xy 25.4 237.49) (xy 25.4 234.95)
+		)
+		(stroke
+			(width 0)
+			(type default)
+		)
+		(uuid "8cae0203-0164-4902-9feb-b96d9fb17e08")
 	)
 	(wire
 		(pts
@@ -6192,6 +6432,26 @@
 			(type default)
 		)
 		(uuid "91a33320-363f-4c1c-a4f0-8a4a1695aac8")
+	)
+	(wire
+		(pts
+			(xy 25.4 245.11) (xy 25.4 247.65)
+		)
+		(stroke
+			(width 0)
+			(type default)
+		)
+		(uuid "931b9c32-525f-4e14-bdf3-394062729c14")
+	)
+	(wire
+		(pts
+			(xy 27.94 220.98) (xy 35.56 220.98)
+		)
+		(stroke
+			(width 0)
+			(type default)
+		)
+		(uuid "9328b6df-30d5-410a-9321-c1a3af799f77")
 	)
 	(wire
 		(pts
@@ -6285,6 +6545,16 @@
 	)
 	(wire
 		(pts
+			(xy 304.8 156.21) (xy 304.8 157.48)
+		)
+		(stroke
+			(width 0)
+			(type default)
+		)
+		(uuid "9cec31cd-9021-48c9-950c-ce7073338cea")
+	)
+	(wire
+		(pts
 			(xy 74.93 139.7) (xy 77.47 139.7)
 		)
 		(stroke
@@ -6375,6 +6645,26 @@
 	)
 	(wire
 		(pts
+			(xy 83.82 234.95) (xy 83.82 232.41)
+		)
+		(stroke
+			(width 0)
+			(type default)
+		)
+		(uuid "a962b171-411a-4ce2-adcd-43ba6111076c")
+	)
+	(wire
+		(pts
+			(xy 130.81 233.68) (xy 133.35 233.68)
+		)
+		(stroke
+			(width 0)
+			(type default)
+		)
+		(uuid "ac0ac014-c63f-49db-9a26-741ce9fcf9cf")
+	)
+	(wire
+		(pts
 			(xy 189.23 190.5) (xy 191.77 190.5)
 		)
 		(stroke
@@ -6445,6 +6735,16 @@
 	)
 	(wire
 		(pts
+			(xy 340.36 146.05) (xy 340.36 148.59)
+		)
+		(stroke
+			(width 0)
+			(type default)
+		)
+		(uuid "b0577601-63ac-4c5a-9292-2f414eeb5cd3")
+	)
+	(wire
+		(pts
 			(xy 57.15 161.29) (xy 59.69 161.29)
 		)
 		(stroke
@@ -6512,6 +6812,16 @@
 			(type default)
 		)
 		(uuid "b749672f-ad20-40a2-a224-7340d31b7f73")
+	)
+	(wire
+		(pts
+			(xy 160.02 229.87) (xy 160.02 227.33)
+		)
+		(stroke
+			(width 0)
+			(type default)
+		)
+		(uuid "b7ffa1a9-6d9c-4a21-8b0f-9f1eda177675")
 	)
 	(wire
 		(pts
@@ -6615,6 +6925,16 @@
 	)
 	(wire
 		(pts
+			(xy 304.8 157.48) (xy 306.07 157.48)
+		)
+		(stroke
+			(width 0)
+			(type default)
+		)
+		(uuid "c61e809d-e3e7-4d63-b3f3-ccfe15cf444f")
+	)
+	(wire
+		(pts
 			(xy 123.19 114.3) (xy 125.73 114.3)
 		)
 		(stroke
@@ -6622,6 +6942,16 @@
 			(type default)
 		)
 		(uuid "c685b994-a53a-4b6b-9cd9-132d7280a6a1")
+	)
+	(wire
+		(pts
+			(xy 278.13 67.31) (xy 280.67 67.31)
+		)
+		(stroke
+			(width 0)
+			(type default)
+		)
+		(uuid "c85c0009-5d7f-4705-ae7e-209d82ae61a7")
 	)
 	(wire
 		(pts
@@ -6685,6 +7015,16 @@
 	)
 	(wire
 		(pts
+			(xy 63.5 234.95) (xy 63.5 232.41)
+		)
+		(stroke
+			(width 0)
+			(type default)
+		)
+		(uuid "cf9f61b6-2bd2-4990-b491-19e507e70941")
+	)
+	(wire
+		(pts
 			(xy 217.17 71.12) (xy 219.71 71.12)
 		)
 		(stroke
@@ -6722,6 +7062,16 @@
 			(type default)
 		)
 		(uuid "d3ad76c6-b295-41dd-9264-c5bd7aacd340")
+	)
+	(wire
+		(pts
+			(xy 27.94 226.06) (xy 35.56 226.06)
+		)
+		(stroke
+			(width 0)
+			(type default)
+		)
+		(uuid "d4eba3ef-27ab-4903-ac65-a1fdf42e96bf")
 	)
 	(wire
 		(pts
@@ -6885,6 +7235,26 @@
 	)
 	(wire
 		(pts
+			(xy 83.82 246.38) (xy 83.82 250.19)
+		)
+		(stroke
+			(width 0)
+			(type default)
+		)
+		(uuid "e2915000-7468-404c-b3d4-be7df218f326")
+	)
+	(wire
+		(pts
+			(xy 30.48 228.6) (xy 35.56 228.6)
+		)
+		(stroke
+			(width 0)
+			(type default)
+		)
+		(uuid "e367c792-104a-4d84-ba31-76b0a4c8d508")
+	)
+	(wire
+		(pts
 			(xy 191.77 26.67) (xy 194.31 26.67)
 		)
 		(stroke
@@ -6932,6 +7302,16 @@
 			(type default)
 		)
 		(uuid "e67ac28f-03a7-4077-8668-d9229a675025")
+	)
+	(wire
+		(pts
+			(xy 83.82 257.81) (xy 83.82 260.35)
+		)
+		(stroke
+			(width 0)
+			(type default)
+		)
+		(uuid "e695994f-590a-419b-bff3-3337d8ac7477")
 	)
 	(wire
 		(pts
@@ -7045,6 +7425,16 @@
 	)
 	(wire
 		(pts
+			(xy 160.02 237.49) (xy 160.02 238.76)
+		)
+		(stroke
+			(width 0)
+			(type default)
+		)
+		(uuid "f1b1788d-bbb0-4af6-8806-b8ebe3c0a753")
+	)
+	(wire
+		(pts
 			(xy 223.52 160.02) (xy 224.79 160.02)
 		)
 		(stroke
@@ -7052,6 +7442,16 @@
 			(type default)
 		)
 		(uuid "f29e3de4-bbee-44f1-9af1-cfb51d936c37")
+	)
+	(wire
+		(pts
+			(xy 160.02 238.76) (xy 172.72 238.76)
+		)
+		(stroke
+			(width 0)
+			(type default)
+		)
+		(uuid "f2f95277-8613-4121-9df1-648d91b58ac4")
 	)
 	(wire
 		(pts
@@ -7082,6 +7482,16 @@
 			(type default)
 		)
 		(uuid "f572ef7b-9a77-4477-84e5-95b7bdc60642")
+	)
+	(wire
+		(pts
+			(xy 130.81 220.98) (xy 133.35 220.98)
+		)
+		(stroke
+			(width 0)
+			(type default)
+		)
+		(uuid "f725ad6b-d8e4-45f3-a6eb-216360fe5cbf")
 	)
 	(wire
 		(pts
@@ -7132,6 +7542,36 @@
 			(type default)
 		)
 		(uuid "f87c4c31-63a8-4c6a-b176-41ec4d5bafc1")
+	)
+	(wire
+		(pts
+			(xy 63.5 246.38) (xy 63.5 250.19)
+		)
+		(stroke
+			(width 0)
+			(type default)
+		)
+		(uuid "f8f45e9e-65a3-4e70-873a-ee2c7ee7622f")
+	)
+	(wire
+		(pts
+			(xy 351.79 157.48) (xy 354.33 157.48)
+		)
+		(stroke
+			(width 0)
+			(type default)
+		)
+		(uuid "f9735010-2890-4c32-9b9c-676f9e8f9766")
+	)
+	(wire
+		(pts
+			(xy 63.5 246.38) (xy 83.82 246.38)
+		)
+		(stroke
+			(width 0)
+			(type default)
+		)
+		(uuid "faadc445-66a6-445c-aab3-8754bbc9c6e0")
 	)
 	(wire
 		(pts
@@ -7333,6 +7773,16 @@
 		)
 		(uuid "12f53148-15be-4ec1-aeef-04f1a58e4eb6")
 	)
+	(label "+9V_BOOST"
+		(at 63.5 232.41 90)
+		(effects
+			(font
+				(size 1.27 1.27)
+			)
+			(justify left bottom)
+		)
+		(uuid "130ca2be-4469-4a6f-b5d0-bc6906f3dc5c")
+	)
 	(label "I2C_SCL"
 		(at 74.93 104.14 180)
 		(effects
@@ -7453,6 +7903,16 @@
 		)
 		(uuid "2715a490-a4df-4774-b372-71520ffc3240")
 	)
+	(label "+9V_PD"
+		(at 116.84 233.68 180)
+		(effects
+			(font
+				(size 1.27 1.27)
+			)
+			(justify right bottom)
+		)
+		(uuid "28959b25-b94a-492c-b171-1fb9e9f0d1c4")
+	)
 	(label "DISP4_CS"
 		(at 267.97 16.51 180)
 		(effects
@@ -7543,6 +8003,26 @@
 		)
 		(uuid "3c5d3b1b-68b2-4090-a8fa-46622a12b406")
 	)
+	(label "PD_SENSE"
+		(at 172.72 238.76 0)
+		(effects
+			(font
+				(size 1.27 1.27)
+			)
+			(justify left bottom)
+		)
+		(uuid "3d470bae-5017-437e-9c01-9093361d92e2")
+	)
+	(label "+9V_PD"
+		(at 80.01 27.94 180)
+		(effects
+			(font
+				(size 1.27 1.27)
+			)
+			(justify right bottom)
+		)
+		(uuid "3e8bec71-bbd2-46f0-b01f-58f1d9a72480")
+	)
 	(label "A_PWMA"
 		(at 48.26 72.39 0)
 		(effects
@@ -7552,6 +8032,16 @@
 			(justify left bottom)
 		)
 		(uuid "414bbb0e-600d-49a2-99a7-8db3faea99db")
+	)
+	(label "+9V_BOOST"
+		(at 116.84 220.98 180)
+		(effects
+			(font
+				(size 1.27 1.27)
+			)
+			(justify right bottom)
+		)
+		(uuid "4347c9d6-eb13-4131-88aa-cd1324ac28a9")
 	)
 	(label "B_BIN1"
 		(at 59.69 156.21 0)
@@ -7632,6 +8122,16 @@
 			(justify right bottom)
 		)
 		(uuid "53dedbb9-e4b2-4865-88fb-3f19561f8876")
+	)
+	(label "+9V_BOOST"
+		(at 27.94 226.06 180)
+		(effects
+			(font
+				(size 1.27 1.27)
+			)
+			(justify right bottom)
+		)
+		(uuid "57eb3462-8cdc-4d71-9600-19304f54b769")
 	)
 	(label "F2_MOT_A"
 		(at 195.58 175.26 0)
@@ -7963,6 +8463,16 @@
 		)
 		(uuid "8ca514ab-19f6-4bb5-b7f5-ce49adc3a6a4")
 	)
+	(label "SC_MID"
+		(at 68.58 246.38 0)
+		(effects
+			(font
+				(size 1.27 1.27)
+			)
+			(justify left bottom)
+		)
+		(uuid "9025345c-f303-4ac3-bcf6-fae4d87bc28a")
+	)
 	(label "F4_ADC"
 		(at 283.21 191.77 0)
 		(effects
@@ -8223,6 +8733,16 @@
 		)
 		(uuid "c502b017-119b-4f75-a2ec-e1677324198c")
 	)
+	(label "BTN_GEN"
+		(at 304.8 146.05 90)
+		(effects
+			(font
+				(size 1.27 1.27)
+			)
+			(justify left bottom)
+		)
+		(uuid "c66b1388-a32a-4346-8ea1-fbff4f62cb13")
+	)
 	(label "A_AIN2"
 		(at 181.61 58.42 0)
 		(effects
@@ -8343,6 +8863,16 @@
 		)
 		(uuid "dd75a766-3905-4897-9ead-8881b51ab665")
 	)
+	(label "+9V_PD"
+		(at 160.02 227.33 90)
+		(effects
+			(font
+				(size 1.27 1.27)
+			)
+			(justify left bottom)
+		)
+		(uuid "e11c07b4-eab2-48a7-b6e5-148a8c2dd0a9")
+	)
 	(label "VM_SENSE"
 		(at 160.02 137.16 0)
 		(effects
@@ -8392,6 +8922,16 @@
 			(justify left bottom)
 		)
 		(uuid "e32c1c24-a650-4ce9-979a-ce67642766ec")
+	)
+	(label "PD_SENSE"
+		(at 280.67 67.31 0)
+		(effects
+			(font
+				(size 1.27 1.27)
+			)
+			(justify left bottom)
+		)
+		(uuid "e3e8170d-147f-4fbd-81ad-a9d4cd9501d7")
 	)
 	(label "F2_WIPER"
 		(at 179.07 190.5 180)
@@ -8443,6 +8983,16 @@
 		)
 		(uuid "ef5d7fd6-a08b-44e2-8dde-1ab450f4d435")
 	)
+	(label "BTN_GEN"
+		(at 340.36 146.05 90)
+		(effects
+			(font
+				(size 1.27 1.27)
+			)
+			(justify left bottom)
+		)
+		(uuid "f1783e80-6846-42e3-b8cb-a6cd730a98bf")
+	)
 	(label "SPI_MOSI"
 		(at 152.4 26.67 180)
 		(effects
@@ -8472,6 +9022,85 @@
 			(justify right bottom)
 		)
 		(uuid "ff7ce96e-6a41-45be-a72d-c0887b2ab200")
+	)
+	(symbol
+		(lib_id "Device:R")
+		(at 160.02 245.11 0)
+		(unit 1)
+		(body_style 1)
+		(exclude_from_sim no)
+		(in_bom yes)
+		(on_board yes)
+		(in_pos_files yes)
+		(dnp no)
+		(uuid "0152c4cf-1cb7-4727-9c89-4a6dd9e8d01c")
+		(property "Reference" "R_PD_SENSE_BOT1"
+			(at 166.37 243.84 0)
+			(show_name no)
+			(do_not_autoplace no)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+			)
+		)
+		(property "Value" "3.3kOhm"
+			(at 166.37 246.38 0)
+			(show_name no)
+			(do_not_autoplace no)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+			)
+		)
+		(property "Footprint" "Resistor_SMD:R_0805_2012Metric"
+			(at 160.02 245.11 0)
+			(hide yes)
+			(show_name no)
+			(do_not_autoplace no)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+			)
+		)
+		(property "Datasheet" ""
+			(at 160.02 245.11 0)
+			(hide yes)
+			(show_name no)
+			(do_not_autoplace no)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+			)
+		)
+		(property "Description" "Resistor"
+			(at 160.02 245.11 0)
+			(hide yes)
+			(show_name no)
+			(do_not_autoplace no)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+			)
+		)
+		(pin "1"
+			(uuid "eae5ae08-28e8-4730-b825-9a1c3cb150de")
+		)
+		(pin "2"
+			(uuid "d99abece-b867-4a14-b7f4-218322045b72")
+		)
+		(instances
+			(project "motorized-faders"
+				(path "/b7e3fc1e-7c8d-4632-8bd7-928f8e22b8b2"
+					(reference "R_PD_SENSE_BOT1")
+					(unit 1)
+				)
+			)
+		)
 	)
 	(symbol
 		(lib_id "power:GND")
@@ -8939,6 +9568,84 @@
 			(project "motorized-faders"
 				(path "/b7e3fc1e-7c8d-4632-8bd7-928f8e22b8b2"
 					(reference "#PWR020")
+					(unit 1)
+				)
+			)
+		)
+	)
+	(symbol
+		(lib_id "power:GNDPWR")
+		(at 63.5 260.35 0)
+		(unit 1)
+		(body_style 1)
+		(exclude_from_sim no)
+		(in_bom yes)
+		(on_board yes)
+		(in_pos_files yes)
+		(dnp no)
+		(uuid "0b76d89a-b530-4701-a766-581cbf9c4f60")
+		(property "Reference" "#PWR092"
+			(at 69.85 259.08 0)
+			(hide yes)
+			(show_name no)
+			(do_not_autoplace no)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+			)
+		)
+		(property "Value" "GNDPWR"
+			(at 69.85 261.62 0)
+			(show_name no)
+			(do_not_autoplace no)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+				(justify right)
+			)
+		)
+		(property "Footprint" "RF_GPS:Linx_RXM-GPS"
+			(at 63.5 260.35 0)
+			(hide yes)
+			(show_name no)
+			(do_not_autoplace no)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+			)
+		)
+		(property "Datasheet" ""
+			(at 63.5 260.35 0)
+			(hide yes)
+			(show_name no)
+			(do_not_autoplace no)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+			)
+		)
+		(property "Description" "Power symbol creates a global label with name \"GNDPWR\" , global ground"
+			(at 67.31 30.48 0)
+			(hide yes)
+			(show_name no)
+			(do_not_autoplace no)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+			)
+		)
+		(pin "1"
+			(uuid "8b4deb65-cbd9-46a0-917c-38983d30bc87")
+		)
+		(instances
+			(project "motorized-faders"
+				(path "/b7e3fc1e-7c8d-4632-8bd7-928f8e22b8b2"
+					(reference "#PWR092")
 					(unit 1)
 				)
 			)
@@ -9911,6 +10618,85 @@
 		)
 	)
 	(symbol
+		(lib_id "Switch:SW_Push")
+		(at 346.71 157.48 0)
+		(unit 1)
+		(body_style 1)
+		(exclude_from_sim no)
+		(in_bom yes)
+		(on_board yes)
+		(in_pos_files yes)
+		(dnp no)
+		(uuid "21d55e1e-81b9-4784-b7ab-01936eb1a11c")
+		(property "Reference" "SW_G4"
+			(at 346.71 153.67 0)
+			(show_name no)
+			(do_not_autoplace no)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+			)
+		)
+		(property "Value" "B3F-4050"
+			(at 346.71 161.29 0)
+			(show_name no)
+			(do_not_autoplace no)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+			)
+		)
+		(property "Footprint" "Connector_JST:JST_XH_B2B-XH-A_1x02_P2.50mm_Vertical"
+			(at 346.71 157.48 0)
+			(hide yes)
+			(show_name no)
+			(do_not_autoplace no)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+			)
+		)
+		(property "Datasheet" ""
+			(at 346.71 157.48 0)
+			(hide yes)
+			(show_name no)
+			(do_not_autoplace no)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+			)
+		)
+		(property "Description" "Push button switch, generic, two pins"
+			(at 346.71 157.48 0)
+			(hide yes)
+			(show_name no)
+			(do_not_autoplace no)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+			)
+		)
+		(pin "1"
+			(uuid "3cc20b3c-0020-44b6-8b63-4e04f94eea51")
+		)
+		(pin "2"
+			(uuid "91f61bb7-d8d6-49f2-9dde-faa9f03c2335")
+		)
+		(instances
+			(project "motorized-faders"
+				(path "/b7e3fc1e-7c8d-4632-8bd7-928f8e22b8b2"
+					(reference "SW_G4")
+					(unit 1)
+				)
+			)
+		)
+	)
+	(symbol
 		(lib_id "power:+9V")
 		(at 156.21 124.46 0)
 		(unit 1)
@@ -10306,6 +11092,84 @@
 		)
 	)
 	(symbol
+		(lib_id "power:GND")
+		(at 318.77 157.48 90)
+		(unit 1)
+		(body_style 1)
+		(exclude_from_sim no)
+		(in_bom yes)
+		(on_board yes)
+		(in_pos_files yes)
+		(dnp no)
+		(uuid "279aaffc-8f3d-44a5-9b0e-ddb9db40bb4b")
+		(property "Reference" "#PWR085"
+			(at 325.12 156.21 0)
+			(hide yes)
+			(show_name no)
+			(do_not_autoplace no)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+			)
+		)
+		(property "Value" "GND"
+			(at 325.12 158.75 0)
+			(show_name no)
+			(do_not_autoplace no)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+				(justify right)
+			)
+		)
+		(property "Footprint" ""
+			(at 318.77 157.48 0)
+			(hide yes)
+			(show_name no)
+			(do_not_autoplace no)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+			)
+		)
+		(property "Datasheet" ""
+			(at 318.77 157.48 0)
+			(hide yes)
+			(show_name no)
+			(do_not_autoplace no)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+			)
+		)
+		(property "Description" "Power symbol creates a global label with name \"GND\" , ground"
+			(at 237.49 129.54 0)
+			(hide yes)
+			(show_name no)
+			(do_not_autoplace no)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+			)
+		)
+		(pin "1"
+			(uuid "62f2e579-fb18-48d2-b50b-7e16a23b0263")
+		)
+		(instances
+			(project "motorized-faders"
+				(path "/b7e3fc1e-7c8d-4632-8bd7-928f8e22b8b2"
+					(reference "#PWR085")
+					(unit 1)
+				)
+			)
+		)
+	)
+	(symbol
 		(lib_id "power:+3V3")
 		(at 259.08 115.57 0)
 		(unit 1)
@@ -10378,6 +11242,410 @@
 			(project "motorized-faders"
 				(path "/b7e3fc1e-7c8d-4632-8bd7-928f8e22b8b2"
 					(reference "#PWR046")
+					(unit 1)
+				)
+			)
+		)
+	)
+	(wire
+		(pts
+			(xy 93.98 232.41) (xy 101.6 232.41)
+		)
+		(stroke
+			(width 0)
+			(type default)
+		)
+		(uuid "9b188cd7-1aba-408b-a47e-3bebb01f9311")
+	)
+	(wire
+		(pts
+			(xy 101.6 232.41) (xy 101.6 234.95)
+		)
+		(stroke
+			(width 0)
+			(type default)
+		)
+		(uuid "3db50681-7fd6-451d-a2ba-3b27f8848693")
+	)
+	(wire
+		(pts
+			(xy 83.82 246.38) (xy 101.6 246.38)
+		)
+		(stroke
+			(width 0)
+			(type default)
+		)
+		(uuid "28ee9910-cc70-48c9-bef8-be53bf0a137e")
+	)
+	(wire
+		(pts
+			(xy 101.6 242.57) (xy 101.6 246.38)
+		)
+		(stroke
+			(width 0)
+			(type default)
+		)
+		(uuid "0d951044-53e7-4cf5-8a13-9f6fc3634ff1")
+	)
+	(wire
+		(pts
+			(xy 101.6 246.38) (xy 101.6 250.19)
+		)
+		(stroke
+			(width 0)
+			(type default)
+		)
+		(uuid "9db24258-2260-49c7-b99c-15630daae673")
+	)
+	(wire
+		(pts
+			(xy 101.6 257.81) (xy 101.6 260.35)
+		)
+		(stroke
+			(width 0)
+			(type default)
+		)
+		(uuid "509067d3-f4be-4328-ad46-ee3ef3eb0cb1")
+	)
+	(junction
+		(at 93.98 232.41)
+		(diameter 0)
+		(color 0 0 0 0)
+		(uuid "635b3a7b-c513-45e6-b394-e66033e0dff0")
+	)
+	(junction
+		(at 101.6 246.38)
+		(diameter 0)
+		(color 0 0 0 0)
+		(uuid "7ab92874-85b6-467c-91fb-b0fc1e1dda36")
+	)
+	(text "Optional second stack: fit C_SC3 and C_SC4 together or not at all.\nOne alone overvolts the other cell."
+		(exclude_from_sim no)
+		(at 93.98 270.51 0)
+		(effects
+			(font
+				(size 1.27 1.27)
+			)
+			(justify left bottom)
+		)
+		(uuid "eb8a16e0-a646-4297-b84b-974e429134c0")
+	)
+	(symbol
+		(lib_id "Device:C_Polarized")
+		(at 101.6 238.76 0)
+		(unit 1)
+		(body_style 1)
+		(exclude_from_sim no)
+		(in_bom yes)
+		(on_board yes)
+		(in_pos_files yes)
+		(dnp yes)
+		(uuid "00ed9d6c-e6c4-406e-9dbe-a5d32a367f66")
+		(property "Reference" "C_SC3"
+			(at 107.95 237.49 0)
+			(show_name no)
+			(do_not_autoplace no)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+				(justify left)
+			)
+		)
+		(property "Value" "2.5F 5.4V"
+			(at 107.95 240.03 0)
+			(show_name no)
+			(do_not_autoplace no)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+				(justify left)
+			)
+		)
+		(property "Footprint" "motorized-faders:Supercap_Eaton_PHV-5R4V255-R"
+			(at 101.6 238.76 0)
+			(hide yes)
+			(show_name no)
+			(do_not_autoplace no)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+			)
+		)
+		(property "Datasheet" ""
+			(at 101.6 238.76 0)
+			(hide yes)
+			(show_name no)
+			(do_not_autoplace no)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+			)
+		)
+		(property "Description" "Polarized capacitor"
+			(at 101.6 238.76 0)
+			(hide yes)
+			(show_name no)
+			(do_not_autoplace no)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+			)
+		)
+		(pin "2"
+			(uuid "381f92a7-e7a7-4c0e-b8c8-543e12d242ad")
+		)
+		(pin "1"
+			(uuid "6986481f-ddeb-43d3-8b64-0470e1bf5004")
+		)
+		(instances
+			(project "motorized-faders"
+				(path "/b7e3fc1e-7c8d-4632-8bd7-928f8e22b8b2"
+					(reference "C_SC3")
+					(unit 1)
+				)
+			)
+		)
+	)
+	(symbol
+		(lib_id "Device:C_Polarized")
+		(at 101.6 254 0)
+		(unit 1)
+		(body_style 1)
+		(exclude_from_sim no)
+		(in_bom yes)
+		(on_board yes)
+		(in_pos_files yes)
+		(dnp yes)
+		(uuid "6bdd77a0-4aa2-4780-9e3b-fbe2b8816653")
+		(property "Reference" "C_SC4"
+			(at 107.95 252.73 0)
+			(show_name no)
+			(do_not_autoplace no)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+				(justify left)
+			)
+		)
+		(property "Value" "2.5F 5.4V"
+			(at 107.95 255.27 0)
+			(show_name no)
+			(do_not_autoplace no)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+				(justify left)
+			)
+		)
+		(property "Footprint" "motorized-faders:Supercap_Eaton_PHV-5R4V255-R"
+			(at 101.6 254 0)
+			(hide yes)
+			(show_name no)
+			(do_not_autoplace no)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+			)
+		)
+		(property "Datasheet" ""
+			(at 101.6 254 0)
+			(hide yes)
+			(show_name no)
+			(do_not_autoplace no)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+			)
+		)
+		(property "Description" "Polarized capacitor"
+			(at 101.6 254 0)
+			(hide yes)
+			(show_name no)
+			(do_not_autoplace no)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+			)
+		)
+		(pin "2"
+			(uuid "d781de08-decd-4a71-a9bc-b9e1115bb920")
+		)
+		(pin "1"
+			(uuid "91707f31-cb58-4804-8089-b25b35eac777")
+		)
+		(instances
+			(project "motorized-faders"
+				(path "/b7e3fc1e-7c8d-4632-8bd7-928f8e22b8b2"
+					(reference "C_SC4")
+					(unit 1)
+				)
+			)
+		)
+	)
+	(symbol
+		(lib_id "power:GNDPWR")
+		(at 101.6 260.35 0)
+		(unit 1)
+		(body_style 1)
+		(exclude_from_sim no)
+		(in_bom yes)
+		(on_board yes)
+		(in_pos_files yes)
+		(dnp no)
+		(uuid "91230003-ff96-4d08-9dfd-8e7c4a42e772")
+		(property "Reference" "#PWR098"
+			(at 107.95 259.08 0)
+			(hide yes)
+			(show_name no)
+			(do_not_autoplace no)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+			)
+		)
+		(property "Value" "GNDPWR"
+			(at 107.95 261.62 0)
+			(show_name no)
+			(do_not_autoplace no)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+				(justify right)
+			)
+		)
+		(property "Footprint" "RF_GPS:Linx_RXM-GPS"
+			(at 101.6 260.35 0)
+			(hide yes)
+			(show_name no)
+			(do_not_autoplace no)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+			)
+		)
+		(property "Datasheet" ""
+			(at 101.6 260.35 0)
+			(hide yes)
+			(show_name no)
+			(do_not_autoplace no)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+			)
+		)
+		(property "Description" "Power symbol creates a global label with name \"GNDPWR\" , global ground"
+			(at 85.09 30.48 0)
+			(hide yes)
+			(show_name no)
+			(do_not_autoplace no)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+			)
+		)
+		(pin "1"
+			(uuid "a7de09ff-804d-4749-8f52-c36f61e70b57")
+		)
+		(instances
+			(project "motorized-faders"
+				(path "/b7e3fc1e-7c8d-4632-8bd7-928f8e22b8b2"
+					(reference "#PWR098")
+					(unit 1)
+				)
+			)
+		)
+	)
+	(symbol
+		(lib_id "Device:C_Polarized")
+		(at 63.5 238.76 0)
+		(unit 1)
+		(body_style 1)
+		(exclude_from_sim no)
+		(in_bom yes)
+		(on_board yes)
+		(in_pos_files yes)
+		(dnp no)
+		(uuid "28b1dde7-6b71-40ef-9382-fb0e84b8de03")
+		(property "Reference" "C_SC1"
+			(at 69.85 237.49 0)
+			(show_name no)
+			(do_not_autoplace no)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+				(justify left)
+			)
+		)
+		(property "Value" "2.5F 5.4V"
+			(at 69.85 240.03 0)
+			(show_name no)
+			(do_not_autoplace no)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+				(justify left)
+			)
+		)
+		(property "Footprint" "motorized-faders:Supercap_Eaton_PHV-5R4V255-R"
+			(at 63.5 238.76 0)
+			(hide yes)
+			(show_name no)
+			(do_not_autoplace no)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+			)
+		)
+		(property "Datasheet" ""
+			(at 63.5 238.76 0)
+			(hide yes)
+			(show_name no)
+			(do_not_autoplace no)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+			)
+		)
+		(property "Description" "Polarized capacitor"
+			(at 63.5 238.76 0)
+			(hide yes)
+			(show_name no)
+			(do_not_autoplace no)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+			)
+		)
+		(pin "2"
+			(uuid "2439ffe4-882e-47d5-a2e9-09f766aa01c9")
+		)
+		(pin "1"
+			(uuid "e0c7e318-1e1d-4bd2-9bbf-6881577a2ecd")
+		)
+		(instances
+			(project "motorized-faders"
+				(path "/b7e3fc1e-7c8d-4632-8bd7-928f8e22b8b2"
+					(reference "C_SC1")
 					(unit 1)
 				)
 			)
@@ -11255,6 +12523,83 @@
 		)
 	)
 	(symbol
+		(lib_id "power:+9V")
+		(at 138.43 220.98 270)
+		(unit 1)
+		(body_style 1)
+		(exclude_from_sim no)
+		(in_bom yes)
+		(on_board yes)
+		(in_pos_files yes)
+		(dnp no)
+		(uuid "42662caa-987e-4ada-8f40-9af48275957b")
+		(property "Reference" "#PWR094"
+			(at 144.78 219.71 0)
+			(hide yes)
+			(show_name no)
+			(do_not_autoplace no)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+			)
+		)
+		(property "Value" "+9V"
+			(at 144.78 222.25 0)
+			(show_name no)
+			(do_not_autoplace no)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+			)
+		)
+		(property "Footprint" ""
+			(at 138.43 220.98 0)
+			(hide yes)
+			(show_name no)
+			(do_not_autoplace no)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+			)
+		)
+		(property "Datasheet" ""
+			(at 138.43 220.98 0)
+			(hide yes)
+			(show_name no)
+			(do_not_autoplace no)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+			)
+		)
+		(property "Description" "Power symbol creates a global label with name \"+9V\""
+			(at 44.45 114.3 0)
+			(hide yes)
+			(show_name no)
+			(do_not_autoplace no)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+			)
+		)
+		(pin "1"
+			(uuid "b019d019-c3dc-42a1-a557-11845e5bd8f9")
+		)
+		(instances
+			(project "motorized-faders"
+				(path "/b7e3fc1e-7c8d-4632-8bd7-928f8e22b8b2"
+					(reference "#PWR094")
+					(unit 1)
+				)
+			)
+		)
+	)
+	(symbol
 		(lib_id "Device:C")
 		(at 265.43 92.71 0)
 		(unit 1)
@@ -11337,6 +12682,87 @@
 		)
 	)
 	(symbol
+		(lib_id "Device:C_Polarized")
+		(at 25.4 241.3 0)
+		(unit 1)
+		(body_style 1)
+		(exclude_from_sim no)
+		(in_bom yes)
+		(on_board yes)
+		(in_pos_files yes)
+		(dnp no)
+		(uuid "43b5186a-ec84-4de4-baa3-ebfb11fb19df")
+		(property "Reference" "C_BOOST_IN1"
+			(at 31.75 240.03 0)
+			(show_name no)
+			(do_not_autoplace no)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+				(justify left)
+			)
+		)
+		(property "Value" "100uF electrolytic"
+			(at 31.75 242.57 0)
+			(show_name no)
+			(do_not_autoplace no)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+				(justify left)
+			)
+		)
+		(property "Footprint" "Capacitor_THT:CP_Radial_D8.0mm_P5.00mm"
+			(at 25.4 241.3 0)
+			(hide yes)
+			(show_name no)
+			(do_not_autoplace no)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+			)
+		)
+		(property "Datasheet" ""
+			(at 25.4 241.3 0)
+			(hide yes)
+			(show_name no)
+			(do_not_autoplace no)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+			)
+		)
+		(property "Description" "Polarized capacitor"
+			(at 25.4 241.3 0)
+			(hide yes)
+			(show_name no)
+			(do_not_autoplace no)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+			)
+		)
+		(pin "2"
+			(uuid "ca92233b-8ab1-4563-82ab-441e074f62e1")
+		)
+		(pin "1"
+			(uuid "35b33b7b-cd5f-46fa-a0f3-2894c2339bc0")
+		)
+		(instances
+			(project "motorized-faders"
+				(path "/b7e3fc1e-7c8d-4632-8bd7-928f8e22b8b2"
+					(reference "C_BOOST_IN1")
+					(unit 1)
+				)
+			)
+		)
+	)
+	(symbol
 		(lib_id "Device:NetTie_2")
 		(at 10.16 20.32 0)
 		(unit 1)
@@ -11411,6 +12837,93 @@
 			(project "motorized-faders"
 				(path "/b7e3fc1e-7c8d-4632-8bd7-928f8e22b8b2"
 					(reference "NT1")
+					(unit 1)
+				)
+			)
+		)
+	)
+	(symbol
+		(lib_id "Connector_Generic:Conn_01x04")
+		(at 40.64 223.52 0)
+		(unit 1)
+		(body_style 1)
+		(exclude_from_sim no)
+		(in_bom yes)
+		(on_board yes)
+		(in_pos_files yes)
+		(dnp no)
+		(uuid "45c9fc05-c401-4e0a-8e03-67367d835cd1")
+		(property "Reference" "J_BOOST1"
+			(at 46.99 222.25 0)
+			(show_name no)
+			(do_not_autoplace no)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+				(justify left)
+			)
+		)
+		(property "Value" "Boost CC/CV"
+			(at 46.99 224.79 0)
+			(show_name no)
+			(do_not_autoplace no)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+				(justify left)
+			)
+		)
+		(property "Footprint" "Connector_JST:JST_XH_B4B-XH-A_1x04_P2.50mm_Vertical"
+			(at 40.64 223.52 0)
+			(hide yes)
+			(show_name no)
+			(do_not_autoplace no)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+			)
+		)
+		(property "Datasheet" ""
+			(at 40.64 223.52 0)
+			(hide yes)
+			(show_name no)
+			(do_not_autoplace no)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+			)
+		)
+		(property "Description" "Generic connector, single row, 01x04, script generated (kicad-library-utils/schlib/autogen/connector/)"
+			(at 40.64 223.52 0)
+			(hide yes)
+			(show_name no)
+			(do_not_autoplace no)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+			)
+		)
+		(pin "1"
+			(uuid "d4e58893-985f-478a-a0ba-353ece4a25b9")
+		)
+		(pin "3"
+			(uuid "c0cadc39-1c22-459e-97bd-2859a1165833")
+		)
+		(pin "2"
+			(uuid "c44ee339-f6d9-44af-aad1-fe40e367b2cb")
+		)
+		(pin "4"
+			(uuid "713bb2a4-e0fe-461b-8741-ea141ab4444a")
+		)
+		(instances
+			(project "motorized-faders"
+				(path "/b7e3fc1e-7c8d-4632-8bd7-928f8e22b8b2"
+					(reference "J_BOOST1")
 					(unit 1)
 				)
 			)
@@ -11653,6 +13166,87 @@
 		)
 	)
 	(symbol
+		(lib_id "Device:C_Polarized")
+		(at 63.5 254 0)
+		(unit 1)
+		(body_style 1)
+		(exclude_from_sim no)
+		(in_bom yes)
+		(on_board yes)
+		(in_pos_files yes)
+		(dnp no)
+		(uuid "4a3f6b1a-9b99-4d38-9250-39437d147817")
+		(property "Reference" "C_SC2"
+			(at 69.85 252.73 0)
+			(show_name no)
+			(do_not_autoplace no)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+				(justify left)
+			)
+		)
+		(property "Value" "2.5F 5.4V"
+			(at 69.85 255.27 0)
+			(show_name no)
+			(do_not_autoplace no)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+				(justify left)
+			)
+		)
+		(property "Footprint" "motorized-faders:Supercap_Eaton_PHV-5R4V255-R"
+			(at 63.5 254 0)
+			(hide yes)
+			(show_name no)
+			(do_not_autoplace no)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+			)
+		)
+		(property "Datasheet" ""
+			(at 63.5 254 0)
+			(hide yes)
+			(show_name no)
+			(do_not_autoplace no)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+			)
+		)
+		(property "Description" "Polarized capacitor"
+			(at 63.5 254 0)
+			(hide yes)
+			(show_name no)
+			(do_not_autoplace no)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+			)
+		)
+		(pin "2"
+			(uuid "3c6405df-14b7-4271-aa11-95b018fcba9a")
+		)
+		(pin "1"
+			(uuid "1ff2c9d8-46bf-4883-b94f-f6f6194838f1")
+		)
+		(instances
+			(project "motorized-faders"
+				(path "/b7e3fc1e-7c8d-4632-8bd7-928f8e22b8b2"
+					(reference "C_SC2")
+					(unit 1)
+				)
+			)
+		)
+	)
+	(symbol
 		(lib_id "Device:C")
 		(at 29.21 19.05 0)
 		(unit 1)
@@ -11808,6 +13402,83 @@
 			(project "motorized-faders"
 				(path "/b7e3fc1e-7c8d-4632-8bd7-928f8e22b8b2"
 					(reference "TP_3V3")
+					(unit 1)
+				)
+			)
+		)
+	)
+	(symbol
+		(lib_id "power:+5V")
+		(at 27.94 220.98 90)
+		(unit 1)
+		(body_style 1)
+		(exclude_from_sim no)
+		(in_bom yes)
+		(on_board yes)
+		(in_pos_files yes)
+		(dnp no)
+		(uuid "52031d1b-4226-4263-8cc8-59d1e19c528c")
+		(property "Reference" "#PWR088"
+			(at 34.29 219.71 0)
+			(hide yes)
+			(show_name no)
+			(do_not_autoplace no)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+			)
+		)
+		(property "Value" "+5V"
+			(at 34.29 222.25 0)
+			(show_name no)
+			(do_not_autoplace no)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+			)
+		)
+		(property "Footprint" ""
+			(at 27.94 220.98 0)
+			(hide yes)
+			(show_name no)
+			(do_not_autoplace no)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+			)
+		)
+		(property "Datasheet" ""
+			(at 27.94 220.98 0)
+			(hide yes)
+			(show_name no)
+			(do_not_autoplace no)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+			)
+		)
+		(property "Description" "Power symbol creates a global label with name \"+5V\""
+			(at 100.33 76.2 0)
+			(hide yes)
+			(show_name no)
+			(do_not_autoplace no)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+			)
+		)
+		(pin "1"
+			(uuid "18a959bf-9081-4238-8144-9f3adbb2c411")
+		)
+		(instances
+			(project "motorized-faders"
+				(path "/b7e3fc1e-7c8d-4632-8bd7-928f8e22b8b2"
+					(reference "#PWR088")
 					(unit 1)
 				)
 			)
@@ -13236,6 +14907,85 @@
 	)
 	(symbol
 		(lib_id "Device:R")
+		(at 340.36 152.4 0)
+		(unit 1)
+		(body_style 1)
+		(exclude_from_sim no)
+		(in_bom yes)
+		(on_board yes)
+		(in_pos_files yes)
+		(dnp no)
+		(uuid "70a913dd-68ca-4d34-9e7e-49b9ff89e284")
+		(property "Reference" "R_SW_G4"
+			(at 334.01 151.13 0)
+			(show_name no)
+			(do_not_autoplace no)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+			)
+		)
+		(property "Value" "10kOhm"
+			(at 334.01 153.67 0)
+			(show_name no)
+			(do_not_autoplace no)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+			)
+		)
+		(property "Footprint" "Resistor_SMD:R_0805_2012Metric"
+			(at 340.36 152.4 0)
+			(hide yes)
+			(show_name no)
+			(do_not_autoplace no)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+			)
+		)
+		(property "Datasheet" ""
+			(at 340.36 152.4 0)
+			(hide yes)
+			(show_name no)
+			(do_not_autoplace no)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+			)
+		)
+		(property "Description" "Resistor"
+			(at 340.36 152.4 0)
+			(hide yes)
+			(show_name no)
+			(do_not_autoplace no)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+			)
+		)
+		(pin "1"
+			(uuid "0e3339c0-8ec0-4bf4-902d-2cf30f62b030")
+		)
+		(pin "2"
+			(uuid "bb288e7a-44ef-4587-933a-f6df3454d4ad")
+		)
+		(instances
+			(project "motorized-faders"
+				(path "/b7e3fc1e-7c8d-4632-8bd7-928f8e22b8b2"
+					(reference "R_SW_G4")
+					(unit 1)
+				)
+			)
+		)
+	)
+	(symbol
+		(lib_id "Device:R")
 		(at 156.21 143.51 0)
 		(unit 1)
 		(body_style 1)
@@ -13472,6 +15222,84 @@
 			(project "motorized-faders"
 				(path "/b7e3fc1e-7c8d-4632-8bd7-928f8e22b8b2"
 					(reference "C_VCC_B1")
+					(unit 1)
+				)
+			)
+		)
+	)
+	(symbol
+		(lib_id "power:GNDPWR")
+		(at 25.4 247.65 0)
+		(unit 1)
+		(body_style 1)
+		(exclude_from_sim no)
+		(in_bom yes)
+		(on_board yes)
+		(in_pos_files yes)
+		(dnp no)
+		(uuid "77a3eafb-47f4-4317-a94a-01aa96925348")
+		(property "Reference" "#PWR091"
+			(at 31.75 246.38 0)
+			(hide yes)
+			(show_name no)
+			(do_not_autoplace no)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+			)
+		)
+		(property "Value" "GNDPWR"
+			(at 31.75 248.92 0)
+			(show_name no)
+			(do_not_autoplace no)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+				(justify right)
+			)
+		)
+		(property "Footprint" "RF_GPS:Linx_RXM-GPS"
+			(at 25.4 247.65 0)
+			(hide yes)
+			(show_name no)
+			(do_not_autoplace no)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+			)
+		)
+		(property "Datasheet" ""
+			(at 25.4 247.65 0)
+			(hide yes)
+			(show_name no)
+			(do_not_autoplace no)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+			)
+		)
+		(property "Description" "Power symbol creates a global label with name \"GNDPWR\" , global ground"
+			(at 67.31 30.48 0)
+			(hide yes)
+			(show_name no)
+			(do_not_autoplace no)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+			)
+		)
+		(pin "1"
+			(uuid "c4577a4e-4ab8-484d-ab62-262fa63f5c82")
+		)
+		(instances
+			(project "motorized-faders"
+				(path "/b7e3fc1e-7c8d-4632-8bd7-928f8e22b8b2"
+					(reference "#PWR091")
 					(unit 1)
 				)
 			)
@@ -13793,6 +15621,85 @@
 		)
 	)
 	(symbol
+		(lib_id "Device:D_Schottky")
+		(at 127 220.98 180)
+		(unit 1)
+		(body_style 1)
+		(exclude_from_sim no)
+		(in_bom yes)
+		(on_board yes)
+		(in_pos_files yes)
+		(dnp no)
+		(uuid "7f81379f-e21e-41ad-8d9c-e5cf04d9a63f")
+		(property "Reference" "D_BOOST1"
+			(at 123.19 217.17 0)
+			(show_name no)
+			(do_not_autoplace no)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+			)
+		)
+		(property "Value" "B540C"
+			(at 123.19 224.79 0)
+			(show_name no)
+			(do_not_autoplace no)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+			)
+		)
+		(property "Footprint" "Diode_SMD:D_SMC_Handsoldering"
+			(at 127 220.98 0)
+			(hide yes)
+			(show_name no)
+			(do_not_autoplace no)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+			)
+		)
+		(property "Datasheet" ""
+			(at 127 220.98 0)
+			(hide yes)
+			(show_name no)
+			(do_not_autoplace no)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+			)
+		)
+		(property "Description" "Schottky diode"
+			(at 127 220.98 0)
+			(hide yes)
+			(show_name no)
+			(do_not_autoplace no)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+			)
+		)
+		(pin "1"
+			(uuid "ea5f78a2-5846-4204-a945-36856191037e")
+		)
+		(pin "2"
+			(uuid "a940ee30-d288-49d0-a423-04adccab36f2")
+		)
+		(instances
+			(project "motorized-faders"
+				(path "/b7e3fc1e-7c8d-4632-8bd7-928f8e22b8b2"
+					(reference "D_BOOST1")
+					(unit 1)
+				)
+			)
+		)
+	)
+	(symbol
 		(lib_id "Device:C")
 		(at 237.49 196.85 0)
 		(unit 1)
@@ -13955,6 +15862,85 @@
 		)
 	)
 	(symbol
+		(lib_id "power:GNDPWR")
+		(at 27.94 223.52 270)
+		(unit 1)
+		(body_style 1)
+		(exclude_from_sim no)
+		(in_bom yes)
+		(on_board yes)
+		(in_pos_files yes)
+		(dnp no)
+		(uuid "8a92e4c9-70c7-4e39-9645-8a6e7737e3ca")
+		(property "Reference" "#PWR087"
+			(at 34.29 222.25 0)
+			(hide yes)
+			(show_name no)
+			(do_not_autoplace no)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+			)
+		)
+		(property "Value" "GNDPWR"
+			(at 34.29 224.79 0)
+			(hide yes)
+			(show_name no)
+			(do_not_autoplace no)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+				(justify right)
+			)
+		)
+		(property "Footprint" "RF_GPS:Linx_RXM-GPS"
+			(at 27.94 223.52 0)
+			(hide yes)
+			(show_name no)
+			(do_not_autoplace no)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+			)
+		)
+		(property "Datasheet" ""
+			(at 27.94 223.52 0)
+			(hide yes)
+			(show_name no)
+			(do_not_autoplace no)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+			)
+		)
+		(property "Description" "Power symbol creates a global label with name \"GNDPWR\" , global ground"
+			(at 67.31 30.48 0)
+			(hide yes)
+			(show_name no)
+			(do_not_autoplace no)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+			)
+		)
+		(pin "1"
+			(uuid "620693f6-1dbe-4547-bb36-cd2e639c0dd2")
+		)
+		(instances
+			(project "motorized-faders"
+				(path "/b7e3fc1e-7c8d-4632-8bd7-928f8e22b8b2"
+					(reference "#PWR087")
+					(unit 1)
+				)
+			)
+		)
+	)
+	(symbol
 		(lib_id "power:+9V")
 		(at 199.39 55.88 90)
 		(unit 1)
@@ -14028,6 +16014,84 @@
 			(project "motorized-faders"
 				(path "/b7e3fc1e-7c8d-4632-8bd7-928f8e22b8b2"
 					(reference "#PWR074")
+					(unit 1)
+				)
+			)
+		)
+	)
+	(symbol
+		(lib_id "power:GNDPWR")
+		(at 83.82 260.35 0)
+		(unit 1)
+		(body_style 1)
+		(exclude_from_sim no)
+		(in_bom yes)
+		(on_board yes)
+		(in_pos_files yes)
+		(dnp no)
+		(uuid "8e6d3caf-7c7f-4238-8b46-dd6b200c8568")
+		(property "Reference" "#PWR093"
+			(at 90.17 259.08 0)
+			(hide yes)
+			(show_name no)
+			(do_not_autoplace no)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+			)
+		)
+		(property "Value" "GNDPWR"
+			(at 90.17 261.62 0)
+			(show_name no)
+			(do_not_autoplace no)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+				(justify right)
+			)
+		)
+		(property "Footprint" "RF_GPS:Linx_RXM-GPS"
+			(at 83.82 260.35 0)
+			(hide yes)
+			(show_name no)
+			(do_not_autoplace no)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+			)
+		)
+		(property "Datasheet" ""
+			(at 83.82 260.35 0)
+			(hide yes)
+			(show_name no)
+			(do_not_autoplace no)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+			)
+		)
+		(property "Description" "Power symbol creates a global label with name \"GNDPWR\" , global ground"
+			(at 67.31 30.48 0)
+			(hide yes)
+			(show_name no)
+			(do_not_autoplace no)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+			)
+		)
+		(pin "1"
+			(uuid "daa21a0f-5dc3-42cb-869e-bfba8e749609")
+		)
+		(instances
+			(project "motorized-faders"
+				(path "/b7e3fc1e-7c8d-4632-8bd7-928f8e22b8b2"
+					(reference "#PWR093")
 					(unit 1)
 				)
 			)
@@ -14266,6 +16330,87 @@
 			(project "motorized-faders"
 				(path "/b7e3fc1e-7c8d-4632-8bd7-928f8e22b8b2"
 					(reference "#PWR059")
+					(unit 1)
+				)
+			)
+		)
+	)
+	(symbol
+		(lib_id "Device:C")
+		(at 172.72 243.84 0)
+		(unit 1)
+		(body_style 1)
+		(exclude_from_sim no)
+		(in_bom yes)
+		(on_board yes)
+		(in_pos_files yes)
+		(dnp no)
+		(uuid "9792fbda-2ce2-42d1-b80a-b08ae397af78")
+		(property "Reference" "C_PD_SENSE1"
+			(at 179.07 242.57 0)
+			(show_name no)
+			(do_not_autoplace no)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+				(justify left)
+			)
+		)
+		(property "Value" "100nF"
+			(at 179.07 245.11 0)
+			(show_name no)
+			(do_not_autoplace no)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+				(justify left)
+			)
+		)
+		(property "Footprint" "Capacitor_SMD:C_0805_2012Metric"
+			(at 172.72 243.84 0)
+			(hide yes)
+			(show_name no)
+			(do_not_autoplace no)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+			)
+		)
+		(property "Datasheet" ""
+			(at 172.72 243.84 0)
+			(hide yes)
+			(show_name no)
+			(do_not_autoplace no)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+			)
+		)
+		(property "Description" "Unpolarized capacitor"
+			(at 172.72 243.84 0)
+			(hide yes)
+			(show_name no)
+			(do_not_autoplace no)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+			)
+		)
+		(pin "2"
+			(uuid "d2fa0455-10a7-4a1e-bf54-ec89cce78fbc")
+		)
+		(pin "1"
+			(uuid "07498a0e-0dee-415b-a348-566bd8eef6ed")
+		)
+		(instances
+			(project "motorized-faders"
+				(path "/b7e3fc1e-7c8d-4632-8bd7-928f8e22b8b2"
+					(reference "C_PD_SENSE1")
 					(unit 1)
 				)
 			)
@@ -15311,6 +17456,84 @@
 		)
 	)
 	(symbol
+		(lib_id "power:GND")
+		(at 160.02 251.46 0)
+		(unit 1)
+		(body_style 1)
+		(exclude_from_sim no)
+		(in_bom yes)
+		(on_board yes)
+		(in_pos_files yes)
+		(dnp no)
+		(uuid "b007b508-8030-400d-a2ee-f632d39223ce")
+		(property "Reference" "#PWR096"
+			(at 166.37 250.19 0)
+			(hide yes)
+			(show_name no)
+			(do_not_autoplace no)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+			)
+		)
+		(property "Value" "GND"
+			(at 166.37 252.73 0)
+			(show_name no)
+			(do_not_autoplace no)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+				(justify right)
+			)
+		)
+		(property "Footprint" ""
+			(at 160.02 251.46 0)
+			(hide yes)
+			(show_name no)
+			(do_not_autoplace no)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+			)
+		)
+		(property "Datasheet" ""
+			(at 160.02 251.46 0)
+			(hide yes)
+			(show_name no)
+			(do_not_autoplace no)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+			)
+		)
+		(property "Description" "Power symbol creates a global label with name \"GND\" , ground"
+			(at 237.49 129.54 0)
+			(hide yes)
+			(show_name no)
+			(do_not_autoplace no)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+			)
+		)
+		(pin "1"
+			(uuid "4d8b0f3e-c766-4f95-b331-11d888701b9f")
+		)
+		(instances
+			(project "motorized-faders"
+				(path "/b7e3fc1e-7c8d-4632-8bd7-928f8e22b8b2"
+					(reference "#PWR096")
+					(unit 1)
+				)
+			)
+		)
+	)
+	(symbol
 		(lib_id "Device:R")
 		(at 274.32 191.77 90)
 		(unit 1)
@@ -15547,6 +17770,84 @@
 		)
 	)
 	(symbol
+		(lib_id "power:GND")
+		(at 354.33 157.48 90)
+		(unit 1)
+		(body_style 1)
+		(exclude_from_sim no)
+		(in_bom yes)
+		(on_board yes)
+		(in_pos_files yes)
+		(dnp no)
+		(uuid "b667e935-1fcb-465e-b223-3c2fde9f7f83")
+		(property "Reference" "#PWR086"
+			(at 360.68 156.21 0)
+			(hide yes)
+			(show_name no)
+			(do_not_autoplace no)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+			)
+		)
+		(property "Value" "GND"
+			(at 360.68 158.75 0)
+			(show_name no)
+			(do_not_autoplace no)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+				(justify right)
+			)
+		)
+		(property "Footprint" ""
+			(at 354.33 157.48 0)
+			(hide yes)
+			(show_name no)
+			(do_not_autoplace no)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+			)
+		)
+		(property "Datasheet" ""
+			(at 354.33 157.48 0)
+			(hide yes)
+			(show_name no)
+			(do_not_autoplace no)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+			)
+		)
+		(property "Description" "Power symbol creates a global label with name \"GND\" , ground"
+			(at 237.49 129.54 0)
+			(hide yes)
+			(show_name no)
+			(do_not_autoplace no)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+			)
+		)
+		(pin "1"
+			(uuid "dcd56d06-1430-45ca-b4cf-051c47c5526c")
+		)
+		(instances
+			(project "motorized-faders"
+				(path "/b7e3fc1e-7c8d-4632-8bd7-928f8e22b8b2"
+					(reference "#PWR086")
+					(unit 1)
+				)
+			)
+		)
+	)
+	(symbol
 		(lib_id "power:GNDPWR")
 		(at 160.02 73.66 270)
 		(unit 1)
@@ -15698,6 +17999,84 @@
 			(project "motorized-faders"
 				(path "/b7e3fc1e-7c8d-4632-8bd7-928f8e22b8b2"
 					(reference "#PWR060")
+					(unit 1)
+				)
+			)
+		)
+	)
+	(symbol
+		(lib_id "Connector:TestPoint")
+		(at 133.35 238.76 180)
+		(unit 1)
+		(body_style 1)
+		(exclude_from_sim no)
+		(in_bom yes)
+		(on_board yes)
+		(in_pos_files yes)
+		(dnp no)
+		(uuid "be12e13d-8a58-47db-b4c2-58146187f8e3")
+		(property "Reference" "TP_9V1"
+			(at 137.16 242.57 0)
+			(show_name no)
+			(do_not_autoplace no)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+				(justify left)
+			)
+		)
+		(property "Value" "TestPoint"
+			(at 137.16 245.11 0)
+			(show_name no)
+			(do_not_autoplace no)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+				(justify left)
+			)
+		)
+		(property "Footprint" "TestPoint:TestPoint_THTPad_D1.5mm_Drill0.7mm"
+			(at 133.35 238.76 0)
+			(hide yes)
+			(show_name no)
+			(do_not_autoplace no)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+			)
+		)
+		(property "Datasheet" ""
+			(at 133.35 238.76 0)
+			(hide yes)
+			(show_name no)
+			(do_not_autoplace no)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+			)
+		)
+		(property "Description" "test point"
+			(at 133.35 238.76 0)
+			(hide yes)
+			(show_name no)
+			(do_not_autoplace no)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+			)
+		)
+		(pin "1"
+			(uuid "8e8c16a2-6bd3-4331-bdcd-5879db60d8b1")
+		)
+		(instances
+			(project "motorized-faders"
+				(path "/b7e3fc1e-7c8d-4632-8bd7-928f8e22b8b2"
+					(reference "TP_9V1")
 					(unit 1)
 				)
 			)
@@ -16739,6 +19118,85 @@
 		)
 	)
 	(symbol
+		(lib_id "Device:R")
+		(at 160.02 233.68 0)
+		(unit 1)
+		(body_style 1)
+		(exclude_from_sim no)
+		(in_bom yes)
+		(on_board yes)
+		(in_pos_files yes)
+		(dnp no)
+		(uuid "d6215dd4-f331-45b4-8feb-1801af5e551c")
+		(property "Reference" "R_PD_SENSE_TOP1"
+			(at 166.37 232.41 0)
+			(show_name no)
+			(do_not_autoplace no)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+			)
+		)
+		(property "Value" "10kOhm"
+			(at 166.37 234.95 0)
+			(show_name no)
+			(do_not_autoplace no)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+			)
+		)
+		(property "Footprint" "Resistor_SMD:R_0805_2012Metric"
+			(at 160.02 233.68 0)
+			(hide yes)
+			(show_name no)
+			(do_not_autoplace no)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+			)
+		)
+		(property "Datasheet" ""
+			(at 160.02 233.68 0)
+			(hide yes)
+			(show_name no)
+			(do_not_autoplace no)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+			)
+		)
+		(property "Description" "Resistor"
+			(at 160.02 233.68 0)
+			(hide yes)
+			(show_name no)
+			(do_not_autoplace no)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+			)
+		)
+		(pin "1"
+			(uuid "104720ae-7863-45fd-9e15-b56b1f0c1683")
+		)
+		(pin "2"
+			(uuid "78aa44d7-35f3-4464-b9cf-634e79037692")
+		)
+		(instances
+			(project "motorized-faders"
+				(path "/b7e3fc1e-7c8d-4632-8bd7-928f8e22b8b2"
+					(reference "R_PD_SENSE_TOP1")
+					(unit 1)
+				)
+			)
+		)
+	)
+	(symbol
 		(lib_id "power:GND")
 		(at 191.77 8.89 270)
 		(unit 1)
@@ -17146,6 +19604,84 @@
 			(project "motorized-faders"
 				(path "/b7e3fc1e-7c8d-4632-8bd7-928f8e22b8b2"
 					(reference "#PWR012")
+					(unit 1)
+				)
+			)
+		)
+	)
+	(symbol
+		(lib_id "power:GND")
+		(at 172.72 250.19 0)
+		(unit 1)
+		(body_style 1)
+		(exclude_from_sim no)
+		(in_bom yes)
+		(on_board yes)
+		(in_pos_files yes)
+		(dnp no)
+		(uuid "de0c01e8-4f4e-441e-8d51-ab49b049211d")
+		(property "Reference" "#PWR097"
+			(at 179.07 248.92 0)
+			(hide yes)
+			(show_name no)
+			(do_not_autoplace no)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+			)
+		)
+		(property "Value" "GND"
+			(at 179.07 251.46 0)
+			(show_name no)
+			(do_not_autoplace no)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+				(justify right)
+			)
+		)
+		(property "Footprint" ""
+			(at 172.72 250.19 0)
+			(hide yes)
+			(show_name no)
+			(do_not_autoplace no)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+			)
+		)
+		(property "Datasheet" ""
+			(at 172.72 250.19 0)
+			(hide yes)
+			(show_name no)
+			(do_not_autoplace no)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+			)
+		)
+		(property "Description" "Power symbol creates a global label with name \"GND\" , ground"
+			(at 237.49 129.54 0)
+			(hide yes)
+			(show_name no)
+			(do_not_autoplace no)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+			)
+		)
+		(pin "1"
+			(uuid "5264e355-2769-4ddc-8004-d4edf0913a9d")
+		)
+		(instances
+			(project "motorized-faders"
+				(path "/b7e3fc1e-7c8d-4632-8bd7-928f8e22b8b2"
+					(reference "#PWR097")
 					(unit 1)
 				)
 			)
@@ -18052,6 +20588,239 @@
 		)
 	)
 	(symbol
+		(lib_id "Device:R")
+		(at 83.82 238.76 0)
+		(unit 1)
+		(body_style 1)
+		(exclude_from_sim no)
+		(in_bom yes)
+		(on_board yes)
+		(in_pos_files yes)
+		(dnp no)
+		(uuid "ed193ae9-65b8-4d3c-9062-a8ecbcfe6b84")
+		(property "Reference" "R_SC_BAL1"
+			(at 90.17 237.49 0)
+			(show_name no)
+			(do_not_autoplace no)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+			)
+		)
+		(property "Value" "4.7kOhm"
+			(at 90.17 240.03 0)
+			(show_name no)
+			(do_not_autoplace no)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+			)
+		)
+		(property "Footprint" "Resistor_SMD:R_0805_2012Metric"
+			(at 83.82 238.76 0)
+			(hide yes)
+			(show_name no)
+			(do_not_autoplace no)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+			)
+		)
+		(property "Datasheet" ""
+			(at 83.82 238.76 0)
+			(hide yes)
+			(show_name no)
+			(do_not_autoplace no)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+			)
+		)
+		(property "Description" "Resistor"
+			(at 83.82 238.76 0)
+			(hide yes)
+			(show_name no)
+			(do_not_autoplace no)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+			)
+		)
+		(pin "1"
+			(uuid "2481aba2-cf66-4df8-b51d-13b36cc672ca")
+		)
+		(pin "2"
+			(uuid "2f1cae46-bdba-4bae-b16d-cdf9b962c5d8")
+		)
+		(instances
+			(project "motorized-faders"
+				(path "/b7e3fc1e-7c8d-4632-8bd7-928f8e22b8b2"
+					(reference "R_SC_BAL1")
+					(unit 1)
+				)
+			)
+		)
+	)
+	(symbol
+		(lib_id "power:+5V")
+		(at 25.4 234.95 0)
+		(unit 1)
+		(body_style 1)
+		(exclude_from_sim no)
+		(in_bom yes)
+		(on_board yes)
+		(in_pos_files yes)
+		(dnp no)
+		(uuid "eedef0bd-216e-4b0b-b43a-9eafc4602c1e")
+		(property "Reference" "#PWR090"
+			(at 31.75 233.68 0)
+			(hide yes)
+			(show_name no)
+			(do_not_autoplace no)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+			)
+		)
+		(property "Value" "+5V"
+			(at 31.75 236.22 0)
+			(show_name no)
+			(do_not_autoplace no)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+			)
+		)
+		(property "Footprint" ""
+			(at 25.4 234.95 0)
+			(hide yes)
+			(show_name no)
+			(do_not_autoplace no)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+			)
+		)
+		(property "Datasheet" ""
+			(at 25.4 234.95 0)
+			(hide yes)
+			(show_name no)
+			(do_not_autoplace no)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+			)
+		)
+		(property "Description" "Power symbol creates a global label with name \"+5V\""
+			(at 100.33 76.2 0)
+			(hide yes)
+			(show_name no)
+			(do_not_autoplace no)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+			)
+		)
+		(pin "1"
+			(uuid "d79117e8-e2a3-415b-b137-f3e1e1f4f26a")
+		)
+		(instances
+			(project "motorized-faders"
+				(path "/b7e3fc1e-7c8d-4632-8bd7-928f8e22b8b2"
+					(reference "#PWR090")
+					(unit 1)
+				)
+			)
+		)
+	)
+	(symbol
+		(lib_id "power:+9V")
+		(at 138.43 233.68 270)
+		(unit 1)
+		(body_style 1)
+		(exclude_from_sim no)
+		(in_bom yes)
+		(on_board yes)
+		(in_pos_files yes)
+		(dnp no)
+		(uuid "efcd7a18-e94c-4dca-9fef-da32429625c6")
+		(property "Reference" "#PWR095"
+			(at 144.78 232.41 0)
+			(hide yes)
+			(show_name no)
+			(do_not_autoplace no)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+			)
+		)
+		(property "Value" "+9V"
+			(at 144.78 234.95 0)
+			(show_name no)
+			(do_not_autoplace no)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+			)
+		)
+		(property "Footprint" ""
+			(at 138.43 233.68 0)
+			(hide yes)
+			(show_name no)
+			(do_not_autoplace no)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+			)
+		)
+		(property "Datasheet" ""
+			(at 138.43 233.68 0)
+			(hide yes)
+			(show_name no)
+			(do_not_autoplace no)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+			)
+		)
+		(property "Description" "Power symbol creates a global label with name \"+9V\""
+			(at 44.45 114.3 0)
+			(hide yes)
+			(show_name no)
+			(do_not_autoplace no)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+			)
+		)
+		(pin "1"
+			(uuid "85a04bfc-65b6-44bb-ba30-fb046dc7c9e9")
+		)
+		(instances
+			(project "motorized-faders"
+				(path "/b7e3fc1e-7c8d-4632-8bd7-928f8e22b8b2"
+					(reference "#PWR095")
+					(unit 1)
+				)
+			)
+		)
+	)
+	(symbol
 		(lib_id "power:GNDPWR")
 		(at 160.02 60.96 270)
 		(unit 1)
@@ -18445,6 +21214,164 @@
 		)
 	)
 	(symbol
+		(lib_id "Device:R")
+		(at 83.82 254 0)
+		(unit 1)
+		(body_style 1)
+		(exclude_from_sim no)
+		(in_bom yes)
+		(on_board yes)
+		(in_pos_files yes)
+		(dnp no)
+		(uuid "f5d438f0-9562-4ec9-8fd0-44dd57e6a57b")
+		(property "Reference" "R_SC_BAL2"
+			(at 90.17 252.73 0)
+			(show_name no)
+			(do_not_autoplace no)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+			)
+		)
+		(property "Value" "4.7kOhm"
+			(at 90.17 255.27 0)
+			(show_name no)
+			(do_not_autoplace no)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+			)
+		)
+		(property "Footprint" "Resistor_SMD:R_0805_2012Metric"
+			(at 83.82 254 0)
+			(hide yes)
+			(show_name no)
+			(do_not_autoplace no)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+			)
+		)
+		(property "Datasheet" ""
+			(at 83.82 254 0)
+			(hide yes)
+			(show_name no)
+			(do_not_autoplace no)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+			)
+		)
+		(property "Description" "Resistor"
+			(at 83.82 254 0)
+			(hide yes)
+			(show_name no)
+			(do_not_autoplace no)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+			)
+		)
+		(pin "1"
+			(uuid "1e02088c-c423-46b2-9717-244d95386f4f")
+		)
+		(pin "2"
+			(uuid "2f1a68aa-67fd-4d33-aa15-c1b2d2c733a0")
+		)
+		(instances
+			(project "motorized-faders"
+				(path "/b7e3fc1e-7c8d-4632-8bd7-928f8e22b8b2"
+					(reference "R_SC_BAL2")
+					(unit 1)
+				)
+			)
+		)
+	)
+	(symbol
+		(lib_id "Device:D_Schottky")
+		(at 127 233.68 180)
+		(unit 1)
+		(body_style 1)
+		(exclude_from_sim no)
+		(in_bom yes)
+		(on_board yes)
+		(in_pos_files yes)
+		(dnp no)
+		(uuid "f8d9c905-2c6a-450d-9cc9-2f241ce68cd5")
+		(property "Reference" "D_PD1"
+			(at 123.19 229.87 0)
+			(show_name no)
+			(do_not_autoplace no)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+			)
+		)
+		(property "Value" "B540C"
+			(at 123.19 237.49 0)
+			(show_name no)
+			(do_not_autoplace no)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+			)
+		)
+		(property "Footprint" "Diode_SMD:D_SMC_Handsoldering"
+			(at 127 233.68 0)
+			(hide yes)
+			(show_name no)
+			(do_not_autoplace no)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+			)
+		)
+		(property "Datasheet" ""
+			(at 127 233.68 0)
+			(hide yes)
+			(show_name no)
+			(do_not_autoplace no)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+			)
+		)
+		(property "Description" "Schottky diode"
+			(at 127 233.68 0)
+			(hide yes)
+			(show_name no)
+			(do_not_autoplace no)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+			)
+		)
+		(pin "1"
+			(uuid "427cba4d-c06f-4802-8218-1ede8f2c877d")
+		)
+		(pin "2"
+			(uuid "12b7a362-8760-4775-9fdc-699c21569b46")
+		)
+		(instances
+			(project "motorized-faders"
+				(path "/b7e3fc1e-7c8d-4632-8bd7-928f8e22b8b2"
+					(reference "D_PD1")
+					(unit 1)
+				)
+			)
+		)
+	)
+	(symbol
 		(lib_id "power:GND")
 		(at 153.67 8.89 270)
 		(unit 1)
@@ -18603,6 +21530,162 @@
 		)
 	)
 	(symbol
+		(lib_id "Device:R")
+		(at 304.8 152.4 0)
+		(unit 1)
+		(body_style 1)
+		(exclude_from_sim no)
+		(in_bom yes)
+		(on_board yes)
+		(in_pos_files yes)
+		(dnp no)
+		(uuid "fa92b8a4-fef4-4415-9622-b997daeb9c58")
+		(property "Reference" "R_SW_G3"
+			(at 298.45 151.13 0)
+			(show_name no)
+			(do_not_autoplace no)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+			)
+		)
+		(property "Value" "4.7kOhm"
+			(at 298.45 153.67 0)
+			(show_name no)
+			(do_not_autoplace no)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+			)
+		)
+		(property "Footprint" "Resistor_SMD:R_0805_2012Metric"
+			(at 304.8 152.4 0)
+			(hide yes)
+			(show_name no)
+			(do_not_autoplace no)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+			)
+		)
+		(property "Datasheet" ""
+			(at 304.8 152.4 0)
+			(hide yes)
+			(show_name no)
+			(do_not_autoplace no)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+			)
+		)
+		(property "Description" "Resistor"
+			(at 304.8 152.4 0)
+			(hide yes)
+			(show_name no)
+			(do_not_autoplace no)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+			)
+		)
+		(pin "1"
+			(uuid "1b24d99b-acbf-44bc-a9af-8e879d81d366")
+		)
+		(pin "2"
+			(uuid "8751186f-6814-45b2-b4a8-193e635274bd")
+		)
+		(instances
+			(project "motorized-faders"
+				(path "/b7e3fc1e-7c8d-4632-8bd7-928f8e22b8b2"
+					(reference "R_SW_G3")
+					(unit 1)
+				)
+			)
+		)
+	)
+	(symbol
+		(lib_id "power:PWR_FLAG")
+		(at 133.35 220.98 0)
+		(unit 1)
+		(body_style 1)
+		(exclude_from_sim no)
+		(in_bom yes)
+		(on_board yes)
+		(in_pos_files yes)
+		(dnp no)
+		(uuid "faaa794f-b534-4acb-8c1a-1d3272057a00")
+		(property "Reference" "#FLG03"
+			(at 133.35 224.79 0)
+			(hide yes)
+			(show_name no)
+			(do_not_autoplace no)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+			)
+		)
+		(property "Value" "PWR_FLAG"
+			(at 133.35 214.63 0)
+			(show_name no)
+			(do_not_autoplace no)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+			)
+		)
+		(property "Footprint" "Package_SO:TSSOP-28_4.4x9.7mm_P0.65mm"
+			(at 133.35 220.98 0)
+			(hide yes)
+			(show_name no)
+			(do_not_autoplace no)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+			)
+		)
+		(property "Datasheet" ""
+			(at 133.35 220.98 0)
+			(hide yes)
+			(show_name no)
+			(do_not_autoplace no)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+			)
+		)
+		(property "Description" "Special symbol for telling ERC where power comes from"
+			(at 133.35 220.98 0)
+			(hide yes)
+			(show_name no)
+			(do_not_autoplace no)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+			)
+		)
+		(pin "1"
+			(uuid "e499c3d8-6e38-4e50-9edb-de9c01cc2c44")
+		)
+		(instances
+			(project "motorized-faders"
+				(path "/b7e3fc1e-7c8d-4632-8bd7-928f8e22b8b2"
+					(reference "#FLG03")
+					(unit 1)
+				)
+			)
+		)
+	)
+	(symbol
 		(lib_id "power:GND")
 		(at 38.1 39.37 180)
 		(unit 1)
@@ -18675,6 +21758,163 @@
 			(project "motorized-faders"
 				(path "/b7e3fc1e-7c8d-4632-8bd7-928f8e22b8b2"
 					(reference "#PWR010")
+					(unit 1)
+				)
+			)
+		)
+	)
+	(symbol
+		(lib_id "Switch:SW_Push")
+		(at 311.15 157.48 0)
+		(unit 1)
+		(body_style 1)
+		(exclude_from_sim no)
+		(in_bom yes)
+		(on_board yes)
+		(in_pos_files yes)
+		(dnp no)
+		(uuid "fb045106-b2e7-4644-a41a-8e5fbc4cecf7")
+		(property "Reference" "SW_G3"
+			(at 311.15 153.67 0)
+			(show_name no)
+			(do_not_autoplace no)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+			)
+		)
+		(property "Value" "B3F-4050"
+			(at 311.15 161.29 0)
+			(show_name no)
+			(do_not_autoplace no)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+			)
+		)
+		(property "Footprint" "Connector_JST:JST_XH_B2B-XH-A_1x02_P2.50mm_Vertical"
+			(at 311.15 157.48 0)
+			(hide yes)
+			(show_name no)
+			(do_not_autoplace no)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+			)
+		)
+		(property "Datasheet" ""
+			(at 311.15 157.48 0)
+			(hide yes)
+			(show_name no)
+			(do_not_autoplace no)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+			)
+		)
+		(property "Description" "Push button switch, generic, two pins"
+			(at 311.15 157.48 0)
+			(hide yes)
+			(show_name no)
+			(do_not_autoplace no)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+			)
+		)
+		(pin "1"
+			(uuid "04efae91-19cd-490f-9d71-7c7e5782dbad")
+		)
+		(pin "2"
+			(uuid "f5fac5a0-393f-42a9-b203-7cb7b723d1f8")
+		)
+		(instances
+			(project "motorized-faders"
+				(path "/b7e3fc1e-7c8d-4632-8bd7-928f8e22b8b2"
+					(reference "SW_G3")
+					(unit 1)
+				)
+			)
+		)
+	)
+	(symbol
+		(lib_id "power:GNDPWR")
+		(at 30.48 231.14 0)
+		(unit 1)
+		(body_style 1)
+		(exclude_from_sim no)
+		(in_bom yes)
+		(on_board yes)
+		(in_pos_files yes)
+		(dnp no)
+		(uuid "fb232a1a-534e-4429-8b41-f96d18faa72d")
+		(property "Reference" "#PWR089"
+			(at 36.83 229.87 0)
+			(hide yes)
+			(show_name no)
+			(do_not_autoplace no)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+			)
+		)
+		(property "Value" "GNDPWR"
+			(at 36.83 232.41 0)
+			(show_name no)
+			(do_not_autoplace no)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+				(justify right)
+			)
+		)
+		(property "Footprint" "RF_GPS:Linx_RXM-GPS"
+			(at 30.48 231.14 0)
+			(hide yes)
+			(show_name no)
+			(do_not_autoplace no)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+			)
+		)
+		(property "Datasheet" ""
+			(at 30.48 231.14 0)
+			(hide yes)
+			(show_name no)
+			(do_not_autoplace no)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+			)
+		)
+		(property "Description" "Power symbol creates a global label with name \"GNDPWR\" , global ground"
+			(at 67.31 30.48 0)
+			(hide yes)
+			(show_name no)
+			(do_not_autoplace no)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+			)
+		)
+		(pin "1"
+			(uuid "119b3a9e-49eb-43c4-b19b-7521793f9155")
+		)
+		(instances
+			(project "motorized-faders"
+				(path "/b7e3fc1e-7c8d-4632-8bd7-928f8e22b8b2"
+					(reference "#PWR089")
 					(unit 1)
 				)
 			)
@@ -19072,6 +22312,84 @@
 			(project "motorized-faders"
 				(path "/b7e3fc1e-7c8d-4632-8bd7-928f8e22b8b2"
 					(reference "#PWR058")
+					(unit 1)
+				)
+			)
+		)
+	)
+	(symbol
+		(lib_id "Connector:TestPoint")
+		(at 93.98 232.41 0)
+		(unit 1)
+		(body_style 1)
+		(exclude_from_sim no)
+		(in_bom yes)
+		(on_board yes)
+		(in_pos_files yes)
+		(dnp no)
+		(uuid "ff955ad5-45d1-43b2-a0cd-fde3f8be5418")
+		(property "Reference" "TP_9V_BOOST1"
+			(at 93.98 223.52 0)
+			(show_name no)
+			(do_not_autoplace no)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+				(justify left)
+			)
+		)
+		(property "Value" "TestPoint"
+			(at 93.98 226.06 0)
+			(show_name no)
+			(do_not_autoplace no)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+				(justify left)
+			)
+		)
+		(property "Footprint" "TestPoint:TestPoint_THTPad_D1.5mm_Drill0.7mm"
+			(at 93.98 232.41 0)
+			(hide yes)
+			(show_name no)
+			(do_not_autoplace no)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+			)
+		)
+		(property "Datasheet" ""
+			(at 93.98 232.41 0)
+			(hide yes)
+			(show_name no)
+			(do_not_autoplace no)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+			)
+		)
+		(property "Description" "test point"
+			(at 93.98 232.41 0)
+			(hide yes)
+			(show_name no)
+			(do_not_autoplace no)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+			)
+		)
+		(pin "1"
+			(uuid "630059c8-1078-4757-a9a3-37e05fbe5584")
+		)
+		(instances
+			(project "motorized-faders"
+				(path "/b7e3fc1e-7c8d-4632-8bd7-928f8e22b8b2"
+					(reference "TP_9V_BOOST1")
 					(unit 1)
 				)
 			)
@@ -19964,3031 +23282,6 @@
 				)
 			)
 		)
-	)
-		(symbol
-		(lib_id "Device:R")
-		(at 304.8 152.4 0)
-		(unit 1)
-		(body_style 1)
-		(exclude_from_sim no)
-		(in_bom yes)
-		(on_board yes)
-		(in_pos_files yes)
-		(dnp no)
-		(fields_autoplaced no)
-		(uuid "fa92b8a4-fef4-4415-9622-b997daeb9c58")
-		(property "Reference" "R_SW_G3"
-			(at 298.45 151.13 0)
-			(show_name no)
-			(do_not_autoplace no)
-			(effects
-				(font
-					(size 1.27 1.27)
-				)
-			)
-		)
-		(property "Value" "4.7kOhm"
-			(at 298.45 153.67 0)
-			(show_name no)
-			(do_not_autoplace no)
-			(effects
-				(font
-					(size 1.27 1.27)
-				)
-			)
-		)
-		(property "Footprint" "Resistor_SMD:R_0805_2012Metric"
-			(at 304.8 152.4 0)
-			(hide yes)
-			(show_name no)
-			(do_not_autoplace no)
-			(effects
-				(font
-					(size 1.27 1.27)
-				)
-			)
-		)
-		(property "Datasheet" ""
-			(at 304.8 152.4 0)
-			(hide yes)
-			(show_name no)
-			(do_not_autoplace no)
-			(effects
-				(font
-					(size 1.27 1.27)
-				)
-			)
-		)
-		(property "Description" "Resistor"
-			(at 304.8 152.4 0)
-			(hide yes)
-			(show_name no)
-			(do_not_autoplace no)
-			(effects
-				(font
-					(size 1.27 1.27)
-				)
-			)
-		)
-		(pin "1"
-			(uuid "1b24d99b-acbf-44bc-a9af-8e879d81d366")
-		)
-		(pin "2"
-			(uuid "8751186f-6814-45b2-b4a8-193e635274bd")
-		)
-		(instances
-			(project "motorized-faders"
-				(path "/b7e3fc1e-7c8d-4632-8bd7-928f8e22b8b2"
-					(reference "R_SW_G3")
-					(unit 1)
-				)
-			)
-		)
-	)
-		(symbol
-		(lib_id "Switch:SW_Push")
-		(at 311.15000000000003 157.48 0)
-		(unit 1)
-		(body_style 1)
-		(exclude_from_sim no)
-		(in_bom yes)
-		(on_board yes)
-		(in_pos_files yes)
-		(dnp no)
-		(fields_autoplaced no)
-		(uuid "fb045106-b2e7-4644-a41a-8e5fbc4cecf7")
-		(property "Reference" "SW_G3"
-			(at 311.15 153.67 0)
-			(show_name no)
-			(do_not_autoplace no)
-			(effects
-				(font
-					(size 1.27 1.27)
-				)
-			)
-		)
-		(property "Value" "B3F-4050"
-			(at 311.15 161.29 0)
-			(show_name no)
-			(do_not_autoplace no)
-			(effects
-				(font
-					(size 1.27 1.27)
-				)
-			)
-		)
-		(property "Footprint" "Connector_JST:JST_XH_B2B-XH-A_1x02_P2.50mm_Vertical"
-			(at 311.15000000000003 157.48 0)
-			(hide yes)
-			(show_name no)
-			(do_not_autoplace no)
-			(effects
-				(font
-					(size 1.27 1.27)
-				)
-			)
-		)
-		(property "Datasheet" ""
-			(at 311.15000000000003 157.48 0)
-			(hide yes)
-			(show_name no)
-			(do_not_autoplace no)
-			(effects
-				(font
-					(size 1.27 1.27)
-				)
-			)
-		)
-		(property "Description" "Push button switch, generic, two pins"
-			(at 311.15000000000003 157.48 0)
-			(hide yes)
-			(show_name no)
-			(do_not_autoplace no)
-			(effects
-				(font
-					(size 1.27 1.27)
-				)
-			)
-		)
-		(pin "1"
-			(uuid "04efae91-19cd-490f-9d71-7c7e5782dbad")
-		)
-		(pin "2"
-			(uuid "f5fac5a0-393f-42a9-b203-7cb7b723d1f8")
-		)
-		(instances
-			(project "motorized-faders"
-				(path "/b7e3fc1e-7c8d-4632-8bd7-928f8e22b8b2"
-					(reference "SW_G3")
-					(unit 1)
-				)
-			)
-		)
-	)
-		(symbol
-		(lib_id "power:GND")
-		(at 318.77000000000004 157.48 90)
-		(unit 1)
-		(body_style 1)
-		(exclude_from_sim no)
-		(in_bom yes)
-		(on_board yes)
-		(in_pos_files yes)
-		(dnp no)
-		(fields_autoplaced no)
-		(uuid "279aaffc-8f3d-44a5-9b0e-ddb9db40bb4b")
-		(property "Reference" "#PWR085"
-			(at 325.12 156.21 0)
-			(hide yes)
-			(show_name no)
-			(do_not_autoplace no)
-			(effects
-				(font
-					(size 1.27 1.27)
-				)
-			)
-		)
-		(property "Value" "GND"
-			(at 325.12 158.75 0)
-			(show_name no)
-			(do_not_autoplace no)
-			(effects
-				(font
-					(size 1.27 1.27)
-				)
-				(justify right)
-			)
-		)
-		(property "Footprint" ""
-			(at 318.77000000000004 157.48 0)
-			(hide yes)
-			(show_name no)
-			(do_not_autoplace no)
-			(effects
-				(font
-					(size 1.27 1.27)
-				)
-			)
-		)
-		(property "Datasheet" ""
-			(at 318.77000000000004 157.48 0)
-			(hide yes)
-			(show_name no)
-			(do_not_autoplace no)
-			(effects
-				(font
-					(size 1.27 1.27)
-				)
-			)
-		)
-		(property "Description" "Power symbol creates a global label with name \"GND\" , ground"
-			(at 237.49 129.54 0)
-			(hide yes)
-			(show_name no)
-			(do_not_autoplace no)
-			(effects
-				(font
-					(size 1.27 1.27)
-				)
-			)
-		)
-		(pin "1"
-			(uuid "62f2e579-fb18-48d2-b50b-7e16a23b0263")
-		)
-		(instances
-			(project "motorized-faders"
-				(path "/b7e3fc1e-7c8d-4632-8bd7-928f8e22b8b2"
-					(reference "#PWR085")
-					(unit 1)
-				)
-			)
-		)
-	)
-		(symbol
-		(lib_id "Device:R")
-		(at 340.36 152.4 0)
-		(unit 1)
-		(body_style 1)
-		(exclude_from_sim no)
-		(in_bom yes)
-		(on_board yes)
-		(in_pos_files yes)
-		(dnp no)
-		(fields_autoplaced no)
-		(uuid "70a913dd-68ca-4d34-9e7e-49b9ff89e284")
-		(property "Reference" "R_SW_G4"
-			(at 334.01 151.13 0)
-			(show_name no)
-			(do_not_autoplace no)
-			(effects
-				(font
-					(size 1.27 1.27)
-				)
-			)
-		)
-		(property "Value" "10kOhm"
-			(at 334.01 153.67 0)
-			(show_name no)
-			(do_not_autoplace no)
-			(effects
-				(font
-					(size 1.27 1.27)
-				)
-			)
-		)
-		(property "Footprint" "Resistor_SMD:R_0805_2012Metric"
-			(at 340.36 152.4 0)
-			(hide yes)
-			(show_name no)
-			(do_not_autoplace no)
-			(effects
-				(font
-					(size 1.27 1.27)
-				)
-			)
-		)
-		(property "Datasheet" ""
-			(at 340.36 152.4 0)
-			(hide yes)
-			(show_name no)
-			(do_not_autoplace no)
-			(effects
-				(font
-					(size 1.27 1.27)
-				)
-			)
-		)
-		(property "Description" "Resistor"
-			(at 340.36 152.4 0)
-			(hide yes)
-			(show_name no)
-			(do_not_autoplace no)
-			(effects
-				(font
-					(size 1.27 1.27)
-				)
-			)
-		)
-		(pin "1"
-			(uuid "0e3339c0-8ec0-4bf4-902d-2cf30f62b030")
-		)
-		(pin "2"
-			(uuid "bb288e7a-44ef-4587-933a-f6df3454d4ad")
-		)
-		(instances
-			(project "motorized-faders"
-				(path "/b7e3fc1e-7c8d-4632-8bd7-928f8e22b8b2"
-					(reference "R_SW_G4")
-					(unit 1)
-				)
-			)
-		)
-	)
-		(symbol
-		(lib_id "Switch:SW_Push")
-		(at 346.71000000000004 157.48 0)
-		(unit 1)
-		(body_style 1)
-		(exclude_from_sim no)
-		(in_bom yes)
-		(on_board yes)
-		(in_pos_files yes)
-		(dnp no)
-		(fields_autoplaced no)
-		(uuid "21d55e1e-81b9-4784-b7ab-01936eb1a11c")
-		(property "Reference" "SW_G4"
-			(at 346.71 153.67 0)
-			(show_name no)
-			(do_not_autoplace no)
-			(effects
-				(font
-					(size 1.27 1.27)
-				)
-			)
-		)
-		(property "Value" "B3F-4050"
-			(at 346.71 161.29 0)
-			(show_name no)
-			(do_not_autoplace no)
-			(effects
-				(font
-					(size 1.27 1.27)
-				)
-			)
-		)
-		(property "Footprint" "Connector_JST:JST_XH_B2B-XH-A_1x02_P2.50mm_Vertical"
-			(at 346.71000000000004 157.48 0)
-			(hide yes)
-			(show_name no)
-			(do_not_autoplace no)
-			(effects
-				(font
-					(size 1.27 1.27)
-				)
-			)
-		)
-		(property "Datasheet" ""
-			(at 346.71000000000004 157.48 0)
-			(hide yes)
-			(show_name no)
-			(do_not_autoplace no)
-			(effects
-				(font
-					(size 1.27 1.27)
-				)
-			)
-		)
-		(property "Description" "Push button switch, generic, two pins"
-			(at 346.71000000000004 157.48 0)
-			(hide yes)
-			(show_name no)
-			(do_not_autoplace no)
-			(effects
-				(font
-					(size 1.27 1.27)
-				)
-			)
-		)
-		(pin "1"
-			(uuid "3cc20b3c-0020-44b6-8b63-4e04f94eea51")
-		)
-		(pin "2"
-			(uuid "91f61bb7-d8d6-49f2-9dde-faa9f03c2335")
-		)
-		(instances
-			(project "motorized-faders"
-				(path "/b7e3fc1e-7c8d-4632-8bd7-928f8e22b8b2"
-					(reference "SW_G4")
-					(unit 1)
-				)
-			)
-		)
-	)
-		(symbol
-		(lib_id "power:GND")
-		(at 354.33000000000004 157.48 90)
-		(unit 1)
-		(body_style 1)
-		(exclude_from_sim no)
-		(in_bom yes)
-		(on_board yes)
-		(in_pos_files yes)
-		(dnp no)
-		(fields_autoplaced no)
-		(uuid "b667e935-1fcb-465e-b223-3c2fde9f7f83")
-		(property "Reference" "#PWR086"
-			(at 360.68 156.21 0)
-			(hide yes)
-			(show_name no)
-			(do_not_autoplace no)
-			(effects
-				(font
-					(size 1.27 1.27)
-				)
-			)
-		)
-		(property "Value" "GND"
-			(at 360.68 158.75 0)
-			(show_name no)
-			(do_not_autoplace no)
-			(effects
-				(font
-					(size 1.27 1.27)
-				)
-				(justify right)
-			)
-		)
-		(property "Footprint" ""
-			(at 354.33000000000004 157.48 0)
-			(hide yes)
-			(show_name no)
-			(do_not_autoplace no)
-			(effects
-				(font
-					(size 1.27 1.27)
-				)
-			)
-		)
-		(property "Datasheet" ""
-			(at 354.33000000000004 157.48 0)
-			(hide yes)
-			(show_name no)
-			(do_not_autoplace no)
-			(effects
-				(font
-					(size 1.27 1.27)
-				)
-			)
-		)
-		(property "Description" "Power symbol creates a global label with name \"GND\" , ground"
-			(at 237.49 129.54 0)
-			(hide yes)
-			(show_name no)
-			(do_not_autoplace no)
-			(effects
-				(font
-					(size 1.27 1.27)
-				)
-			)
-		)
-		(pin "1"
-			(uuid "dcd56d06-1430-45ca-b4cf-051c47c5526c")
-		)
-		(instances
-			(project "motorized-faders"
-				(path "/b7e3fc1e-7c8d-4632-8bd7-928f8e22b8b2"
-					(reference "#PWR086")
-					(unit 1)
-				)
-			)
-		)
-	)
-		(symbol
-		(lib_id "Connector_Generic:Conn_01x04")
-		(at 40.64 223.52 0)
-		(unit 1)
-		(body_style 1)
-		(exclude_from_sim no)
-		(in_bom yes)
-		(on_board yes)
-		(in_pos_files yes)
-		(dnp no)
-		(fields_autoplaced no)
-		(uuid "45c9fc05-c401-4e0a-8e03-67367d835cd1")
-		(property "Reference" "J_BOOST1"
-			(at 46.99 222.25 0)
-			(show_name no)
-			(do_not_autoplace no)
-			(effects
-				(font
-					(size 1.27 1.27)
-				)
-				(justify left)
-			)
-		)
-		(property "Value" "Boost CC/CV"
-			(at 46.99 224.79 0)
-			(show_name no)
-			(do_not_autoplace no)
-			(effects
-				(font
-					(size 1.27 1.27)
-				)
-				(justify left)
-			)
-		)
-		(property "Footprint" "Connector_JST:JST_XH_B4B-XH-A_1x04_P2.50mm_Vertical"
-			(at 40.64 223.52 0)
-			(hide yes)
-			(show_name no)
-			(do_not_autoplace no)
-			(effects
-				(font
-					(size 1.27 1.27)
-				)
-			)
-		)
-		(property "Datasheet" ""
-			(at 40.64 223.52 0)
-			(hide yes)
-			(show_name no)
-			(do_not_autoplace no)
-			(effects
-				(font
-					(size 1.27 1.27)
-				)
-			)
-		)
-		(property "Description" "Generic connector, single row, 01x04, script generated (kicad-library-utils/schlib/autogen/connector/)"
-			(at 40.64 223.52 0)
-			(hide yes)
-			(show_name no)
-			(do_not_autoplace no)
-			(effects
-				(font
-					(size 1.27 1.27)
-				)
-			)
-		)
-		(pin "1"
-			(uuid "d4e58893-985f-478a-a0ba-353ece4a25b9")
-		)
-		(pin "3"
-			(uuid "c0cadc39-1c22-459e-97bd-2859a1165833")
-		)
-		(pin "2"
-			(uuid "c44ee339-f6d9-44af-aad1-fe40e367b2cb")
-		)
-		(pin "4"
-			(uuid "713bb2a4-e0fe-461b-8741-ea141ab4444a")
-		)
-		(instances
-			(project "motorized-faders"
-				(path "/b7e3fc1e-7c8d-4632-8bd7-928f8e22b8b2"
-					(reference "J_BOOST1")
-					(unit 1)
-				)
-			)
-		)
-	)
-		(symbol
-		(lib_id "power:+5V")
-		(at 27.94 220.98 90)
-		(unit 1)
-		(body_style 1)
-		(exclude_from_sim no)
-		(in_bom yes)
-		(on_board yes)
-		(in_pos_files yes)
-		(dnp no)
-		(fields_autoplaced no)
-		(uuid "52031d1b-4226-4263-8cc8-59d1e19c528c")
-		(property "Reference" "#PWR088"
-			(at 34.29 219.71 0)
-			(hide yes)
-			(show_name no)
-			(do_not_autoplace no)
-			(effects
-				(font
-					(size 1.27 1.27)
-				)
-			)
-		)
-		(property "Value" "+5V"
-			(at 34.29 222.25 0)
-			(show_name no)
-			(do_not_autoplace no)
-			(effects
-				(font
-					(size 1.27 1.27)
-				)
-			)
-		)
-		(property "Footprint" ""
-			(at 27.94 220.98 0)
-			(hide yes)
-			(show_name no)
-			(do_not_autoplace no)
-			(effects
-				(font
-					(size 1.27 1.27)
-				)
-			)
-		)
-		(property "Datasheet" ""
-			(at 27.94 220.98 0)
-			(hide yes)
-			(show_name no)
-			(do_not_autoplace no)
-			(effects
-				(font
-					(size 1.27 1.27)
-				)
-			)
-		)
-		(property "Description" "Power symbol creates a global label with name \"+5V\""
-			(at 100.33 76.2 0)
-			(hide yes)
-			(show_name no)
-			(do_not_autoplace no)
-			(effects
-				(font
-					(size 1.27 1.27)
-				)
-			)
-		)
-		(pin "1"
-			(uuid "18a959bf-9081-4238-8144-9f3adbb2c411")
-		)
-		(instances
-			(project "motorized-faders"
-				(path "/b7e3fc1e-7c8d-4632-8bd7-928f8e22b8b2"
-					(reference "#PWR088")
-					(unit 1)
-				)
-			)
-		)
-	)
-		(symbol
-		(lib_id "power:GNDPWR")
-		(at 27.94 223.52 270)
-		(unit 1)
-		(body_style 1)
-		(exclude_from_sim no)
-		(in_bom yes)
-		(on_board yes)
-		(in_pos_files yes)
-		(dnp no)
-		(fields_autoplaced no)
-		(uuid "8a92e4c9-70c7-4e39-9645-8a6e7737e3ca")
-		(property "Reference" "#PWR087"
-			(at 34.29 222.25 0)
-			(hide yes)
-			(show_name no)
-			(do_not_autoplace no)
-			(effects
-				(font
-					(size 1.27 1.27)
-				)
-			)
-		)
-		(property "Value" "GNDPWR"
-			(at 34.29 224.79 0)
-			(hide yes)
-			(show_name no)
-			(do_not_autoplace no)
-			(effects
-				(font
-					(size 1.27 1.27)
-				)
-				(justify right)
-			)
-		)
-		(property "Footprint" "RF_GPS:Linx_RXM-GPS"
-			(at 27.94 223.52 0)
-			(hide yes)
-			(show_name no)
-			(do_not_autoplace no)
-			(effects
-				(font
-					(size 1.27 1.27)
-				)
-			)
-		)
-		(property "Datasheet" ""
-			(at 27.94 223.52 0)
-			(hide yes)
-			(show_name no)
-			(do_not_autoplace no)
-			(effects
-				(font
-					(size 1.27 1.27)
-				)
-			)
-		)
-		(property "Description" "Power symbol creates a global label with name \"GNDPWR\" , global ground"
-			(at 67.31 30.48 0)
-			(hide yes)
-			(show_name no)
-			(do_not_autoplace no)
-			(effects
-				(font
-					(size 1.27 1.27)
-				)
-			)
-		)
-		(pin "1"
-			(uuid "620693f6-1dbe-4547-bb36-cd2e639c0dd2")
-		)
-		(instances
-			(project "motorized-faders"
-				(path "/b7e3fc1e-7c8d-4632-8bd7-928f8e22b8b2"
-					(reference "#PWR087")
-					(unit 1)
-				)
-			)
-		)
-	)
-		(symbol
-		(lib_id "power:GNDPWR")
-		(at 30.48 231.14 0)
-		(unit 1)
-		(body_style 1)
-		(exclude_from_sim no)
-		(in_bom yes)
-		(on_board yes)
-		(in_pos_files yes)
-		(dnp no)
-		(fields_autoplaced no)
-		(uuid "fb232a1a-534e-4429-8b41-f96d18faa72d")
-		(property "Reference" "#PWR089"
-			(at 36.83 229.87 0)
-			(hide yes)
-			(show_name no)
-			(do_not_autoplace no)
-			(effects
-				(font
-					(size 1.27 1.27)
-				)
-			)
-		)
-		(property "Value" "GNDPWR"
-			(at 36.83 232.41 0)
-			(show_name no)
-			(do_not_autoplace no)
-			(effects
-				(font
-					(size 1.27 1.27)
-				)
-				(justify right)
-			)
-		)
-		(property "Footprint" "RF_GPS:Linx_RXM-GPS"
-			(at 30.48 231.14 0)
-			(hide yes)
-			(show_name no)
-			(do_not_autoplace no)
-			(effects
-				(font
-					(size 1.27 1.27)
-				)
-			)
-		)
-		(property "Datasheet" ""
-			(at 30.48 231.14 0)
-			(hide yes)
-			(show_name no)
-			(do_not_autoplace no)
-			(effects
-				(font
-					(size 1.27 1.27)
-				)
-			)
-		)
-		(property "Description" "Power symbol creates a global label with name \"GNDPWR\" , global ground"
-			(at 67.31 30.48 0)
-			(hide yes)
-			(show_name no)
-			(do_not_autoplace no)
-			(effects
-				(font
-					(size 1.27 1.27)
-				)
-			)
-		)
-		(pin "1"
-			(uuid "119b3a9e-49eb-43c4-b19b-7521793f9155")
-		)
-		(instances
-			(project "motorized-faders"
-				(path "/b7e3fc1e-7c8d-4632-8bd7-928f8e22b8b2"
-					(reference "#PWR089")
-					(unit 1)
-				)
-			)
-		)
-	)
-		(symbol
-		(lib_id "Device:C_Polarized")
-		(at 25.4 241.3 0)
-		(unit 1)
-		(body_style 1)
-		(exclude_from_sim no)
-		(in_bom yes)
-		(on_board yes)
-		(in_pos_files yes)
-		(dnp no)
-		(fields_autoplaced no)
-		(uuid "43b5186a-ec84-4de4-baa3-ebfb11fb19df")
-		(property "Reference" "C_BOOST_IN1"
-			(at 31.75 240.03 0)
-			(show_name no)
-			(do_not_autoplace no)
-			(effects
-				(font
-					(size 1.27 1.27)
-				)
-				(justify left)
-			)
-		)
-		(property "Value" "100uF electrolytic"
-			(at 31.75 242.57 0)
-			(show_name no)
-			(do_not_autoplace no)
-			(effects
-				(font
-					(size 1.27 1.27)
-				)
-				(justify left)
-			)
-		)
-		(property "Footprint" "Capacitor_THT:CP_Radial_D8.0mm_P5.00mm"
-			(at 25.4 241.3 0)
-			(hide yes)
-			(show_name no)
-			(do_not_autoplace no)
-			(effects
-				(font
-					(size 1.27 1.27)
-				)
-			)
-		)
-		(property "Datasheet" ""
-			(at 25.4 241.3 0)
-			(hide yes)
-			(show_name no)
-			(do_not_autoplace no)
-			(effects
-				(font
-					(size 1.27 1.27)
-				)
-			)
-		)
-		(property "Description" "Polarized capacitor"
-			(at 25.4 241.3 0)
-			(hide yes)
-			(show_name no)
-			(do_not_autoplace no)
-			(effects
-				(font
-					(size 1.27 1.27)
-				)
-			)
-		)
-		(pin "2"
-			(uuid "ca92233b-8ab1-4563-82ab-441e074f62e1")
-		)
-		(pin "1"
-			(uuid "35b33b7b-cd5f-46fa-a0f3-2894c2339bc0")
-		)
-		(instances
-			(project "motorized-faders"
-				(path "/b7e3fc1e-7c8d-4632-8bd7-928f8e22b8b2"
-					(reference "C_BOOST_IN1")
-					(unit 1)
-				)
-			)
-		)
-	)
-		(symbol
-		(lib_id "power:+5V")
-		(at 25.4 234.95 0)
-		(unit 1)
-		(body_style 1)
-		(exclude_from_sim no)
-		(in_bom yes)
-		(on_board yes)
-		(in_pos_files yes)
-		(dnp no)
-		(fields_autoplaced no)
-		(uuid "eedef0bd-216e-4b0b-b43a-9eafc4602c1e")
-		(property "Reference" "#PWR090"
-			(at 31.75 233.68 0)
-			(hide yes)
-			(show_name no)
-			(do_not_autoplace no)
-			(effects
-				(font
-					(size 1.27 1.27)
-				)
-			)
-		)
-		(property "Value" "+5V"
-			(at 31.75 236.22 0)
-			(show_name no)
-			(do_not_autoplace no)
-			(effects
-				(font
-					(size 1.27 1.27)
-				)
-			)
-		)
-		(property "Footprint" ""
-			(at 25.4 234.95 0)
-			(hide yes)
-			(show_name no)
-			(do_not_autoplace no)
-			(effects
-				(font
-					(size 1.27 1.27)
-				)
-			)
-		)
-		(property "Datasheet" ""
-			(at 25.4 234.95 0)
-			(hide yes)
-			(show_name no)
-			(do_not_autoplace no)
-			(effects
-				(font
-					(size 1.27 1.27)
-				)
-			)
-		)
-		(property "Description" "Power symbol creates a global label with name \"+5V\""
-			(at 100.33 76.2 0)
-			(hide yes)
-			(show_name no)
-			(do_not_autoplace no)
-			(effects
-				(font
-					(size 1.27 1.27)
-				)
-			)
-		)
-		(pin "1"
-			(uuid "d79117e8-e2a3-415b-b137-f3e1e1f4f26a")
-		)
-		(instances
-			(project "motorized-faders"
-				(path "/b7e3fc1e-7c8d-4632-8bd7-928f8e22b8b2"
-					(reference "#PWR090")
-					(unit 1)
-				)
-			)
-		)
-	)
-		(symbol
-		(lib_id "power:GNDPWR")
-		(at 25.4 247.65 0)
-		(unit 1)
-		(body_style 1)
-		(exclude_from_sim no)
-		(in_bom yes)
-		(on_board yes)
-		(in_pos_files yes)
-		(dnp no)
-		(fields_autoplaced no)
-		(uuid "77a3eafb-47f4-4317-a94a-01aa96925348")
-		(property "Reference" "#PWR091"
-			(at 31.75 246.38 0)
-			(hide yes)
-			(show_name no)
-			(do_not_autoplace no)
-			(effects
-				(font
-					(size 1.27 1.27)
-				)
-			)
-		)
-		(property "Value" "GNDPWR"
-			(at 31.75 248.92 0)
-			(show_name no)
-			(do_not_autoplace no)
-			(effects
-				(font
-					(size 1.27 1.27)
-				)
-				(justify right)
-			)
-		)
-		(property "Footprint" "RF_GPS:Linx_RXM-GPS"
-			(at 25.4 247.65 0)
-			(hide yes)
-			(show_name no)
-			(do_not_autoplace no)
-			(effects
-				(font
-					(size 1.27 1.27)
-				)
-			)
-		)
-		(property "Datasheet" ""
-			(at 25.4 247.65 0)
-			(hide yes)
-			(show_name no)
-			(do_not_autoplace no)
-			(effects
-				(font
-					(size 1.27 1.27)
-				)
-			)
-		)
-		(property "Description" "Power symbol creates a global label with name \"GNDPWR\" , global ground"
-			(at 67.31 30.48 0)
-			(hide yes)
-			(show_name no)
-			(do_not_autoplace no)
-			(effects
-				(font
-					(size 1.27 1.27)
-				)
-			)
-		)
-		(pin "1"
-			(uuid "c4577a4e-4ab8-484d-ab62-262fa63f5c82")
-		)
-		(instances
-			(project "motorized-faders"
-				(path "/b7e3fc1e-7c8d-4632-8bd7-928f8e22b8b2"
-					(reference "#PWR091")
-					(unit 1)
-				)
-			)
-		)
-	)
-		(symbol
-		(lib_id "Device:C_Polarized")
-		(at 63.5 238.76 0)
-		(unit 1)
-		(body_style 1)
-		(exclude_from_sim no)
-		(in_bom yes)
-		(on_board yes)
-		(in_pos_files yes)
-		(dnp no)
-		(fields_autoplaced no)
-		(uuid "28b1dde7-6b71-40ef-9382-fb0e84b8de03")
-		(property "Reference" "C_SC1"
-			(at 69.85 237.49 0)
-			(show_name no)
-			(do_not_autoplace no)
-			(effects
-				(font
-					(size 1.27 1.27)
-				)
-				(justify left)
-			)
-		)
-		(property "Value" "2.5F 5.4V"
-			(at 69.85 240.03 0)
-			(show_name no)
-			(do_not_autoplace no)
-			(effects
-				(font
-					(size 1.27 1.27)
-				)
-				(justify left)
-			)
-		)
-		(property "Footprint" "Capacitor_THT:CP_Radial_D10.0mm_P5.00mm"
-			(at 63.5 238.76 0)
-			(hide yes)
-			(show_name no)
-			(do_not_autoplace no)
-			(effects
-				(font
-					(size 1.27 1.27)
-				)
-			)
-		)
-		(property "Datasheet" ""
-			(at 63.5 238.76 0)
-			(hide yes)
-			(show_name no)
-			(do_not_autoplace no)
-			(effects
-				(font
-					(size 1.27 1.27)
-				)
-			)
-		)
-		(property "Description" "Polarized capacitor"
-			(at 63.5 238.76 0)
-			(hide yes)
-			(show_name no)
-			(do_not_autoplace no)
-			(effects
-				(font
-					(size 1.27 1.27)
-				)
-			)
-		)
-		(pin "2"
-			(uuid "2439ffe4-882e-47d5-a2e9-09f766aa01c9")
-		)
-		(pin "1"
-			(uuid "e0c7e318-1e1d-4bd2-9bbf-6881577a2ecd")
-		)
-		(instances
-			(project "motorized-faders"
-				(path "/b7e3fc1e-7c8d-4632-8bd7-928f8e22b8b2"
-					(reference "C_SC1")
-					(unit 1)
-				)
-			)
-		)
-	)
-		(symbol
-		(lib_id "Device:C_Polarized")
-		(at 63.5 254.0 0)
-		(unit 1)
-		(body_style 1)
-		(exclude_from_sim no)
-		(in_bom yes)
-		(on_board yes)
-		(in_pos_files yes)
-		(dnp no)
-		(fields_autoplaced no)
-		(uuid "4a3f6b1a-9b99-4d38-9250-39437d147817")
-		(property "Reference" "C_SC2"
-			(at 69.85 252.73 0)
-			(show_name no)
-			(do_not_autoplace no)
-			(effects
-				(font
-					(size 1.27 1.27)
-				)
-				(justify left)
-			)
-		)
-		(property "Value" "2.5F 5.4V"
-			(at 69.85 255.27 0)
-			(show_name no)
-			(do_not_autoplace no)
-			(effects
-				(font
-					(size 1.27 1.27)
-				)
-				(justify left)
-			)
-		)
-		(property "Footprint" "Capacitor_THT:CP_Radial_D10.0mm_P5.00mm"
-			(at 63.5 254.0 0)
-			(hide yes)
-			(show_name no)
-			(do_not_autoplace no)
-			(effects
-				(font
-					(size 1.27 1.27)
-				)
-			)
-		)
-		(property "Datasheet" ""
-			(at 63.5 254.0 0)
-			(hide yes)
-			(show_name no)
-			(do_not_autoplace no)
-			(effects
-				(font
-					(size 1.27 1.27)
-				)
-			)
-		)
-		(property "Description" "Polarized capacitor"
-			(at 63.5 254.0 0)
-			(hide yes)
-			(show_name no)
-			(do_not_autoplace no)
-			(effects
-				(font
-					(size 1.27 1.27)
-				)
-			)
-		)
-		(pin "2"
-			(uuid "3c6405df-14b7-4271-aa11-95b018fcba9a")
-		)
-		(pin "1"
-			(uuid "1ff2c9d8-46bf-4883-b94f-f6f6194838f1")
-		)
-		(instances
-			(project "motorized-faders"
-				(path "/b7e3fc1e-7c8d-4632-8bd7-928f8e22b8b2"
-					(reference "C_SC2")
-					(unit 1)
-				)
-			)
-		)
-	)
-		(symbol
-		(lib_id "power:GNDPWR")
-		(at 63.5 260.35 0)
-		(unit 1)
-		(body_style 1)
-		(exclude_from_sim no)
-		(in_bom yes)
-		(on_board yes)
-		(in_pos_files yes)
-		(dnp no)
-		(fields_autoplaced no)
-		(uuid "0b76d89a-b530-4701-a766-581cbf9c4f60")
-		(property "Reference" "#PWR092"
-			(at 69.85 259.08 0)
-			(hide yes)
-			(show_name no)
-			(do_not_autoplace no)
-			(effects
-				(font
-					(size 1.27 1.27)
-				)
-			)
-		)
-		(property "Value" "GNDPWR"
-			(at 69.85 261.62 0)
-			(show_name no)
-			(do_not_autoplace no)
-			(effects
-				(font
-					(size 1.27 1.27)
-				)
-				(justify right)
-			)
-		)
-		(property "Footprint" "RF_GPS:Linx_RXM-GPS"
-			(at 63.5 260.35 0)
-			(hide yes)
-			(show_name no)
-			(do_not_autoplace no)
-			(effects
-				(font
-					(size 1.27 1.27)
-				)
-			)
-		)
-		(property "Datasheet" ""
-			(at 63.5 260.35 0)
-			(hide yes)
-			(show_name no)
-			(do_not_autoplace no)
-			(effects
-				(font
-					(size 1.27 1.27)
-				)
-			)
-		)
-		(property "Description" "Power symbol creates a global label with name \"GNDPWR\" , global ground"
-			(at 67.31 30.48 0)
-			(hide yes)
-			(show_name no)
-			(do_not_autoplace no)
-			(effects
-				(font
-					(size 1.27 1.27)
-				)
-			)
-		)
-		(pin "1"
-			(uuid "8b4deb65-cbd9-46a0-917c-38983d30bc87")
-		)
-		(instances
-			(project "motorized-faders"
-				(path "/b7e3fc1e-7c8d-4632-8bd7-928f8e22b8b2"
-					(reference "#PWR092")
-					(unit 1)
-				)
-			)
-		)
-	)
-		(symbol
-		(lib_id "Device:R")
-		(at 83.82 238.76 0)
-		(unit 1)
-		(body_style 1)
-		(exclude_from_sim no)
-		(in_bom yes)
-		(on_board yes)
-		(in_pos_files yes)
-		(dnp no)
-		(fields_autoplaced no)
-		(uuid "ed193ae9-65b8-4d3c-9062-a8ecbcfe6b84")
-		(property "Reference" "R_SC_BAL1"
-			(at 90.17 237.49 0)
-			(show_name no)
-			(do_not_autoplace no)
-			(effects
-				(font
-					(size 1.27 1.27)
-				)
-			)
-		)
-		(property "Value" "4.7kOhm"
-			(at 90.17 240.03 0)
-			(show_name no)
-			(do_not_autoplace no)
-			(effects
-				(font
-					(size 1.27 1.27)
-				)
-			)
-		)
-		(property "Footprint" "Resistor_SMD:R_0805_2012Metric"
-			(at 83.82 238.76 0)
-			(hide yes)
-			(show_name no)
-			(do_not_autoplace no)
-			(effects
-				(font
-					(size 1.27 1.27)
-				)
-			)
-		)
-		(property "Datasheet" ""
-			(at 83.82 238.76 0)
-			(hide yes)
-			(show_name no)
-			(do_not_autoplace no)
-			(effects
-				(font
-					(size 1.27 1.27)
-				)
-			)
-		)
-		(property "Description" "Resistor"
-			(at 83.82 238.76 0)
-			(hide yes)
-			(show_name no)
-			(do_not_autoplace no)
-			(effects
-				(font
-					(size 1.27 1.27)
-				)
-			)
-		)
-		(pin "1"
-			(uuid "2481aba2-cf66-4df8-b51d-13b36cc672ca")
-		)
-		(pin "2"
-			(uuid "2f1cae46-bdba-4bae-b16d-cdf9b962c5d8")
-		)
-		(instances
-			(project "motorized-faders"
-				(path "/b7e3fc1e-7c8d-4632-8bd7-928f8e22b8b2"
-					(reference "R_SC_BAL1")
-					(unit 1)
-				)
-			)
-		)
-	)
-		(symbol
-		(lib_id "Device:R")
-		(at 83.82 254.0 0)
-		(unit 1)
-		(body_style 1)
-		(exclude_from_sim no)
-		(in_bom yes)
-		(on_board yes)
-		(in_pos_files yes)
-		(dnp no)
-		(fields_autoplaced no)
-		(uuid "f5d438f0-9562-4ec9-8fd0-44dd57e6a57b")
-		(property "Reference" "R_SC_BAL2"
-			(at 90.17 252.73 0)
-			(show_name no)
-			(do_not_autoplace no)
-			(effects
-				(font
-					(size 1.27 1.27)
-				)
-			)
-		)
-		(property "Value" "4.7kOhm"
-			(at 90.17 255.27 0)
-			(show_name no)
-			(do_not_autoplace no)
-			(effects
-				(font
-					(size 1.27 1.27)
-				)
-			)
-		)
-		(property "Footprint" "Resistor_SMD:R_0805_2012Metric"
-			(at 83.82 254.0 0)
-			(hide yes)
-			(show_name no)
-			(do_not_autoplace no)
-			(effects
-				(font
-					(size 1.27 1.27)
-				)
-			)
-		)
-		(property "Datasheet" ""
-			(at 83.82 254.0 0)
-			(hide yes)
-			(show_name no)
-			(do_not_autoplace no)
-			(effects
-				(font
-					(size 1.27 1.27)
-				)
-			)
-		)
-		(property "Description" "Resistor"
-			(at 83.82 254.0 0)
-			(hide yes)
-			(show_name no)
-			(do_not_autoplace no)
-			(effects
-				(font
-					(size 1.27 1.27)
-				)
-			)
-		)
-		(pin "1"
-			(uuid "1e02088c-c423-46b2-9717-244d95386f4f")
-		)
-		(pin "2"
-			(uuid "2f1a68aa-67fd-4d33-aa15-c1b2d2c733a0")
-		)
-		(instances
-			(project "motorized-faders"
-				(path "/b7e3fc1e-7c8d-4632-8bd7-928f8e22b8b2"
-					(reference "R_SC_BAL2")
-					(unit 1)
-				)
-			)
-		)
-	)
-		(symbol
-		(lib_id "power:GNDPWR")
-		(at 83.82 260.35 0)
-		(unit 1)
-		(body_style 1)
-		(exclude_from_sim no)
-		(in_bom yes)
-		(on_board yes)
-		(in_pos_files yes)
-		(dnp no)
-		(fields_autoplaced no)
-		(uuid "8e6d3caf-7c7f-4238-8b46-dd6b200c8568")
-		(property "Reference" "#PWR093"
-			(at 90.17 259.08 0)
-			(hide yes)
-			(show_name no)
-			(do_not_autoplace no)
-			(effects
-				(font
-					(size 1.27 1.27)
-				)
-			)
-		)
-		(property "Value" "GNDPWR"
-			(at 90.17 261.62 0)
-			(show_name no)
-			(do_not_autoplace no)
-			(effects
-				(font
-					(size 1.27 1.27)
-				)
-				(justify right)
-			)
-		)
-		(property "Footprint" "RF_GPS:Linx_RXM-GPS"
-			(at 83.82 260.35 0)
-			(hide yes)
-			(show_name no)
-			(do_not_autoplace no)
-			(effects
-				(font
-					(size 1.27 1.27)
-				)
-			)
-		)
-		(property "Datasheet" ""
-			(at 83.82 260.35 0)
-			(hide yes)
-			(show_name no)
-			(do_not_autoplace no)
-			(effects
-				(font
-					(size 1.27 1.27)
-				)
-			)
-		)
-		(property "Description" "Power symbol creates a global label with name \"GNDPWR\" , global ground"
-			(at 67.31 30.48 0)
-			(hide yes)
-			(show_name no)
-			(do_not_autoplace no)
-			(effects
-				(font
-					(size 1.27 1.27)
-				)
-			)
-		)
-		(pin "1"
-			(uuid "daa21a0f-5dc3-42cb-869e-bfba8e749609")
-		)
-		(instances
-			(project "motorized-faders"
-				(path "/b7e3fc1e-7c8d-4632-8bd7-928f8e22b8b2"
-					(reference "#PWR093")
-					(unit 1)
-				)
-			)
-		)
-	)
-		(symbol
-		(lib_id "Connector:TestPoint")
-		(at 93.98 232.41 0)
-		(unit 1)
-		(body_style 1)
-		(exclude_from_sim no)
-		(in_bom yes)
-		(on_board yes)
-		(in_pos_files yes)
-		(dnp no)
-		(fields_autoplaced no)
-		(uuid "ff955ad5-45d1-43b2-a0cd-fde3f8be5418")
-		(property "Reference" "TP_9V_BOOST1"
-			(at 93.98 223.52 0)
-			(show_name no)
-			(do_not_autoplace no)
-			(effects
-				(font
-					(size 1.27 1.27)
-				)
-				(justify left)
-			)
-		)
-		(property "Value" "TestPoint"
-			(at 93.98 226.06 0)
-			(show_name no)
-			(do_not_autoplace no)
-			(effects
-				(font
-					(size 1.27 1.27)
-				)
-				(justify left)
-			)
-		)
-		(property "Footprint" "TestPoint:TestPoint_THTPad_D1.5mm_Drill0.7mm"
-			(at 93.98 232.41 0)
-			(hide yes)
-			(show_name no)
-			(do_not_autoplace no)
-			(effects
-				(font
-					(size 1.27 1.27)
-				)
-			)
-		)
-		(property "Datasheet" ""
-			(at 93.98 232.41 0)
-			(hide yes)
-			(show_name no)
-			(do_not_autoplace no)
-			(effects
-				(font
-					(size 1.27 1.27)
-				)
-			)
-		)
-		(property "Description" "test point"
-			(at 93.98 232.41 0)
-			(hide yes)
-			(show_name no)
-			(do_not_autoplace no)
-			(effects
-				(font
-					(size 1.27 1.27)
-				)
-			)
-		)
-		(pin "1"
-			(uuid "630059c8-1078-4757-a9a3-37e05fbe5584")
-		)
-		(instances
-			(project "motorized-faders"
-				(path "/b7e3fc1e-7c8d-4632-8bd7-928f8e22b8b2"
-					(reference "TP_9V_BOOST1")
-					(unit 1)
-				)
-			)
-		)
-	)
-		(symbol
-		(lib_id "Device:D_Schottky")
-		(at 127.0 220.98 180)
-		(unit 1)
-		(body_style 1)
-		(exclude_from_sim no)
-		(in_bom yes)
-		(on_board yes)
-		(in_pos_files yes)
-		(dnp no)
-		(fields_autoplaced no)
-		(uuid "7f81379f-e21e-41ad-8d9c-e5cf04d9a63f")
-		(property "Reference" "D_BOOST1"
-			(at 123.19 217.17 0)
-			(show_name no)
-			(do_not_autoplace no)
-			(effects
-				(font
-					(size 1.27 1.27)
-				)
-			)
-		)
-		(property "Value" "B540C"
-			(at 123.19 224.79 0)
-			(show_name no)
-			(do_not_autoplace no)
-			(effects
-				(font
-					(size 1.27 1.27)
-				)
-			)
-		)
-		(property "Footprint" "Diode_SMD:D_SMC_Handsoldering"
-			(at 127.0 220.98 0)
-			(hide yes)
-			(show_name no)
-			(do_not_autoplace no)
-			(effects
-				(font
-					(size 1.27 1.27)
-				)
-			)
-		)
-		(property "Datasheet" ""
-			(at 127.0 220.98 0)
-			(hide yes)
-			(show_name no)
-			(do_not_autoplace no)
-			(effects
-				(font
-					(size 1.27 1.27)
-				)
-			)
-		)
-		(property "Description" "Schottky diode"
-			(at 127.0 220.98 0)
-			(hide yes)
-			(show_name no)
-			(do_not_autoplace no)
-			(effects
-				(font
-					(size 1.27 1.27)
-				)
-			)
-		)
-		(pin "1"
-			(uuid "ea5f78a2-5846-4204-a945-36856191037e")
-		)
-		(pin "2"
-			(uuid "a940ee30-d288-49d0-a423-04adccab36f2")
-		)
-		(instances
-			(project "motorized-faders"
-				(path "/b7e3fc1e-7c8d-4632-8bd7-928f8e22b8b2"
-					(reference "D_BOOST1")
-					(unit 1)
-				)
-			)
-		)
-	)
-		(symbol
-		(lib_id "power:+9V")
-		(at 138.43 220.98 270)
-		(unit 1)
-		(body_style 1)
-		(exclude_from_sim no)
-		(in_bom yes)
-		(on_board yes)
-		(in_pos_files yes)
-		(dnp no)
-		(fields_autoplaced no)
-		(uuid "42662caa-987e-4ada-8f40-9af48275957b")
-		(property "Reference" "#PWR094"
-			(at 144.78 219.71 0)
-			(hide yes)
-			(show_name no)
-			(do_not_autoplace no)
-			(effects
-				(font
-					(size 1.27 1.27)
-				)
-			)
-		)
-		(property "Value" "+9V"
-			(at 144.78 222.25 0)
-			(show_name no)
-			(do_not_autoplace no)
-			(effects
-				(font
-					(size 1.27 1.27)
-				)
-			)
-		)
-		(property "Footprint" ""
-			(at 138.43 220.98 0)
-			(hide yes)
-			(show_name no)
-			(do_not_autoplace no)
-			(effects
-				(font
-					(size 1.27 1.27)
-				)
-			)
-		)
-		(property "Datasheet" ""
-			(at 138.43 220.98 0)
-			(hide yes)
-			(show_name no)
-			(do_not_autoplace no)
-			(effects
-				(font
-					(size 1.27 1.27)
-				)
-			)
-		)
-		(property "Description" "Power symbol creates a global label with name \"+9V\""
-			(at 44.45 114.3 0)
-			(hide yes)
-			(show_name no)
-			(do_not_autoplace no)
-			(effects
-				(font
-					(size 1.27 1.27)
-				)
-			)
-		)
-		(pin "1"
-			(uuid "b019d019-c3dc-42a1-a557-11845e5bd8f9")
-		)
-		(instances
-			(project "motorized-faders"
-				(path "/b7e3fc1e-7c8d-4632-8bd7-928f8e22b8b2"
-					(reference "#PWR094")
-					(unit 1)
-				)
-			)
-		)
-	)
-		(symbol
-		(lib_id "Device:D_Schottky")
-		(at 127.0 233.68 180)
-		(unit 1)
-		(body_style 1)
-		(exclude_from_sim no)
-		(in_bom yes)
-		(on_board yes)
-		(in_pos_files yes)
-		(dnp no)
-		(fields_autoplaced no)
-		(uuid "f8d9c905-2c6a-450d-9cc9-2f241ce68cd5")
-		(property "Reference" "D_PD1"
-			(at 123.19 229.87 0)
-			(show_name no)
-			(do_not_autoplace no)
-			(effects
-				(font
-					(size 1.27 1.27)
-				)
-			)
-		)
-		(property "Value" "B540C"
-			(at 123.19 237.49 0)
-			(show_name no)
-			(do_not_autoplace no)
-			(effects
-				(font
-					(size 1.27 1.27)
-				)
-			)
-		)
-		(property "Footprint" "Diode_SMD:D_SMC_Handsoldering"
-			(at 127.0 233.68 0)
-			(hide yes)
-			(show_name no)
-			(do_not_autoplace no)
-			(effects
-				(font
-					(size 1.27 1.27)
-				)
-			)
-		)
-		(property "Datasheet" ""
-			(at 127.0 233.68 0)
-			(hide yes)
-			(show_name no)
-			(do_not_autoplace no)
-			(effects
-				(font
-					(size 1.27 1.27)
-				)
-			)
-		)
-		(property "Description" "Schottky diode"
-			(at 127.0 233.68 0)
-			(hide yes)
-			(show_name no)
-			(do_not_autoplace no)
-			(effects
-				(font
-					(size 1.27 1.27)
-				)
-			)
-		)
-		(pin "1"
-			(uuid "427cba4d-c06f-4802-8218-1ede8f2c877d")
-		)
-		(pin "2"
-			(uuid "12b7a362-8760-4775-9fdc-699c21569b46")
-		)
-		(instances
-			(project "motorized-faders"
-				(path "/b7e3fc1e-7c8d-4632-8bd7-928f8e22b8b2"
-					(reference "D_PD1")
-					(unit 1)
-				)
-			)
-		)
-	)
-		(symbol
-		(lib_id "power:+9V")
-		(at 138.43 233.68 270)
-		(unit 1)
-		(body_style 1)
-		(exclude_from_sim no)
-		(in_bom yes)
-		(on_board yes)
-		(in_pos_files yes)
-		(dnp no)
-		(fields_autoplaced no)
-		(uuid "efcd7a18-e94c-4dca-9fef-da32429625c6")
-		(property "Reference" "#PWR095"
-			(at 144.78 232.41 0)
-			(hide yes)
-			(show_name no)
-			(do_not_autoplace no)
-			(effects
-				(font
-					(size 1.27 1.27)
-				)
-			)
-		)
-		(property "Value" "+9V"
-			(at 144.78 234.95 0)
-			(show_name no)
-			(do_not_autoplace no)
-			(effects
-				(font
-					(size 1.27 1.27)
-				)
-			)
-		)
-		(property "Footprint" ""
-			(at 138.43 233.68 0)
-			(hide yes)
-			(show_name no)
-			(do_not_autoplace no)
-			(effects
-				(font
-					(size 1.27 1.27)
-				)
-			)
-		)
-		(property "Datasheet" ""
-			(at 138.43 233.68 0)
-			(hide yes)
-			(show_name no)
-			(do_not_autoplace no)
-			(effects
-				(font
-					(size 1.27 1.27)
-				)
-			)
-		)
-		(property "Description" "Power symbol creates a global label with name \"+9V\""
-			(at 44.45 114.3 0)
-			(hide yes)
-			(show_name no)
-			(do_not_autoplace no)
-			(effects
-				(font
-					(size 1.27 1.27)
-				)
-			)
-		)
-		(pin "1"
-			(uuid "85a04bfc-65b6-44bb-ba30-fb046dc7c9e9")
-		)
-		(instances
-			(project "motorized-faders"
-				(path "/b7e3fc1e-7c8d-4632-8bd7-928f8e22b8b2"
-					(reference "#PWR095")
-					(unit 1)
-				)
-			)
-		)
-	)
-		(symbol
-		(lib_id "Connector:TestPoint")
-		(at 133.35 238.76 180)
-		(unit 1)
-		(body_style 1)
-		(exclude_from_sim no)
-		(in_bom yes)
-		(on_board yes)
-		(in_pos_files yes)
-		(dnp no)
-		(fields_autoplaced no)
-		(uuid "be12e13d-8a58-47db-b4c2-58146187f8e3")
-		(property "Reference" "TP_9V1"
-			(at 137.16 242.57 0)
-			(show_name no)
-			(do_not_autoplace no)
-			(effects
-				(font
-					(size 1.27 1.27)
-				)
-				(justify left)
-			)
-		)
-		(property "Value" "TestPoint"
-			(at 137.16 245.11 0)
-			(show_name no)
-			(do_not_autoplace no)
-			(effects
-				(font
-					(size 1.27 1.27)
-				)
-				(justify left)
-			)
-		)
-		(property "Footprint" "TestPoint:TestPoint_THTPad_D1.5mm_Drill0.7mm"
-			(at 133.35 238.76 0)
-			(hide yes)
-			(show_name no)
-			(do_not_autoplace no)
-			(effects
-				(font
-					(size 1.27 1.27)
-				)
-			)
-		)
-		(property "Datasheet" ""
-			(at 133.35 238.76 0)
-			(hide yes)
-			(show_name no)
-			(do_not_autoplace no)
-			(effects
-				(font
-					(size 1.27 1.27)
-				)
-			)
-		)
-		(property "Description" "test point"
-			(at 133.35 238.76 0)
-			(hide yes)
-			(show_name no)
-			(do_not_autoplace no)
-			(effects
-				(font
-					(size 1.27 1.27)
-				)
-			)
-		)
-		(pin "1"
-			(uuid "8e8c16a2-6bd3-4331-bdcd-5879db60d8b1")
-		)
-		(instances
-			(project "motorized-faders"
-				(path "/b7e3fc1e-7c8d-4632-8bd7-928f8e22b8b2"
-					(reference "TP_9V1")
-					(unit 1)
-				)
-			)
-		)
-	)
-		(symbol
-		(lib_id "power:PWR_FLAG")
-		(at 133.35 220.98 0)
-		(unit 1)
-		(body_style 1)
-		(exclude_from_sim no)
-		(in_bom yes)
-		(on_board yes)
-		(in_pos_files yes)
-		(dnp no)
-		(fields_autoplaced no)
-		(uuid "faaa794f-b534-4acb-8c1a-1d3272057a00")
-		(property "Reference" "#FLG03"
-			(at 133.35 224.79 0)
-			(hide yes)
-			(show_name no)
-			(do_not_autoplace no)
-			(effects
-				(font
-					(size 1.27 1.27)
-				)
-			)
-		)
-		(property "Value" "PWR_FLAG"
-			(at 133.35 214.63 0)
-			(show_name no)
-			(do_not_autoplace no)
-			(effects
-				(font
-					(size 1.27 1.27)
-				)
-			)
-		)
-		(property "Footprint" "Package_SO:TSSOP-28_4.4x9.7mm_P0.65mm"
-			(at 133.35 220.98 0)
-			(hide yes)
-			(show_name no)
-			(do_not_autoplace no)
-			(effects
-				(font
-					(size 1.27 1.27)
-				)
-			)
-		)
-		(property "Datasheet" ""
-			(at 133.35 220.98 0)
-			(hide yes)
-			(show_name no)
-			(do_not_autoplace no)
-			(effects
-				(font
-					(size 1.27 1.27)
-				)
-			)
-		)
-		(property "Description" "Special symbol for telling ERC where power comes from"
-			(at 133.35 220.98 0)
-			(hide yes)
-			(show_name no)
-			(do_not_autoplace no)
-			(effects
-				(font
-					(size 1.27 1.27)
-				)
-			)
-		)
-		(pin "1"
-			(uuid "e499c3d8-6e38-4e50-9edb-de9c01cc2c44")
-		)
-		(instances
-			(project "motorized-faders"
-				(path "/b7e3fc1e-7c8d-4632-8bd7-928f8e22b8b2"
-					(reference "#FLG03")
-					(unit 1)
-				)
-			)
-		)
-	)
-		(symbol
-		(lib_id "Device:R")
-		(at 160.02 233.68 0)
-		(unit 1)
-		(body_style 1)
-		(exclude_from_sim no)
-		(in_bom yes)
-		(on_board yes)
-		(in_pos_files yes)
-		(dnp no)
-		(fields_autoplaced no)
-		(uuid "d6215dd4-f331-45b4-8feb-1801af5e551c")
-		(property "Reference" "R_PD_SENSE_TOP1"
-			(at 166.37 232.41 0)
-			(show_name no)
-			(do_not_autoplace no)
-			(effects
-				(font
-					(size 1.27 1.27)
-				)
-			)
-		)
-		(property "Value" "10kOhm"
-			(at 166.37 234.95 0)
-			(show_name no)
-			(do_not_autoplace no)
-			(effects
-				(font
-					(size 1.27 1.27)
-				)
-			)
-		)
-		(property "Footprint" "Resistor_SMD:R_0805_2012Metric"
-			(at 160.02 233.68 0)
-			(hide yes)
-			(show_name no)
-			(do_not_autoplace no)
-			(effects
-				(font
-					(size 1.27 1.27)
-				)
-			)
-		)
-		(property "Datasheet" ""
-			(at 160.02 233.68 0)
-			(hide yes)
-			(show_name no)
-			(do_not_autoplace no)
-			(effects
-				(font
-					(size 1.27 1.27)
-				)
-			)
-		)
-		(property "Description" "Resistor"
-			(at 160.02 233.68 0)
-			(hide yes)
-			(show_name no)
-			(do_not_autoplace no)
-			(effects
-				(font
-					(size 1.27 1.27)
-				)
-			)
-		)
-		(pin "1"
-			(uuid "104720ae-7863-45fd-9e15-b56b1f0c1683")
-		)
-		(pin "2"
-			(uuid "78aa44d7-35f3-4464-b9cf-634e79037692")
-		)
-		(instances
-			(project "motorized-faders"
-				(path "/b7e3fc1e-7c8d-4632-8bd7-928f8e22b8b2"
-					(reference "R_PD_SENSE_TOP1")
-					(unit 1)
-				)
-			)
-		)
-	)
-		(symbol
-		(lib_id "Device:R")
-		(at 160.02 245.11 0)
-		(unit 1)
-		(body_style 1)
-		(exclude_from_sim no)
-		(in_bom yes)
-		(on_board yes)
-		(in_pos_files yes)
-		(dnp no)
-		(fields_autoplaced no)
-		(uuid "0152c4cf-1cb7-4727-9c89-4a6dd9e8d01c")
-		(property "Reference" "R_PD_SENSE_BOT1"
-			(at 166.37 243.84 0)
-			(show_name no)
-			(do_not_autoplace no)
-			(effects
-				(font
-					(size 1.27 1.27)
-				)
-			)
-		)
-		(property "Value" "3.3kOhm"
-			(at 166.37 246.38 0)
-			(show_name no)
-			(do_not_autoplace no)
-			(effects
-				(font
-					(size 1.27 1.27)
-				)
-			)
-		)
-		(property "Footprint" "Resistor_SMD:R_0805_2012Metric"
-			(at 160.02 245.11 0)
-			(hide yes)
-			(show_name no)
-			(do_not_autoplace no)
-			(effects
-				(font
-					(size 1.27 1.27)
-				)
-			)
-		)
-		(property "Datasheet" ""
-			(at 160.02 245.11 0)
-			(hide yes)
-			(show_name no)
-			(do_not_autoplace no)
-			(effects
-				(font
-					(size 1.27 1.27)
-				)
-			)
-		)
-		(property "Description" "Resistor"
-			(at 160.02 245.11 0)
-			(hide yes)
-			(show_name no)
-			(do_not_autoplace no)
-			(effects
-				(font
-					(size 1.27 1.27)
-				)
-			)
-		)
-		(pin "1"
-			(uuid "eae5ae08-28e8-4730-b825-9a1c3cb150de")
-		)
-		(pin "2"
-			(uuid "d99abece-b867-4a14-b7f4-218322045b72")
-		)
-		(instances
-			(project "motorized-faders"
-				(path "/b7e3fc1e-7c8d-4632-8bd7-928f8e22b8b2"
-					(reference "R_PD_SENSE_BOT1")
-					(unit 1)
-				)
-			)
-		)
-	)
-		(symbol
-		(lib_id "Device:C")
-		(at 172.72 243.84 0)
-		(unit 1)
-		(body_style 1)
-		(exclude_from_sim no)
-		(in_bom yes)
-		(on_board yes)
-		(in_pos_files yes)
-		(dnp no)
-		(uuid "9792fbda-2ce2-42d1-b80a-b08ae397af78")
-		(property "Reference" "C_PD_SENSE1"
-			(at 179.07 242.57 0)
-			(show_name no)
-			(do_not_autoplace no)
-			(effects
-				(font
-					(size 1.27 1.27)
-				)
-				(justify left)
-			)
-		)
-		(property "Value" "100nF"
-			(at 179.07 245.11 0)
-			(show_name no)
-			(do_not_autoplace no)
-			(effects
-				(font
-					(size 1.27 1.27)
-				)
-				(justify left)
-			)
-		)
-		(property "Footprint" "Capacitor_SMD:C_0805_2012Metric"
-			(at 172.72 243.84 0)
-			(hide yes)
-			(show_name no)
-			(do_not_autoplace no)
-			(effects
-				(font
-					(size 1.27 1.27)
-				)
-			)
-		)
-		(property "Datasheet" ""
-			(at 172.72 243.84 0)
-			(hide yes)
-			(show_name no)
-			(do_not_autoplace no)
-			(effects
-				(font
-					(size 1.27 1.27)
-				)
-			)
-		)
-		(property "Description" "Unpolarized capacitor"
-			(at 172.72 243.84 0)
-			(hide yes)
-			(show_name no)
-			(do_not_autoplace no)
-			(effects
-				(font
-					(size 1.27 1.27)
-				)
-			)
-		)
-		(pin "2"
-			(uuid "d2fa0455-10a7-4a1e-bf54-ec89cce78fbc")
-		)
-		(pin "1"
-			(uuid "07498a0e-0dee-415b-a348-566bd8eef6ed")
-		)
-		(instances
-			(project "motorized-faders"
-				(path "/b7e3fc1e-7c8d-4632-8bd7-928f8e22b8b2"
-					(reference "C_PD_SENSE1")
-					(unit 1)
-				)
-			)
-		)
-	)
-		(symbol
-		(lib_id "power:GND")
-		(at 160.02 251.46 0)
-		(unit 1)
-		(body_style 1)
-		(exclude_from_sim no)
-		(in_bom yes)
-		(on_board yes)
-		(in_pos_files yes)
-		(dnp no)
-		(fields_autoplaced no)
-		(uuid "b007b508-8030-400d-a2ee-f632d39223ce")
-		(property "Reference" "#PWR096"
-			(at 166.37 250.19 0)
-			(hide yes)
-			(show_name no)
-			(do_not_autoplace no)
-			(effects
-				(font
-					(size 1.27 1.27)
-				)
-			)
-		)
-		(property "Value" "GND"
-			(at 166.37 252.73 0)
-			(show_name no)
-			(do_not_autoplace no)
-			(effects
-				(font
-					(size 1.27 1.27)
-				)
-				(justify right)
-			)
-		)
-		(property "Footprint" ""
-			(at 160.02 251.46 0)
-			(hide yes)
-			(show_name no)
-			(do_not_autoplace no)
-			(effects
-				(font
-					(size 1.27 1.27)
-				)
-			)
-		)
-		(property "Datasheet" ""
-			(at 160.02 251.46 0)
-			(hide yes)
-			(show_name no)
-			(do_not_autoplace no)
-			(effects
-				(font
-					(size 1.27 1.27)
-				)
-			)
-		)
-		(property "Description" "Power symbol creates a global label with name \"GND\" , ground"
-			(at 237.49 129.54 0)
-			(hide yes)
-			(show_name no)
-			(do_not_autoplace no)
-			(effects
-				(font
-					(size 1.27 1.27)
-				)
-			)
-		)
-		(pin "1"
-			(uuid "4d8b0f3e-c766-4f95-b331-11d888701b9f")
-		)
-		(instances
-			(project "motorized-faders"
-				(path "/b7e3fc1e-7c8d-4632-8bd7-928f8e22b8b2"
-					(reference "#PWR096")
-					(unit 1)
-				)
-			)
-		)
-	)
-		(symbol
-		(lib_id "power:GND")
-		(at 172.72 250.19 0)
-		(unit 1)
-		(body_style 1)
-		(exclude_from_sim no)
-		(in_bom yes)
-		(on_board yes)
-		(in_pos_files yes)
-		(dnp no)
-		(fields_autoplaced no)
-		(uuid "de0c01e8-4f4e-441e-8d51-ab49b049211d")
-		(property "Reference" "#PWR097"
-			(at 179.07 248.92 0)
-			(hide yes)
-			(show_name no)
-			(do_not_autoplace no)
-			(effects
-				(font
-					(size 1.27 1.27)
-				)
-			)
-		)
-		(property "Value" "GND"
-			(at 179.07 251.46 0)
-			(show_name no)
-			(do_not_autoplace no)
-			(effects
-				(font
-					(size 1.27 1.27)
-				)
-				(justify right)
-			)
-		)
-		(property "Footprint" ""
-			(at 172.72 250.19 0)
-			(hide yes)
-			(show_name no)
-			(do_not_autoplace no)
-			(effects
-				(font
-					(size 1.27 1.27)
-				)
-			)
-		)
-		(property "Datasheet" ""
-			(at 172.72 250.19 0)
-			(hide yes)
-			(show_name no)
-			(do_not_autoplace no)
-			(effects
-				(font
-					(size 1.27 1.27)
-				)
-			)
-		)
-		(property "Description" "Power symbol creates a global label with name \"GND\" , ground"
-			(at 237.49 129.54 0)
-			(hide yes)
-			(show_name no)
-			(do_not_autoplace no)
-			(effects
-				(font
-					(size 1.27 1.27)
-				)
-			)
-		)
-		(pin "1"
-			(uuid "5264e355-2769-4ddc-8004-d4edf0913a9d")
-		)
-		(instances
-			(project "motorized-faders"
-				(path "/b7e3fc1e-7c8d-4632-8bd7-928f8e22b8b2"
-					(reference "#PWR097")
-					(unit 1)
-				)
-			)
-		)
-	)
-	(label "+9V_PD"
-		(at 80.01 27.94 180)
-		(effects
-			(font
-				(size 1.27 1.27)
-			)
-			(justify right bottom)
-		)
-		(uuid "3e8bec71-bbd2-46f0-b01f-58f1d9a72480")
-	)
-	(wire
-		(pts
-			(xy 278.13 67.31) (xy 280.67 67.31)
-		)
-		(stroke
-			(width 0)
-			(type default)
-		)
-		(uuid "c85c0009-5d7f-4705-ae7e-209d82ae61a7")
-	)
-	(label "PD_SENSE"
-		(at 280.67 67.31 0)
-		(effects
-			(font
-				(size 1.27 1.27)
-			)
-			(justify left bottom)
-		)
-		(uuid "e3e8170d-147f-4fbd-81ad-a9d4cd9501d7")
-	)
-	(label "BTN_GEN"
-		(at 304.8 146.05 90)
-		(effects
-			(font
-				(size 1.27 1.27)
-			)
-			(justify left bottom)
-		)
-		(uuid "c66b1388-a32a-4346-8ea1-fbff4f62cb13")
-	)
-	(wire
-		(pts
-			(xy 304.8 146.05) (xy 304.8 148.59)
-		)
-		(stroke
-			(width 0)
-			(type default)
-		)
-		(uuid "63c8580f-38de-426b-af34-5c168c9830a7")
-	)
-	(wire
-		(pts
-			(xy 304.8 156.21) (xy 304.8 157.48)
-		)
-		(stroke
-			(width 0)
-			(type default)
-		)
-		(uuid "9cec31cd-9021-48c9-950c-ce7073338cea")
-	)
-	(wire
-		(pts
-			(xy 304.8 157.48) (xy 306.07 157.48)
-		)
-		(stroke
-			(width 0)
-			(type default)
-		)
-		(uuid "c61e809d-e3e7-4d63-b3f3-ccfe15cf444f")
-	)
-	(wire
-		(pts
-			(xy 316.23 157.48) (xy 318.77000000000004 157.48)
-		)
-		(stroke
-			(width 0)
-			(type default)
-		)
-		(uuid "4a93d1ef-7cff-4d97-aa63-79ecd7de0ea2")
-	)
-	(label "BTN_GEN"
-		(at 340.36 146.05 90)
-		(effects
-			(font
-				(size 1.27 1.27)
-			)
-			(justify left bottom)
-		)
-		(uuid "f1783e80-6846-42e3-b8cb-a6cd730a98bf")
-	)
-	(wire
-		(pts
-			(xy 340.36 146.05) (xy 340.36 148.59)
-		)
-		(stroke
-			(width 0)
-			(type default)
-		)
-		(uuid "b0577601-63ac-4c5a-9292-2f414eeb5cd3")
-	)
-	(wire
-		(pts
-			(xy 340.36 156.21) (xy 340.36 157.48)
-		)
-		(stroke
-			(width 0)
-			(type default)
-		)
-		(uuid "865b6ede-32a3-4061-a0ff-c8420f484708")
-	)
-	(wire
-		(pts
-			(xy 340.36 157.48) (xy 341.63 157.48)
-		)
-		(stroke
-			(width 0)
-			(type default)
-		)
-		(uuid "7fb9b52c-a544-410e-ba11-0b6d10317311")
-	)
-	(wire
-		(pts
-			(xy 351.79 157.48) (xy 354.33000000000004 157.48)
-		)
-		(stroke
-			(width 0)
-			(type default)
-		)
-		(uuid "f9735010-2890-4c32-9b9c-676f9e8f9766")
-	)
-	(wire
-		(pts
-			(xy 27.94 220.98) (xy 35.56 220.98)
-		)
-		(stroke
-			(width 0)
-			(type default)
-		)
-		(uuid "9328b6df-30d5-410a-9321-c1a3af799f77")
-	)
-	(wire
-		(pts
-			(xy 27.94 223.52) (xy 35.56 223.52)
-		)
-		(stroke
-			(width 0)
-			(type default)
-		)
-		(uuid "192e7a6d-52a2-4efa-aba7-ae2dc04ab756")
-	)
-	(wire
-		(pts
-			(xy 27.94 226.06) (xy 35.56 226.06)
-		)
-		(stroke
-			(width 0)
-			(type default)
-		)
-		(uuid "d4eba3ef-27ab-4903-ac65-a1fdf42e96bf")
-	)
-	(wire
-		(pts
-			(xy 30.48 228.6) (xy 35.56 228.6)
-		)
-		(stroke
-			(width 0)
-			(type default)
-		)
-		(uuid "e367c792-104a-4d84-ba31-76b0a4c8d508")
-	)
-	(wire
-		(pts
-			(xy 30.48 228.6) (xy 30.48 231.14)
-		)
-		(stroke
-			(width 0)
-			(type default)
-		)
-		(uuid "07cc4489-34e4-4f31-8ed8-f64b73af79c4")
-	)
-	(label "+9V_BOOST"
-		(at 27.94 226.06 180)
-		(effects
-			(font
-				(size 1.27 1.27)
-			)
-			(justify right bottom)
-		)
-		(uuid "57eb3462-8cdc-4d71-9600-19304f54b769")
-	)
-	(wire
-		(pts
-			(xy 25.4 237.49) (xy 25.4 234.95)
-		)
-		(stroke
-			(width 0)
-			(type default)
-		)
-		(uuid "8cae0203-0164-4902-9feb-b96d9fb17e08")
-	)
-	(wire
-		(pts
-			(xy 25.4 245.11) (xy 25.4 247.65)
-		)
-		(stroke
-			(width 0)
-			(type default)
-		)
-		(uuid "931b9c32-525f-4e14-bdf3-394062729c14")
-	)
-	(wire
-		(pts
-			(xy 63.5 234.95) (xy 63.5 232.41)
-		)
-		(stroke
-			(width 0)
-			(type default)
-		)
-		(uuid "cf9f61b6-2bd2-4990-b491-19e507e70941")
-	)
-	(wire
-		(pts
-			(xy 63.5 242.57) (xy 63.5 246.38)
-		)
-		(stroke
-			(width 0)
-			(type default)
-		)
-		(uuid "299f375d-e23b-463f-998b-ccb8944b5ec1")
-	)
-	(wire
-		(pts
-			(xy 63.5 246.38) (xy 63.5 250.19)
-		)
-		(stroke
-			(width 0)
-			(type default)
-		)
-		(uuid "f8f45e9e-65a3-4e70-873a-ee2c7ee7622f")
-	)
-	(wire
-		(pts
-			(xy 63.5 257.81) (xy 63.5 260.35)
-		)
-		(stroke
-			(width 0)
-			(type default)
-		)
-		(uuid "6ec1b990-9838-4c76-a6d7-3e37dd9a30ae")
-	)
-	(wire
-		(pts
-			(xy 83.82 234.95) (xy 83.82 232.41)
-		)
-		(stroke
-			(width 0)
-			(type default)
-		)
-		(uuid "a962b171-411a-4ce2-adcd-43ba6111076c")
-	)
-	(wire
-		(pts
-			(xy 83.82 242.57) (xy 83.82 246.38)
-		)
-		(stroke
-			(width 0)
-			(type default)
-		)
-		(uuid "4901ac26-a135-4a6e-b0be-37a590b2474d")
-	)
-	(wire
-		(pts
-			(xy 83.82 246.38) (xy 83.82 250.19)
-		)
-		(stroke
-			(width 0)
-			(type default)
-		)
-		(uuid "e2915000-7468-404c-b3d4-be7df218f326")
-	)
-	(wire
-		(pts
-			(xy 83.82 257.81) (xy 83.82 260.35)
-		)
-		(stroke
-			(width 0)
-			(type default)
-		)
-		(uuid "e695994f-590a-419b-bff3-3337d8ac7477")
-	)
-	(wire
-		(pts
-			(xy 63.5 232.41) (xy 83.82 232.41)
-		)
-		(stroke
-			(width 0)
-			(type default)
-		)
-		(uuid "0907e8aa-7538-4ea8-aa8f-e61cf0c426e1")
-	)
-	(wire
-		(pts
-			(xy 83.82 232.41) (xy 93.98 232.41)
-		)
-		(stroke
-			(width 0)
-			(type default)
-		)
-		(uuid "30efdc15-7b0b-43b5-a9f9-2d8f63d5bf5f")
-	)
-	(junction
-		(at 83.82 232.41)
-		(diameter 0)
-		(color 0 0 0 0)
-		(uuid "e0daba18-0ed0-4dad-bdfb-17057dad129b")
-	)
-	(label "+9V_BOOST"
-		(at 63.5 232.41 90)
-		(effects
-			(font
-				(size 1.27 1.27)
-			)
-			(justify left bottom)
-		)
-		(uuid "130ca2be-4469-4a6f-b5d0-bc6906f3dc5c")
-	)
-	(wire
-		(pts
-			(xy 63.5 246.38) (xy 83.82 246.38)
-		)
-		(stroke
-			(width 0)
-			(type default)
-		)
-		(uuid "faadc445-66a6-445c-aab3-8754bbc9c6e0")
-	)
-	(junction
-		(at 63.5 246.38)
-		(diameter 0)
-		(color 0 0 0 0)
-		(uuid "ee728496-9b4b-4581-a599-1060e2fd3f57")
-	)
-	(junction
-		(at 83.82 246.38)
-		(diameter 0)
-		(color 0 0 0 0)
-		(uuid "908c9408-95ff-4539-be4b-2dc731009843")
-	)
-	(label "SC_MID"
-		(at 68.58 246.38 0)
-		(effects
-			(font
-				(size 1.27 1.27)
-			)
-			(justify left bottom)
-		)
-		(uuid "9025345c-f303-4ac3-bcf6-fae4d87bc28a")
-	)
-	(wire
-		(pts
-			(xy 116.84 220.98) (xy 123.19 220.98)
-		)
-		(stroke
-			(width 0)
-			(type default)
-		)
-		(uuid "3091f674-f6fc-4adb-8d4c-3fa47f50cd4c")
-	)
-	(label "+9V_BOOST"
-		(at 116.84 220.98 180)
-		(effects
-			(font
-				(size 1.27 1.27)
-			)
-			(justify right bottom)
-		)
-		(uuid "4347c9d6-eb13-4131-88aa-cd1324ac28a9")
-	)
-	(wire
-		(pts
-			(xy 130.81 220.98) (xy 133.35 220.98)
-		)
-		(stroke
-			(width 0)
-			(type default)
-		)
-		(uuid "f725ad6b-d8e4-45f3-a6eb-216360fe5cbf")
-	)
-	(wire
-		(pts
-			(xy 133.35 220.98) (xy 138.43 220.98)
-		)
-		(stroke
-			(width 0)
-			(type default)
-		)
-		(uuid "2a20612e-6b22-41c2-85ba-00cf5cb01ebd")
-	)
-	(wire
-		(pts
-			(xy 116.84 233.68) (xy 123.19 233.68)
-		)
-		(stroke
-			(width 0)
-			(type default)
-		)
-		(uuid "31856f95-475d-4231-b3fc-c367a14266ee")
-	)
-	(label "+9V_PD"
-		(at 116.84 233.68 180)
-		(effects
-			(font
-				(size 1.27 1.27)
-			)
-			(justify right bottom)
-		)
-		(uuid "28959b25-b94a-492c-b171-1fb9e9f0d1c4")
-	)
-	(wire
-		(pts
-			(xy 130.81 233.68) (xy 133.35 233.68)
-		)
-		(stroke
-			(width 0)
-			(type default)
-		)
-		(uuid "ac0ac014-c63f-49db-9a26-741ce9fcf9cf")
-	)
-	(wire
-		(pts
-			(xy 133.35 233.68) (xy 138.43 233.68)
-		)
-		(stroke
-			(width 0)
-			(type default)
-		)
-		(uuid "1db3c96a-1dbe-426f-9fcf-f1765fdadb37")
-	)
-	(wire
-		(pts
-			(xy 133.35 233.68) (xy 133.35 238.76)
-		)
-		(stroke
-			(width 0)
-			(type default)
-		)
-		(uuid "08073ca3-8050-4eda-b976-3676ab3d2f33")
-	)
-	(junction
-		(at 133.35 233.68)
-		(diameter 0)
-		(color 0 0 0 0)
-		(uuid "4c7ba896-3ea8-4776-aef7-bf68ffa1a01d")
-	)
-	(wire
-		(pts
-			(xy 160.02 229.87) (xy 160.02 227.33)
-		)
-		(stroke
-			(width 0)
-			(type default)
-		)
-		(uuid "b7ffa1a9-6d9c-4a21-8b0f-9f1eda177675")
-	)
-	(label "+9V_PD"
-		(at 160.02 227.33 90)
-		(effects
-			(font
-				(size 1.27 1.27)
-			)
-			(justify left bottom)
-		)
-		(uuid "e11c07b4-eab2-48a7-b6e5-148a8c2dd0a9")
-	)
-	(wire
-		(pts
-			(xy 160.02 237.49) (xy 160.02 238.76)
-		)
-		(stroke
-			(width 0)
-			(type default)
-		)
-		(uuid "f1b1788d-bbb0-4af6-8806-b8ebe3c0a753")
-	)
-	(wire
-		(pts
-			(xy 160.02 238.76) (xy 160.02 241.3)
-		)
-		(stroke
-			(width 0)
-			(type default)
-		)
-		(uuid "50090304-72d9-4a3b-be64-f95e67d02233")
-	)
-	(wire
-		(pts
-			(xy 160.02 238.76) (xy 172.72 238.76)
-		)
-		(stroke
-			(width 0)
-			(type default)
-		)
-		(uuid "f2f95277-8613-4121-9df1-648d91b58ac4")
-	)
-	(wire
-		(pts
-			(xy 172.72 238.76) (xy 172.72 240.03)
-		)
-		(stroke
-			(width 0)
-			(type default)
-		)
-		(uuid "15bd3f73-4a67-4708-81d1-78150b406b53")
-	)
-	(junction
-		(at 160.02 238.76)
-		(diameter 0)
-		(color 0 0 0 0)
-		(uuid "d924afc9-e2cc-41d3-a52e-bf4bb7c58f43")
-	)
-	(label "PD_SENSE"
-		(at 172.72 238.76 0)
-		(effects
-			(font
-				(size 1.27 1.27)
-			)
-			(justify left bottom)
-		)
-		(uuid "3d470bae-5017-437e-9c01-9093361d92e2")
-	)
-	(wire
-		(pts
-			(xy 160.02 248.92) (xy 160.02 251.46)
-		)
-		(stroke
-			(width 0)
-			(type default)
-		)
-		(uuid "1be4128c-0b02-4642-ba92-e0b8f3829246")
-	)
-	(wire
-		(pts
-			(xy 172.72 247.65) (xy 172.72 250.19)
-		)
-		(stroke
-			(width 0)
-			(type default)
-		)
-		(uuid "6ef7937c-7e04-4395-b4ae-27747f97d7a8")
 	)
 	(sheet_instances
 		(path "/"

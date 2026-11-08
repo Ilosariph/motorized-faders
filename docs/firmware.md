@@ -261,13 +261,14 @@ charges supercaps (see [pcb_design.md](pcb_design.md#usb-only-power)). Boot:
 
 ```
 boot -> PWR_SRC:pd|usb       (CH5: PD rail before its diode >= PD_PRESENT_V)
-     -> wait until VM >= VM_START_V (8 V), max VM_CHARGE_TIMEOUT_MS (180 s)
+     -> wait until VM >= VM_START_V (8 V), max VM_CHARGE_TIMEOUT_MS (300 s)
         screens + DBG:charging show VM in 0.1 V steps
      -> rail check as above
 ```
 
 With PD, or caps still charged from a warm reboot, the wait is instant. From
-empty caps on USB alone it takes ~50 s. A dead boost times out into
+empty caps on USB alone it takes ~90 s, ~3 min with the optional second
+supercap stack. A dead boost times out into
 `RAIL:fail`.
 
 ### Droop guard
