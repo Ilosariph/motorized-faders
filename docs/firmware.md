@@ -256,19 +256,25 @@ fault is visible rather than silent.
 
 ### Power source and charge wait
 
-VM is a diode-OR of the PD trigger and a CC/CV boost from the Pico's USB that
-charges supercaps (see [pcb_design.md](pcb_design.md#usb-only-power)). Boot:
+VM is a diode-OR of the PD trigger and a boost + LM317 current source from the
+Pico's USB that charges supercaps (see [pcb_design.md](pcb_design.md#usb-only-power)). Boot:
 
 ```
 boot -> PWR_SRC:pd|usb       (CH5: PD rail before its diode >= PD_PRESENT_V)
-     -> wait until VM >= VM_START_V (8 V), max VM_CHARGE_TIMEOUT_MS (300 s)
-        screens + DBG:charging show VM in 0.1 V steps
-     -> rail check as above
+     -> main loop runs, STBY low, until VM >= VM_START_V (8 V),
+        max VM_CHARGE_TIMEOUT_MS (300 s)
+        DBG:charging reports VM in 0.1 V steps; screens show it until the
+        first DISP: from the host
+     -> rail check as above, then calibration
 ```
 
+The wait does not block (`ChargeWait`, polled from the main loop). Buttons, `POS:`
+and `DISP:` work throughout. `SET:` and `MUTE:` are dropped until `CAL:done`,
+when the host resends its state.
+
 With PD, or caps still charged from a warm reboot, the wait is instant. From
-empty caps on USB alone it takes ~90 s, ~3 min with the optional second
-supercap stack. A dead boost times out into
+empty caps on USB alone it takes ~100 s, ~3.3 min with the optional second
+supercap stack (calculated, not measured). A dead boost times out into
 `RAIL:fail`.
 
 ### Droop guard

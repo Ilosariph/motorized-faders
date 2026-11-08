@@ -22,7 +22,7 @@ this document is the single-board version.
 | Connectors | **JST-XH 2.5 mm** for every off-board lead — keyed, 3 A |
 | Pin map | Fixed: SPI0 on GP16/18/19, PWM on 4 distinct slices, GP0/1 spare |
 | MCU | Keep the existing RP2040 module — bare RP2040 not needed |
-| Motor power | **Pico USB alone**: CC/CV boost to 9 V + 1.25 F supercaps (2.5 F with optional second stack). PD trigger (jumper-set 9 V) optional, diode-OR'd |
+| Motor power | **Pico USB alone**: MT3608 boost + LM317 current source to ~9 V + 1.25 F supercaps (2.5 F with optional second stack). PD trigger (jumper-set 9 V) optional, diode-OR'd |
 | Rail check | Divider into spare ADC CH4 — catches silent 5 V fallback, 0 GPIO. PD rail on CH5 |
 | Assembly | Fully hand-solderable, no hot air / reflow required |
 | Build order | Socket breakouts first, prove the board, then solder SSOP — **no respin** |
@@ -608,7 +608,10 @@ that averaging to be reduced, buying loop rate back.
 
 | Part | Qty | Note |
 |------|-----|------|
-| CC/CV boost module (XL6009-class, adjustable CV + CC) | 1 | 5 V → 9.3 V, CC ~120 mA; off-board on `J_BOOST1` |
+| MT3608 boost module | 1 | 5 V → 11 V; off-board on `J_BOOST1` |
+| `LM317KCSE3` (TO-220) | 1 | current source, ~104 mA; in the `J_BOOST1` harness |
+| 12 Ω 1/4 W resistor (`CF14JT12R0`) | 1 | sets the LM317 current; in the harness |
+| `1N4007` diode | 1 | LM317 reverse protection; in the harness |
 | Supercap 2.5 F 5.4 V, Eaton `PHV-5R4V255-R` | 2 | series → 1.25 F @ 10.8 V |
 | Same supercap, optional (`C_SC3`, `C_SC4`, DNP) | 0 or 2 | second stack, fit as a pair → 2.5 F |
 | Schottky 5 A 40 V, `B540C-13-F` (SMC) | 2 | diode-OR, `D_BOOST1` / `D_PD1` |
@@ -627,7 +630,7 @@ barrel jack or fuse. See [USB-only power](#usb-only-power).
 | Tactile button (per-fader) | 4 |
 | Tactile button (general) | 2-4 |
 | JST-XH headers: 4x B5B (faders), 4x B8B (displays), 8x B2B (buttons), 2x B4B (PD, boost) | 18 |
-| JST-XH housings + crimp contacts, matching | 18 / ~68 |
+| JST-XH housings + crimp contacts, matching | 18 / 76 |
 
 ---
 
@@ -637,7 +640,7 @@ barrel jack or fuse. See [USB-only power](#usb-only-power).
 |------|--------|-------|
 | 5 V logic | Pico USB-C from the PC | RP2040 module, **display VIN x4**, boost module input |
 | 3.3 V | Pico onboard regulator | fader wipers, TB6612FNG VCC, MCP3208, displays |
-| `+9V_BOOST` | boost module from 5 V | supercap stack, then `D_BOOST1` |
+| `+9V_BOOST` | MT3608 + LM317 from 5 V | supercap stack, then `D_BOOST1` |
 | `+9V_PD` | USB-C PD trigger board (optional) | `D_PD1`, PD_SENSE divider |
 | `+9V` (VM) | diode-OR of the two above | TB6612FNG VM, bulk caps, VM_SENSE |
 
@@ -663,14 +666,14 @@ extra. **5 V → 9 V needs a boost**, and a USB 2.0 port only supplies 500 mA:
 |---|---|
 | USB 2.0 port | 2.5 W (5 V x 500 mA) |
 | Pico + 4 displays | ~1 W |
-| Left for the boost input | ~1.3 W → ~120 mA at 9 V |
+| Left for the boost input | ~1.3 W → ~255 mA at 5 V → ~104 mA into the caps at 11 V |
 | 4 faders moving at once | ~10-30 W, for ~0.5-1 s |
 
 The gap is bridged by storage: the boost trickle-charges supercaps, and motor
 bursts come out of the caps.
 
 ```
-Pico VBUS (+5V) ─► J_BOOST1 ─► boost module, CV 9.3 V, CC ~120 mA
+Pico VBUS (+5V) ─► J_BOOST1 ─► MT3608, 11 V ─► LM317 + 12 Ω, ~104 mA
                                │
                +9V_BOOST ◄─────┘──┬── C_SC1 ─ SC_MID ─ C_SC2 ── GNDPWR
                                   │   (R_SC_BAL1/2 4.7 kΩ across each)
@@ -680,40 +683,54 @@ J_PD1 ─► +9V_PD ─► D_PD1 ───────────────�
                    [3.3k] + 100 nF ─ GND
 ```
 
-**Why a CC/CV module, not a plain boost (MT3608 etc.).** Empty supercaps look
-like a short. A plain boost would pull amps from the USB port until the host
-cuts it or the Pico browns out. The CC limit makes the charge current — and so
-the USB draw — fixed. Set it on the bench into a dummy load before connecting
-the caps: CV 9.3 V, then CC so the module input stays ≤ ~300 mA.
+**Why an LM317 after the boost.** Empty supercaps look like a short. A plain
+boost would pull amps from the USB port until the host cuts it or the Pico
+browns out. CC/CV boost modules for 5 V input are not readily available
+(XL6009 and MT3608 modules regulate voltage only; CC/CV modules are bucks or
+need ≥ 6 V in), so an LM317 current source sits between the MT3608 and
+`J_BOOST1` pin 3: 1.25 V / 12 Ω ≈ 104 mA, which fixes the USB draw at ~255 mA.
+It lives in the harness, no board change. Wiring in
+[assembly_v2.md](assembly_v2.md). Set the MT3608 to 11 V before connecting
+the LM317.
+
+The LM317's dropout sets the float voltage: ~9.4-9.8 V on `+9V_BOOST` from 11 V
+in. Tune with the MT3608 trimmer. It dissipates up to ~1 W at empty caps, in free
+air without a heatsink.
 
 **Why the caps sit before the OR diode.** A PD charger switching onto 1.25 F
-sees a dead short and trips its OCP. On the boost side, only the CC-limited
+sees a dead short and trips its OCP. On the boost side, only the current-limited
 boost ever charges them. The PD path keeps just the 2x 100 uF bulk it always
 had.
 
-**Diode-OR, no logic.** The higher source wins: boost 9.3 V − 0.45 V ≈ 8.85 V,
+**Diode-OR, no logic.** The higher source wins: boost float − 0.45 V ≈ 9.0-9.35 V,
 PD 9 V − 0.45 V ≈ 8.55 V. The caps carry each burst; once they sag below the
 PD level, PD takes over. If the PD charger silently falls back to 5 V, its
-diode simply blocks and the boost carries VM. The module's own diode (async
-boost) and `D_BOOST1` stop back-feeding. Both land inside the existing
+diode simply blocks and the boost carries VM. The MT3608's own diode (async
+boost) and `D_BOOST1` stop back-feeding; the `1N4007` protects the LM317 when
+its input drops first. Both land inside the existing
 9 V ± 1.2 V rail band.
 
 **Energy.** Usable 9 → 6 V: ½ · 1.25 F · (81 − 36) ≈ 28 J, against ~10-20 J for
-a 4-fader burst (estimate, not yet measured). At the 120 mA CC limit a full
-9 → 6 V recharge takes ~30 s; from empty to VM 8 V ~90 s, which the firmware
-waits out at boot (screens show `Charging`). Below 6 V the firmware pauses the
+a 4-fader burst (estimate, not yet measured). At ~104 mA a full
+9 → 6 V recharge takes ~35 s; from empty to VM 8 V ~100 s (both calculated). The
+firmware holds the motors off for that time at boot, with screens, buttons and
+host still running. Below 6 V the firmware pauses the
 motors and resumes at 7.5 V — see [firmware.md](firmware.md#droop-guard).
 
-**Cell derating:** 9.3 V across two 5.4 V cells is 4.65 V each. The 4.7 kΩ
+**Caps drain when off**, through the balance resistors (9.4 kΩ total) in parallel
+with the VM sense divider (13.3 kΩ, via `D_BOOST1`): τ ≈ 2 h at 1.25 F. Expect a
+full cold start after any long power-off.
+
+**Cell derating:** up to 9.8 V float across two 5.4 V cells is 4.9 V each. The 4.7 kΩ
 balance resistors (1 mA, ~10 mW total) keep the split even as leakage drifts.
 
 **Optional second stack.** `C_SC3` sits across `C_SC1` and `C_SC4` across
 `C_SC2`, sharing `SC_MID` and the balance resistors. Both are DNP by default.
-Fitted: 2.5 F, ~56 J usable, half the ESR, but ~60 s full recharge and ~3 min
+Fitted: 2.5 F, ~56 J usable, half the ESR, but ~70 s full recharge and ~3.3 min
 cold start (`VM_CHARGE_TIMEOUT_MS` is 300 s). **Fit both or neither, same part:**
 one alone gives 5 F in series with 2.5 F, which charges the single cell to
 ~6.2 V, over its 5.4 V rating. The balance resistors cannot correct that
-against a 120 mA charge current. A third cell in series is no use either: 0.83 F,
+against a ~104 mA charge current. A third cell in series is no use either: 0.83 F,
 ~19 J.
 
 **Footprint caveat:** `C_SC1..4` use the project footprint
@@ -1185,7 +1202,8 @@ gains further I2C devices.
 ### Not from DigiKey
 
 Cheaper at Bastelgarage or similar: pin headers, and a TCA9548A breakout module
-(CHF 5.90) if a mux is ever wanted without TSSOP soldering.
+(CHF 5.90) if a mux is ever wanted without TSSOP soldering. MT3608 boost module:
+AliExpress (10 pack).
 
 **No longer needed:** the bench PSU, barrel jack, fuse holder and 10 V/5 A
 supply are all replaced by the USB-C PD trigger board. A buck converter is only
@@ -1232,8 +1250,9 @@ motor. No hardware impact.
   targeted: `+9V`, `+9V_BOOST`, `+9V_PD`, `SC_MID`, `GNDPWR`. Check VM droop on the
   bench.
 - Supercap footprint: check lead position and drill against the PHV-5R4V255-R drawing.
-- Bench: set boost CV/CC before fitting caps; measure USB current ≤ 500 mA and
-  VBUS ≥ 4.6 V while charging; scope VM through a 4-fader burst.
+- Bench: set the MT3608 to 11 V before connecting the LM317 and caps; measure
+  USB current ≤ 500 mA and VBUS ≥ 4.6 V while charging; once full, check float
+  on `+9V_BOOST` ≤ 9.8 V (≤ 5.4 V on each cell); scope VM through a 4-fader burst.
 
 - Pick a reverse-polarity P-FET (Vds >= 20 V, Id >= 5 A, SOT-223/DPAK) if
   fitting one — not yet in the basket.
