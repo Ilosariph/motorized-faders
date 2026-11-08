@@ -1,0 +1,4 @@
+(fp_lib_table
+	(version 7)
+	(lib (name "motorized-faders")(type "KiCad")(uri "${KIPRJMOD}/motorized-faders.pretty")(options "")(descr "Project footprints"))
+)

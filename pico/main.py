@@ -235,9 +235,9 @@ VM_TOLERANCE_V = 1.2        # accepts a sagging 9 V, rejects 5 V and 12 V
 PD_PRESENT_V = 7.5
 
 # USB-only boot: the boost charges the supercaps at its CC limit, which takes
-# ~50 s from empty. Wait for VM instead of failing the rail check outright.
+# ~90 s from empty, ~3 min with the optional second stack. Wait for VM instead of failing the rail check outright.
 VM_START_V = 8.0
-VM_CHARGE_TIMEOUT_MS = 180000
+VM_CHARGE_TIMEOUT_MS = 300000
 VM_CHARGE_POLL_MS = 250
 
 # Droop guard: a burst on all four faders drains the supercaps faster than

@@ -22,7 +22,7 @@ this document is the single-board version.
 | Connectors | **JST-XH 2.5 mm** for every off-board lead — keyed, 3 A |
 | Pin map | Fixed: SPI0 on GP16/18/19, PWM on 4 distinct slices, GP0/1 spare |
 | MCU | Keep the existing RP2040 module — bare RP2040 not needed |
-| Motor power | **Pico USB alone**: CC/CV boost to 9 V + 1.25 F supercaps. PD trigger (jumper-set 9 V) optional, diode-OR'd |
+| Motor power | **Pico USB alone**: CC/CV boost to 9 V + 1.25 F supercaps (2.5 F with optional second stack). PD trigger (jumper-set 9 V) optional, diode-OR'd |
 | Rail check | Divider into spare ADC CH4 — catches silent 5 V fallback, 0 GPIO. PD rail on CH5 |
 | Assembly | Fully hand-solderable, no hot air / reflow required |
 | Build order | Socket breakouts first, prove the board, then solder SSOP — **no respin** |
@@ -610,6 +610,7 @@ that averaging to be reduced, buying loop rate back.
 |------|-----|------|
 | CC/CV boost module (XL6009-class, adjustable CV + CC) | 1 | 5 V → 9.3 V, CC ~120 mA; off-board on `J_BOOST1` |
 | Supercap 2.5 F 5.4 V, Eaton `PHV-5R4V255-R` | 2 | series → 1.25 F @ 10.8 V |
+| Same supercap, optional (`C_SC3`, `C_SC4`, DNP) | 0 or 2 | second stack, fit as a pair → 2.5 F |
 | Schottky 5 A 40 V, `B540C-13-F` (SMC) | 2 | diode-OR, `D_BOOST1` / `D_PD1` |
 | 100 uF electrolytic | 1 | boost input, `C_BOOST_IN1` |
 | USB-C PD trigger (HUSB238) | 0-1 | **optional** — jumper-set 9 V, extra current headroom |
@@ -698,16 +699,28 @@ boost) and `D_BOOST1` stop back-feeding. Both land inside the existing
 9 V ± 1.2 V rail band.
 
 **Energy.** Usable 9 → 6 V: ½ · 1.25 F · (81 − 36) ≈ 28 J, against ~10-20 J for
-a 4-fader burst. Recharge ~20 s at 1.1 W; from empty ~50 s, which the firmware
+a 4-fader burst (estimate, not yet measured). At the 120 mA CC limit a full
+9 → 6 V recharge takes ~30 s; from empty to VM 8 V ~90 s, which the firmware
 waits out at boot (screens show `Charging`). Below 6 V the firmware pauses the
 motors and resumes at 7.5 V — see [firmware.md](firmware.md#droop-guard).
 
 **Cell derating:** 9.3 V across two 5.4 V cells is 4.65 V each. The 4.7 kΩ
-balance resistors (2 mA, ~20 mW total) keep the split even as leakage drifts.
+balance resistors (1 mA, ~10 mW total) keep the split even as leakage drifts.
 
-**Footprint caveat:** `C_SC1/2` use a placeholder `CP_Radial_D10.0mm_P5.00mm`.
-The PHV-5R4V255-R lead pitch is 5.3 mm and its body is not a round can —
-check the datasheet drawing and fix the footprint before ordering boards.
+**Optional second stack.** `C_SC3` sits across `C_SC1` and `C_SC4` across
+`C_SC2`, sharing `SC_MID` and the balance resistors. Both are DNP by default.
+Fitted: 2.5 F, ~56 J usable, half the ESR, but ~60 s full recharge and ~3 min
+cold start (`VM_CHARGE_TIMEOUT_MS` is 300 s). **Fit both or neither, same part:**
+one alone gives 5 F in series with 2.5 F, which charges the single cell to
+~6.2 V, over its 5.4 V rating. The balance resistors cannot correct that
+against a 120 mA charge current. A third cell in series is no use either: 0.83 F,
+~19 J.
+
+**Footprint caveat:** `C_SC1..4` use the project footprint
+`motorized-faders:Supercap_Eaton_PHV-5R4V255-R`: 21.3 x 11 mm body, 5.3 mm lead
+pitch, square pad 1 = positive, + and - on silkscreen. Body and pitch come from
+Eaton's spec tables; the leads are assumed centred on the body, and the 1 mm
+drill is assumed. Check both against the Eaton drawing before ordering boards.
 
 **`docs/vm_power_switch.md`:** its high-side switch now goes between the OR
 node and `+9V`; the net names are compatible, nothing is built yet.
@@ -1215,18 +1228,13 @@ motor. No hardware impact.
 
 ## Open Items
 
-- **PCB update for this revision** (schematic done): Update PCB from Schematic,
-  then reroute every JST-XH connector (2.5 mm pitch, larger body), place the
-  power block (`J_BOOST1`, `C_SC1/2`, `D_BOOST1`, `D_PD1`, PD divider,
-  `TP_9V1`, `TP_9V_BOOST1`) and
-  `SW_G3/G4`. `+9V_BOOST` / `+9V_PD` / `+9V` ≥ 1.5 mm, `+5V` to `J_BOOST1`
-  ≥ 0.8 mm. Main sheet is now A3 for the new block.
-- Supercap footprint: replace the placeholder with the PHV-5R4V255-R drawing.
+- Power traces are routed at 1.0 mm (`Motor` netclass), not the 1.5 mm first
+  targeted: `+9V`, `+9V_BOOST`, `+9V_PD`, `SC_MID`, `GNDPWR`. Check VM droop on the
+  bench.
+- Supercap footprint: check lead position and drill against the PHV-5R4V255-R drawing.
 - Bench: set boost CV/CC before fitting caps; measure USB current ≤ 500 mA and
   VBUS ≥ 4.6 V while charging; scope VM through a 4-fader burst.
 
-- Fix the board outline and M3 hole positions once the case layout is decided.
-  Faders are case-mounted, so the PCB outline is otherwise unconstrained.
 - Pick a reverse-polarity P-FET (Vds >= 20 V, Id >= 5 A, SOT-223/DPAK) if
   fitting one — not yet in the basket.
 - Bring-up order for the firmware: verify `RAIL:ok` before trusting any PID

@@ -69,7 +69,13 @@
           "thermal_relief_spoke_width": 0.5
         }
       },
-      "diff_pair_dimensions": [],
+      "diff_pair_dimensions": [
+        {
+          "gap": 0.0,
+          "via_gap": 0.0,
+          "width": 0.0
+        }
+      ],
       "drc_exclusions": [
         [
           "via_dangling|109850000|90420000|fe407422-352b-4145-bb91-d253d2bbca16|00000000-0000-0000-0000-000000000000",
@@ -193,6 +199,7 @@
         {
           "td_allow_use_two_tracks": true,
           "td_curve_segcount": 0,
+          "td_enabled": false,
           "td_height_ratio": 1.0,
           "td_length_ratio": 0.5,
           "td_maxheight": 2.0,
@@ -204,6 +211,7 @@
         {
           "td_allow_use_two_tracks": true,
           "td_curve_segcount": 0,
+          "td_enabled": false,
           "td_height_ratio": 1.0,
           "td_length_ratio": 0.5,
           "td_maxheight": 2.0,
@@ -215,6 +223,7 @@
         {
           "td_allow_use_two_tracks": true,
           "td_curve_segcount": 0,
+          "td_enabled": false,
           "td_height_ratio": 1.0,
           "td_length_ratio": 0.5,
           "td_maxheight": 2.0,
@@ -224,7 +233,9 @@
           "td_width_to_size_filter_ratio": 0.9
         }
       ],
-      "track_widths": [],
+      "track_widths": [
+        0.0
+      ],
       "tuning_pattern_settings": {
         "diff_pair_defaults": {
           "corner_radius_percentage": 80,
@@ -251,7 +262,12 @@
           "spacing": 0.6
         }
       },
-      "via_dimensions": [],
+      "via_dimensions": [
+        {
+          "diameter": 0.0,
+          "drill": 0.0
+        }
+      ],
       "zones_allow_external_fillets": false
     },
     "ipc2581": {
@@ -490,6 +506,7 @@
       "pin_to_pin": "warning",
       "power_pin_not_driven": "error",
       "same_local_global_label": "warning",
+      "same_local_global_power": "warning",
       "similar_label_and_power": "warning",
       "similar_labels": "warning",
       "similar_power": "warning",
@@ -576,8 +593,8 @@
     "meta": {
       "version": 5
     },
-    "net_colors": null,
-    "netclass_assignments": null,
+    "net_colors": {},
+    "netclass_assignments": {},
     "netclass_patterns": [
       {
         "netclass": "MotorOut",
@@ -614,6 +631,18 @@
       {
         "netclass": "Power",
         "pattern": "+3V3"
+      },
+      {
+        "netclass": "Motor",
+        "pattern": "/+9V_BOOST"
+      },
+      {
+        "netclass": "Motor",
+        "pattern": "/+9V_PD"
+      },
+      {
+        "netclass": "Motor",
+        "pattern": "/SC_MID"
       }
     ]
   },
@@ -758,7 +787,7 @@
         "uuid": "b7e3fc1e-7c8d-4632-8bd7-928f8e22b8b2"
       }
     ],
-    "used_designators": "R_F3_WIPER1,C_MCP3208_VDD_GND1,R_F4_WIPER1,A1,C_F1_WIPER1,R_VM_SENSE_BOT1,TP_VM1,U_ADC1,TP_SCK1,J_F1_GEN1,J_F3_GEN1,J_F3_MOT1,C_VM_B_HF1,SW_F3-4,#PWR1-84,NT1-2,J_F2_MOT1,SW1,C_VCC_B1,C_VM_A_HF1,#FLG1-2,J_F2_GEN1,J1-13,C1-4,SW_G2-4,C_MCP3208_VREF_GND1,R_BTN_GEN_PU1,C_BTN_FADER1,C_VM_A1,U_MOT_A1,J_F4_GEN1,C_BTN_GEN1,C_VCC_A1,C_DISP_RES1,R_F1_WIPER1,R_DISP_RES1,R_VM_SENSE_TOP1,R1-2,J_PD1,CC_BTN_GEN1,R_SW_G3,TP_F1_ADC1,C_F4_WIPER1,R_SW_F3-4,C_F2_WIPER1,J_MOT_BOB_A_P2,J_F1_MOT1,R_BTN_FADER1,R_F2_WIPER1,C_VM_B1,C_F3_WIPER1,U1-4,J_F4_MOT1,U_MOT_B1,TP1-4",
+    "used_designators": "#FLG1-2,#PWR1-84,A1,C1-4,CC_BTN_GEN1,C_BTN_FADER1,C_BTN_GEN1,C_DISP_RES1,C_F1_WIPER1,C_F2_WIPER1,C_F3_WIPER1,C_F4_WIPER1,C_MCP3208_VDD_GND1,C_MCP3208_VREF_GND1,C_VCC_A1,C_VCC_B1,C_VM_A1,C_VM_A_HF1,C_VM_B1,C_VM_B_HF1,J1-13,J_F1_GEN1,J_F1_MOT1,J_F2_GEN1,J_F2_MOT1,J_F3_GEN1,J_F3_MOT1,J_F4_GEN1,J_F4_MOT1,J_MOT_BOB_A_P2,J_PD1,NT1-2,R1-2,R_BTN_FADER1,R_BTN_GEN_PU1,R_DISP_RES1,R_F1_WIPER1,R_F2_WIPER1,R_F3_WIPER1,R_F4_WIPER1,R_SW_F3-4,R_SW_G3,R_VM_SENSE_BOT1,R_VM_SENSE_TOP1,SW1,SW_F3-4,SW_G2-4,TP1-4,TP_F1_ADC1,TP_SCK1,TP_VM1,U1-4,U_ADC1,U_MOT_A1,U_MOT_B1",
     "variants": []
   },
   "sheets": [
