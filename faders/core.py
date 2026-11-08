@@ -40,7 +40,8 @@ active layer only.
 Button meaning lives here, not in firmware. The Pico reports which button was
 pressed and released and nothing more; `_handle_button` maps that to an
 action. Current mapping:
-    F1..F4            toggle mute
+    F1..F4            toggle mute, or Extension.on_fader_button on a fader
+                      whose extension claims the button (owns_button)
     G1 held + F1/F4   previous / next layer
     G2 held + Fn      swap fader n between two remembered positions (A/B)
     G2 held + F1/F4   on a layer with pages (Extension.PAGED): tapped, A/B
@@ -66,6 +67,7 @@ import logging
 import sys
 import threading
 import time
+import unicodedata
 
 import serial
 import serial.tools.list_ports
@@ -114,12 +116,16 @@ DISPLAY_LINE_MAX = 21
 
 def _sanitize(text):
     """
-    Strip protocol delimiters from display text and trim it to width. Only
-    spaces are trimmed, so a PAGE_SEP survives with no text before it.
+    Strip protocol delimiters from display text, reduce it to the ASCII the
+    protocol carries (o for ö, dropped when there is no equivalent) and trim
+    it to width. Only spaces are trimmed, so a PAGE_SEP survives with no text
+    before it.
     """
     if text is None:
         return ""
     cleaned = str(text).replace(",", " ").replace("\n", " ").replace("\r", " ")
+    cleaned = unicodedata.normalize("NFKD", cleaned.replace("ß", "ss"))
+    cleaned = cleaned.encode("ascii", "ignore").decode("ascii")
     return cleaned.strip(" ")[:DISPLAY_LINE_MAX]
 
 
@@ -176,6 +182,14 @@ class Extension:
         buttons; this hook exists for extensions that want the raw event.
         """
 
+    def owns_button(self, fader_idx):
+        """True to take this fader's button: a press calls `on_fader_button`
+        instead of muting. Only the plain press; G1/G2 combinations stay."""
+        return False
+
+    def on_fader_button(self, fader_idx):
+        """Plain press of a fader button this extension owns."""
+
     def on_page(self, delta):
         """G2 + F1/F4 held on a PAGED layer: step the page by `delta` (-1 / +1)."""
 
@@ -227,6 +241,10 @@ class Layer:
 
     def register(self, ext):
         self._host._register(self, ext)
+
+    def button_owner(self, idx):
+        """The extension that claims fader `idx`'s button, or None."""
+        return next((e for e in self.extensions if e.owns_button(idx)), None)
 
     def is_active(self):
         return self._host._is_live(self)
@@ -1261,7 +1279,11 @@ class FaderHost:
                 else:
                     self._layer_swap_ab(layer, idx)
             else:
-                layer.toggle_mute(idx)
+                owner = layer.button_owner(idx)
+                if owner is not None:
+                    self._call(owner, "on_fader_button", idx)
+                else:
+                    layer.toggle_mute(idx)
         if not pending:
             self._dispatch("on_button", button)
 

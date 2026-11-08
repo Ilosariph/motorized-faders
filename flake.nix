@@ -32,7 +32,7 @@
             makeWrapper ${python pkgs}/bin/python3 $out/bin/motorized-faders \
               --add-flags "-m faders.run" \
               --prefix PYTHONPATH : $out/lib/motorized-faders \
-              --prefix PATH : ${pkgs.lib.makeBinPath [ pkgs.pulseaudio pkgs.pipewire ]}
+              --prefix PATH : ${pkgs.lib.makeBinPath [ pkgs.pulseaudio pkgs.pipewire pkgs.playerctl pkgs.systemd ]}
             # filter_param's saved values: status / reset to the originals.
             makeWrapper ${python pkgs}/bin/python3 $out/bin/motorized-faders-fx \
               --add-flags "-m faders.extensions.filter_param" \
@@ -51,7 +51,7 @@
       });
 
       devShells = forAllSystems (pkgs: {
-        default = pkgs.mkShell { packages = [ (python pkgs) pkgs.pulseaudio pkgs.pipewire ]; };
+        default = pkgs.mkShell { packages = [ (python pkgs) pkgs.pulseaudio pkgs.pipewire pkgs.playerctl ]; };
       });
 
       checks = forAllSystems (pkgs: {

@@ -158,7 +158,7 @@ Plugins are grouped into **layers** that take turns owning the four faders.
 Each layer remembers its own fader levels, mutes, screens and creases.
 Without a `layers` key every plugin is its own layer (`pulse_sink` → "Audio",
 `discord_voice` → "Discord", `home_assistant` → "Home", `voicemeeter` →
-"Voicemeeter", `filter_param` → "FX"); to choose, list them:
+"Voicemeeter", `filter_param` → "FX", `media` → "Media"); to choose, list them:
 
 ```json
 "layers": [
@@ -169,10 +169,10 @@ Without a `layers` key every plugin is its own layer (`pulse_sink` → "Audio",
 
 | Buttons | Action |
 |---|---|
-| `F1`-`F4` | Mute that fader |
+| `F1`-`F4` | Mute that fader (`media`: its transport faders' buttons are previous, play/pause, next) |
 | `G1` + `F1` / `F4` | Previous / next layer — screens show the name while `G1` is held, faders move on its release |
 | `G2` + `Fn` (tap) | A/B position swap |
-| `G2` + `F1` / `F4` (hold 0.4 s) | Previous / next page (paged layers: Discord, Home / Audio / Voicemeeter / FX with >4 entries or `"paging": true`) |
+| `G2` + `F1` / `F4` (hold 0.4 s) | Previous / next page (paged layers: Discord, Home, Media / Audio / Voicemeeter / FX with >4 entries or `"paging": true`) |
 
 #### Discord
 
@@ -284,6 +284,39 @@ A changed value in the PipeWire config wins over a saved one.
 `motorized-faders-fx status` lists them, `motorized-faders-fx reset [param ...]`
 restores the originals. `"persist": false` turns saving off.
 
+#### Media players
+
+`media` puts whichever player is in use on the faders, on Linux and Windows
+alike: Spotify, Plezy, a browser, anything publishing MPRIS (Linux) or a
+Windows media session.
+
+| Fader | Control | Button | Screen |
+|---|---|---|---|
+| 1 | Volume of the player's own stream | Mute | Player, volume |
+| 2 | - | Previous | |
+| 3 | - | Play / pause | Title, status |
+| 4 | - | Next | |
+
+The player playing is selected and stays selected while paused, until another
+starts. Several playing at once → one page each (hold `G2` + `F1`/`F4`, `x/y`
+on the last screen); the selected one keeps its page while paused. Volume changed in the app moves the fader. `layout` rearranges the
+roles (`null` leaves a fader to another plugin on the layer), `players`
+restricts to those names, in priority order, and `ignore` excludes some:
+
+```json
+"media": {
+  "layout": ["volume", "previous", "play_pause", "next"],
+  "ignore": ["firefox"]
+}
+```
+
+Linux needs `playerctl` and `pactl` (the Nix package brings both). Windows needs
+two packages next to `pyserial`:
+
+```powershell
+pip install "winrt-Windows.Media.Control[all]" pycaw
+```
+
 The host survives the Pico being unplugged: it waits for the port to come
 back (it may return as a different `ttyACM` node), then replays display text,
 A/B badges and creases, and extensions re-seed fader positions and mute via
@@ -343,6 +376,7 @@ python3 tests/run_all.py
 | `faders/extensions/home_assistant.py` | HA lights (brightness, on/off) and covers (position, tilt), paged |
 | `faders/extensions/voicemeeter.py` | Binds a fader to a Voicemeeter strip or bus (Windows) |
 | `faders/extensions/filter_param.py` | PipeWire filter-chain plugin controls (compressor, gate ...), saved across restarts |
+| `faders/extensions/media.py` | Current media player: per-app volume, mute, play/pause, next, previous (Linux, Windows) |
 | `tests/` | Test suites — run `python3 tests/run_all.py`, no hardware required |
 | `docs/upload.md` | How to flash firmware to the Pico (Thonny + mpremote) |
 | `docs/pid_tuning.md` | How to tune the PID controller |
