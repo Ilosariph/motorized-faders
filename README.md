@@ -20,8 +20,8 @@ The wiring below is the **2-fader breadboard** build. For the 4-fader PCB see
 [docs/firmware.md](docs/firmware.md) (protocol, mute, displays, buttons).
 
 Firmware in `pico/` is the **4-fader** version. It needs the MCP3208. Motor power
-comes from the Pico's USB alone — a CC/CV boost charges supercaps that cover
-4-fader bursts, so the first boot waits ~90 s while they charge. A USB-C PD
+comes from the Pico's USB alone — a boost and LM317 current source charge supercaps that cover
+4-fader bursts, so the motors wait ~100 s after a cold start while they charge. A USB-C PD
 trigger can be plugged in as well for more current headroom (see
 [pcb_design.md](docs/pcb_design.md#usb-only-power)). Without any VM it reports
 `RAIL:fail`; the 2-fader build is kept in git

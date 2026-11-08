@@ -9,7 +9,7 @@ Hardware per docs/pcb_design.md:
   Buttons:  resistor ladders on MCP3208 CH6 (4 general, G3/G4 optional) and
             CH7 (4 per-fader); any subset may be fitted, see *_BUTTONS below
   Rail:     VM divider into MCP3208 CH4, checked at boot before enabling STBY
-  Motor:    9 V, diode-OR of a CC/CV boost from Pico USB (supercap-buffered)
+  Motor:    9 V, diode-OR of a current-limited boost from Pico USB (supercap-buffered)
             and an optional USB-C PD trigger; PD rail divider into CH5
 
 SPI0 is shared between the MCP3208 and all four displays. Safe because the
@@ -62,7 +62,8 @@ import select
 from machine import Pin, SPI
 from utime import ticks_ms, ticks_diff
 
-from lib.buttons import ButtonLadder, FADER_LADDER, GENERAL_LADDER, select
+from lib.buttons import ButtonLadder, FADER_LADDER, GENERAL_LADDER
+from lib.buttons import select as fitted_buttons
 from lib.fader_screen import FaderScreen
 from lib.mcp3208 import MCP3208
 from lib.ssd1306_spi import SSD1306_SPI
@@ -234,8 +235,9 @@ VM_TOLERANCE_V = 1.2        # accepts a sagging 9 V, rejects 5 V and 12 V
 # below it and the boost carries VM alone.
 PD_PRESENT_V = 7.5
 
-# USB-only boot: the boost charges the supercaps at its CC limit, which takes
-# ~90 s from empty, ~3 min with the optional second stack. Wait for VM instead of failing the rail check outright.
+# USB-only boot: an LM317 current source after the boost charges the supercaps
+# at ~104 mA, ~100 s from empty, ~3.3 min with the optional second stack. Motors
+# and calibration wait for VM; screens, buttons and the host run meanwhile.
 VM_START_V = 8.0
 VM_CHARGE_TIMEOUT_MS = 300000
 VM_CHARGE_POLL_MS = 250
@@ -731,20 +733,34 @@ def power_source(adc):
     return "pd" if read_divider(adc, ADC_CH_PD_SENSE) >= PD_PRESENT_V else "usb"
 
 
-def wait_for_vm(read_vm, on_progress=None, timeout_ms=VM_CHARGE_TIMEOUT_MS):
+class ChargeWait:
     """
-    Block until VM reaches VM_START_V or `timeout_ms` passes; return the last
-    reading. Instant with PD or charged caps. `on_progress(volts)` is called
-    each poll while waiting, for the screens.
+    Waits for VM to reach VM_START_V without blocking the main loop. poll()
+    returns None while waiting, then the final reading once VM is up or
+    `timeout_ms` has passed. The first poll reads at once, so PD or charged
+    caps cost no time. `on_progress(volts)` is called each reading while
+    waiting.
     """
-    start = ticks_ms()
-    vm = read_vm()
-    while vm < VM_START_V and ticks_diff(ticks_ms(), start) < timeout_ms:
-        if on_progress is not None:
-            on_progress(vm)
-        _delay(VM_CHARGE_POLL_MS)
-        vm = read_vm()
-    return vm
+
+    def __init__(self, read_vm, on_progress=None, timeout_ms=VM_CHARGE_TIMEOUT_MS):
+        self._read = read_vm
+        self._on_progress = on_progress
+        self._timeout_ms = timeout_ms
+        self._start = ticks_ms()
+        self._last_poll = None
+
+    def poll(self):
+        now = ticks_ms()
+        if (self._last_poll is not None
+                and ticks_diff(now, self._last_poll) < VM_CHARGE_POLL_MS):
+            return None
+        self._last_poll = now
+        vm = self._read()
+        if vm >= VM_START_V or ticks_diff(now, self._start) >= self._timeout_ms:
+            return vm
+        if self._on_progress is not None:
+            self._on_progress(vm)
+        return None
 
 
 class VmGuard:
@@ -795,7 +811,7 @@ def build_button_ladders(adc):
         (ADC_CH_FADER_BTN, FADER_LADDER, FADER_BUTTONS),
         (ADC_CH_GENERAL_BTN, GENERAL_LADDER, GENERAL_BUTTONS),
     ):
-        fitted = select(ladder, names)
+        fitted = fitted_buttons(ladder, names)
         if fitted:
             ladders.append(ButtonLadder(
                 lambda ch=channel: adc.read(ch), fitted, MCP_FULL_SCALE))
@@ -991,24 +1007,27 @@ def main():
     # the bench looks like a stiff fader or a bad motor joint.
     _emit("PWR_SRC:" + power_source(adc))
 
+    def read_vm():
+        return read_vm_rail(adc)
+
     shown = [None]
+    host_drawing = [False]
 
     def show_charging(volts):
-        # The caps climb ~0.1 V/s on the boost's CC limit: report per 0.1 V
+        # The caps climb ~0.1 V/s on the charge current: report per 0.1 V
         # step, not per poll.
         text = "VM {:.1f}V".format(volts)
         if text == shown[0]:
             return
         shown[0] = text
         _emit("DBG:charging " + text)
+        # Once the host sends text the screens are its; don't overwrite them.
+        if host_drawing[0]:
+            return
         for screen in screens:
             if screen is not None:
                 screen.set_lines("Charging", text)
                 screen.draw(force=True)
-
-    vm = wait_for_vm(lambda: read_vm_rail(adc), show_charging)
-    rail_ok = abs(vm - VM_EXPECTED_V) <= VM_TOLERANCE_V
-    _emit("RAIL:{},{:.2f}".format("ok" if rail_ok else "fail", vm))
 
     faders = []
     for idx in range(NUM_FADERS):
@@ -1028,18 +1047,23 @@ def main():
         )
 
     button_ladders = build_button_ladders(adc)
-    vm_guard = VmGuard(lambda: read_vm_rail(adc), stby) if rail_ok else None
 
-    if not rail_ok:
-        # Leave STBY low, skip calibration. Buttons and displays still work,
-        # so the failure is visible and diagnosable rather than silent.
-        _emit("DBG:VM rail out of band, motors disabled")
-        for idx, screen in enumerate(screens):
-            if screen is not None:
-                screen.set_lines("RAIL FAIL", "{:.1f}V expected {:.0f}V".format(
-                    vm, VM_EXPECTED_V))
-                screen.draw(force=True)
-    else:
+    def finish_boot(vm):
+        """Rail check, then calibration. Returns the droop guard, or None."""
+        rail_ok = abs(vm - VM_EXPECTED_V) <= VM_TOLERANCE_V
+        _emit("RAIL:{},{:.2f}".format("ok" if rail_ok else "fail", vm))
+
+        if not rail_ok:
+            # Leave STBY low, skip calibration. Buttons and displays still
+            # work, so the failure is visible and diagnosable, not silent.
+            _emit("DBG:VM rail out of band, motors disabled")
+            for screen in screens:
+                if screen is not None:
+                    screen.set_lines("RAIL FAIL", "{:.1f}V expected {:.0f}V".format(
+                        vm, VM_EXPECTED_V))
+                    screen.draw(force=True)
+            return None
+
         stby.value(1)
         _emit("CAL:start")
         for idx, screen in enumerate(screens):
@@ -1054,6 +1078,18 @@ def main():
             if screen is not None:
                 screen.set_lines("Fader {}".format(idx + 1), "")
                 screen.draw(force=True)
+        return VmGuard(read_vm, stby)
+
+    # Charged caps or PD finish on the first poll. Otherwise the loop below
+    # runs with the motors off until VM is up; the host resends its state on
+    # CAL:done, so commands aimed at the faders until then can be dropped.
+    charge = ChargeWait(read_vm, show_charging)
+    vm_guard = None
+    vm = charge.poll()
+    if vm is not None:
+        charge = None
+        vm_guard = finish_boot(vm)
+    no_faders = [None] * NUM_FADERS
 
     last_pos_send = ticks_ms()
     last_button_poll = ticks_ms()
@@ -1061,13 +1097,19 @@ def main():
     input_buf = ""
 
     while True:
+        if charge is not None:
+            vm = charge.poll()
+            if vm is not None:
+                charge = None
+                vm_guard = finish_boot(vm)
+
         if vm_guard is not None:
             edge = vm_guard.poll(faders)
             if edge is not None:
                 _emit("VM:{},{:.2f}".format(edge, vm_guard.volts))
 
         positions = [0.0] * NUM_FADERS
-        paused = vm_guard is not None and vm_guard.paused
+        paused = charge is not None or (vm_guard is not None and vm_guard.paused)
         for idx, fader in enumerate(faders):
             if fader is None:
                 continue
@@ -1173,7 +1215,10 @@ def main():
                 break
             char = sys.stdin.read(1)
             if char == '\n':
-                _handle_command(input_buf, faders, screens)
+                if input_buf.startswith("DISP:"):
+                    host_drawing[0] = True
+                _handle_command(
+                    input_buf, no_faders if charge is not None else faders, screens)
                 input_buf = ""
             else:
                 input_buf += char

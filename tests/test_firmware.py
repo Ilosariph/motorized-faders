@@ -5,6 +5,7 @@ rail check, display gating. Run with: python3 tests/test_firmware.py
 
 import pathlib
 import sys
+import types
 
 sys.path.insert(0, str(pathlib.Path(__file__).resolve().parent))
 
@@ -944,26 +945,160 @@ def test_power_source_detection():
         check(got == expected, f"PD rail {pd_volts} V -> {expected} (got {got})")
 
 
-def test_wait_for_vm():
+def _run_charge(fw, wait):
+    """Poll a ChargeWait to completion, stepping the clock between polls."""
+    while True:
+        vm = wait.poll()
+        if vm is not None:
+            return vm
+        stubs.advance(fw.VM_CHARGE_POLL_MS)
+
+
+def test_charge_wait():
+    print("Charge wait")
     fw = load_firmware()
-    fw._delay = stubs.advance
     progress = []
     ramp = _Seq([0.0, 2.0, 4.0, 6.0, 7.9, 8.2])
-    vm = fw.wait_for_vm(ramp, progress.append)
+    vm = _run_charge(fw, fw.ChargeWait(ramp, progress.append))
     check(vm >= fw.VM_START_V, f"charging caps: waits until VM >= start (got {vm})")
     check(progress == [0.0, 2.0, 4.0, 6.0, 7.9], "progress reported while charging")
 
     start = stubs.now_ms()
-    vm = fw.wait_for_vm(lambda: 9.0)
-    check(vm == 9.0 and stubs.now_ms() == start, "charged rail: no wait at all")
+    vm = fw.ChargeWait(lambda: 9.0).poll()
+    check(vm == 9.0 and stubs.now_ms() == start, "charged rail: done on the first poll")
+
+    reads = []
+    wait = fw.ChargeWait(lambda: reads.append(1) or 3.0)
+    check(wait.poll() is None and wait.poll() is None and len(reads) == 1,
+          "polls inside VM_CHARGE_POLL_MS don't touch the ADC")
 
     start = stubs.now_ms()
-    vm = fw.wait_for_vm(lambda: 3.0, timeout_ms=2000)
+    vm = _run_charge(fw, fw.ChargeWait(lambda: 3.0, timeout_ms=2000))
     waited = stubs.now_ms() - start
     check(vm == 3.0 and 2000 <= waited < 2000 + fw.VM_CHARGE_POLL_MS * 2,
           f"dead boost: gives up after the timeout (waited {waited} ms)")
     check(abs(vm - fw.VM_EXPECTED_V) > fw.VM_TOLERANCE_V,
           "timed-out reading still fails the rail check")
+
+
+class _StopMain(Exception):
+    pass
+
+
+class _BootRig:
+    """Runs the real main() with a scripted VM and a scripted serial input."""
+
+    def __init__(self, vm_at, passes, inputs=None):
+        self.fw = fw = load_firmware()
+        self.lines = []
+        self.calibrated = 0
+        self.stby_at_cal = []
+        self.first_pass_lines = None
+        self.vm_at = vm_at
+        self.passes_left = passes
+        self.inputs = inputs or {}
+        self.pass_no = 0
+        self.pending = ""
+        self.pins = {}
+        rig = self
+
+        class SpyPin(fw.Pin):
+            def __init__(self, pin, *args, **kwargs):
+                super().__init__(pin, *args, **kwargs)
+                rig.pins[pin] = self
+
+        class Adc:
+            def __init__(self, *args):
+                pass
+
+            def read(self, channel):
+                return fw.MCP_FULL_SCALE
+
+            def read_u16(self, channel):
+                return 32768
+
+        def calibrate(fader, *args, **kwargs):
+            rig.calibrated += 1
+            rig.stby_at_cal.append(rig.pins[fw.PIN_STBY].value())
+
+        def select_(rlist, wlist, xlist, timeout):
+            if rig.pending:
+                return (rlist, [], [])
+            if rig.first_pass_lines is None:
+                rig.first_pass_lines = list(rig.lines)
+            rig.pass_no += 1
+            if rig.passes_left == 0:
+                raise _StopMain
+            rig.passes_left -= 1
+            stubs.advance(1000)
+            rig.pending = rig.inputs.pop(rig.pass_no, "")
+            return (rlist if rig.pending else [], [], [])
+
+        class Stdin:
+            def read(self, n):
+                char, rig.pending = rig.pending[:n], rig.pending[n:]
+                return char
+
+        fw.Pin = SpyPin
+        fw.MCP3208 = Adc
+        fw.FaderPID.calibrate = calibrate
+        fw.read_vm_rail = lambda adc: rig.vm_at(stubs.now_ms())
+        fw.power_source = lambda adc: "usb"
+        fw._build_screens = lambda spi: [None] * fw.NUM_FADERS
+        fw._emit = self.lines.append
+        fw.select = types.SimpleNamespace(select=select_)
+        fw.sys = types.SimpleNamespace(stdin=Stdin())
+
+        self.engaged = []
+        real_engage = fw.FaderPID.engage
+
+        def engage(fader, setpoint):
+            rig.engaged.append(setpoint)
+            real_engage(fader, setpoint)
+
+        fw.FaderPID.engage = engage
+
+    def run(self):
+        try:
+            self.fw.main()
+        except _StopMain:
+            pass
+        return self
+
+    def has(self, prefix):
+        return any(line.startswith(prefix) for line in self.lines)
+
+
+def test_boot_runs_while_charging():
+    print("Boot while charging")
+    # VM reaches VM_START_V at 5 s; the first second-long passes run under it.
+    rig = _BootRig(lambda t: 8.2 if t >= 5000 else 4.0, passes=2).run()
+    check(rig.pass_no >= 2, "main loop runs while the caps charge")
+    check(not rig.has("RAIL:") and not rig.has("CAL:") and rig.calibrated == 0,
+          "no rail verdict or calibration before VM is up")
+    check(rig.pins[rig.fw.PIN_STBY].value() == 0, "motors stay off while charging")
+    check(rig.has("DBG:charging"), "charge progress reported")
+
+    rig = _BootRig(lambda t: 8.2 if t >= 5000 else 4.0, passes=8,
+                   inputs={2: "SET:10,,,\n"}).run()
+    check("RAIL:ok,8.20" in rig.lines and "CAL:done" in rig.lines,
+          "rail check and calibration run once VM is up")
+    check(rig.calibrated == rig.fw.NUM_FADERS and all(rig.stby_at_cal),
+          "every fader calibrates with the motors enabled")
+    check(rig.engaged == [], "SET while charging is dropped, the host resends after CAL:done")
+
+    rig = _BootRig(lambda t: 8.2 if t >= 5000 else 4.0, passes=8,
+                   inputs={7: "SET:10,,,\n"}).run()
+    check(rig.engaged == [10.0], "SET works after calibration")
+
+    rig = _BootRig(lambda t: 9.0, passes=1).run()
+    check("CAL:done" in rig.first_pass_lines,
+          "charged rail: calibrates before the loop starts, as before")
+
+    rig = _BootRig(lambda t: 3.0, passes=int(rig.fw.VM_CHARGE_TIMEOUT_MS / 1000) + 2).run()
+    check(any(line.startswith("RAIL:fail") for line in rig.lines) and rig.calibrated == 0,
+          "dead boost: times out into RAIL:fail without calibrating")
+    check(rig.pins[rig.fw.PIN_STBY].value() == 0, "dead boost: motors stay off")
 
 
 def test_vm_guard_pauses_and_resumes():
@@ -1309,7 +1444,8 @@ def main():
         test_simultaneous_press_reads_lowest,
         test_vm_rail_check,
         test_power_source_detection,
-        test_wait_for_vm,
+        test_charge_wait,
+        test_boot_runs_while_charging,
         test_vm_guard_pauses_and_resumes,
         test_rail_divider_values_match_doc,
         test_creases_pulse_against_a_hand_drag,

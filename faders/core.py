@@ -1310,7 +1310,7 @@ class FaderHost:
         if not ok:
             sys.stderr.write(
                 f"[faders] VM rail check FAILED at {volts} V — motors "
-                "disabled by firmware. Check the boost module (CV 9.3 V) "
+                "disabled by firmware. Check the boost stage (MT3608 11 V, LM317) "
                 "or the HUSB238 9 V jumper.\n"
             )
         self._dispatch_all("on_rail", ok, volts)
