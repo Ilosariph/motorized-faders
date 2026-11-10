@@ -249,6 +249,8 @@ DISPLAY_RESET_MS = 10
 # ~170 chars, so the line limit has to clear that with room to spare.
 INPUT_CHARS_PER_LOOP = 512
 INPUT_LINE_MAX = 512
+# Serial read time per loop pass while a fader is MOVING; see the main loop.
+INPUT_BUDGET_MOVING_MS = 2
 
 
 class MotorDriver:
@@ -1047,7 +1049,16 @@ def main():
         # per loop: a slow loop (display redraw) at one char each turned a
         # burst of DISP: lines into seconds of lag for every later command.
         # The cap only bounds a pathological flood.
+        #
+        # While a fader is MOVING, reading stops after INPUT_BUDGET_MOVING_MS
+        # too: the host replays display text and creases (~1 KB) on CAL:done,
+        # right as the first SET: drives full travel, and 512 chars at one
+        # select() + read(1) each ran the motor blind long enough to overshoot.
+        # The rest waits in the USB buffer for the next pass.
+        read_start = ticks_ms()
         for _ in range(INPUT_CHARS_PER_LOOP):
+            if moving and ticks_diff(ticks_ms(), read_start) >= INPUT_BUDGET_MOVING_MS:
+                break
             if not select.select([sys.stdin], [], [], 0)[0]:
                 break
             char = sys.stdin.read(1)
