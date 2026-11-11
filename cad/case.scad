@@ -6,6 +6,10 @@
 //
 // Axes: X = width (left->right), Y = depth (0 = front edge, nearest user),
 // Z = up. Faders travel along Y.
+//
+// The panel slopes down toward the user by `slant`. Panel layout is drawn flat
+// (y along the panel, underside at top_z) and placed with tilt(); base and PCB
+// use plan coordinates, depth Dp = D cos(slant). Walls and lip stay vertical.
 
 part = "assembly"; // [assembly, panel, base, clips, caps, exploded]
 
@@ -17,7 +21,7 @@ wall      = 2.5;
 floor_t   = 2.5;
 panel_t   = 2.0;   // buttons, displays, panel screws
 fd_panel_t = 1.6;  // under the faders: pocket in the underside lifts the frame; >= m3 csk depth
-h_in      = 65;    // floor top -> panel underside (room for clip leads)
+slant     = 5;     // panel slope, deg, front end low
 corner_r  = 4;
 fit       = 0.3;   // panel lip -> wall clearance
 lip_t     = 1.6;
@@ -124,8 +128,7 @@ btn_y  = fd_y1 + btn_gap;
 od_y0  = btn_y + od_gap;
 D = od_y0 + od_d + y_back;
 
-top_z = floor_t + h_in;     // panel underside
-H = top_z + panel_t;
+Dp = D * cos(slant);        // plan depth of the base
 
 function col_x(i) = x0 + pitch / 2 + i * pitch;
 gen_x = x0 + 4 * pitch + strip_w / 2;
@@ -161,7 +164,7 @@ rib_h = 7;
 // wall; Pico USB-C centre is 48.89 from the left edge, face ~4.3 mm inside.
 pcb_size  = [155, 110];
 pcb_back_gap = 0.5;    // board edge -> back wall inner face
-pcb_pos   = [wall + boss_d + 0.5, D - wall - pcb_back_gap - pcb_size.y];  // front-left corner
+pcb_pos   = [wall + boss_d + 0.5, Dp - wall - pcb_back_gap - pcb_size.y];  // front-left corner
 pcb_holes = [[5, 5], [150, 5], [5, pcb_size.y - 5], [150, pcb_size.y - 5]];
 pico_usb_x = 48.89;
 pcb_standoff_h = 5;
@@ -169,6 +172,13 @@ pcb_standoff_h = 5;
 // (8.5 female + 2.5 male header plastic). The opening spans both.
 pico_usb_z_low  = pcb_standoff_h + 1.6 + 1 + 1.6;
 pico_usb_z_high = pico_usb_z_low + 8.5 + 2.5;
+
+// Tallest part under the faders sets the panel height: Eaton PHV-5R4V255-R
+// supercaps (C_SC1..4, 21.3 x 11 x 23 max, standing) under faders 3 and 4,
+// C_SC3/C_SC4 front edge 2 mm from the PCB front edge.
+pcb_tall_h = 23 + 1;  // above PCB top, incl. lead stand-off
+pcb_tall_y = 2;       // PCB front edge -> part front edge
+fd_tall_clr = 2;      // fader body underside -> part top
 
 // ---------------------------------------------------------------- PD board
 // Adafruit 5807 HUSB238, from Adafruit_CAD_Parts STEP (local only). Board coords:
@@ -180,7 +190,7 @@ pd_usb_overhang = 1.11;
 pd_usb_zc = 2.67;          // connector centre above board underside
 pd_holes  = [[2.54, 20.95], [17.78, 20.95]];
 pd_standoff_h = 8;
-pd_pos = [pcb_pos.x + pcb_size.x + pd_gap, D - wall - 0.3 - pd_usb_overhang - pd_size.y];
+pd_pos = [pcb_pos.x + pcb_size.x + pd_gap, Dp - wall - 0.3 - pd_usb_overhang - pd_size.y];
 
 // ---------------------------------------------------------------- back wall IO
 // USB-C openings, sized for bulky plug overmolds. [x, z low, z high] centres
@@ -188,7 +198,30 @@ usb_cut  = [15, 9];
 usb_cuts = concat([[pcb_pos.x + pico_usb_x, pico_usb_z_low, pico_usb_z_high]],
     pd_board ? [[pd_pos.x + pd_usb_x, pd_standoff_h + pd_usb_zc, pd_standoff_h + pd_usb_zc]] : []);
 
-feet = [[15, 15], [W - 15, 15], [15, D - 15], [W - 15, D - 15]];
+feet = [[15, 15], [W - 15, 15], [15, Dp - 15], [W - 15, Dp - 15]];
+
+// ---------------------------------------------------------------- slant
+// Fader body underside at plan y: top_z + y tan(slant) + fd_v / cos(slant).
+fd_dz = panel_t - fd_panel_t;   // fader frame top above panel underside
+fd_v = fd_dz - fd_body_d;
+tall_y = pcb_pos.y + pcb_tall_y;
+tall_z = floor_t + pcb_standoff_h + 1.6 + pcb_tall_h;
+top_z = ceil(2 * (tall_z + fd_tall_clr - tall_y * tan(slant) - fd_v / cos(slant))) / 2;  // panel underside at y = 0
+H = top_z + panel_t;        // flat-layout panel top
+function under_z(y) = top_z + y * tan(slant);   // panel underside at plan y
+function plan(p) = [p.x, p.y * cos(slant)];     // flat-layout point -> plan, at the panel underside
+big = under_z(Dp) + 20;
+
+module tilt() {
+    translate([0, 0, top_z]) rotate([slant, 0, 0]) translate([0, 0, -top_z]) children();
+}
+module untilt() {
+    translate([0, 0, top_z]) rotate([-slant, 0, 0]) translate([0, 0, -top_z]) children();
+}
+module below_panel(depth = 300, over = 0) {
+    // everything under the panel underside plane, down to depth below it
+    tilt() translate([-50, -50, top_z - depth]) cube([W + 100, D + 100, depth + over]);
+}
 foot_d = 10.5;
 foot_recess = 1;
 
@@ -300,7 +333,6 @@ module button_cut() {
     }
 }
 
-fd_dz = panel_t - fd_panel_t;   // fader frame top above panel underside
 fd_pocket_clr = 0.5;            // per side, around the frame
 
 module fader_cut(t = fd_panel_t) {
@@ -318,27 +350,38 @@ module fader_cut(t = fd_panel_t) {
 module panel() {
     difference() {
         union() {
-            translate([0, 0, top_z]) rrect([W, D], corner_r, panel_t);
-            // alignment lip inside the walls
-            translate([0, 0, top_z - lip_h]) difference() {
-                translate([wall + fit, wall + fit, 0])
-                    rrect([W - 2 * (wall + fit), D - 2 * (wall + fit)], corner_r - wall, lip_h + eps);
-                translate([wall + fit + lip_t, wall + fit + lip_t, -eps])
-                    rrect([W - 2 * (wall + fit + lip_t), D - 2 * (wall + fit + lip_t)], 1, lip_h + 3 * eps);
-                for (b = all_bosses) translate([b.x, b.y, -eps]) cylinder(d = boss_d + 1, h = lip_h + 3 * eps);
+            // plate, edges trimmed vertical to the base outline
+            intersection() {
+                tilt() translate([0, -5, top_z]) cube([W, D + 10, panel_t]);
+                rrect([W, Dp], corner_r, big);
             }
-            // stiffening ribs between fader bodies
-            for (i = [0:4]) translate([x0 + i * pitch - rib_t / 2, fd_y0, top_z - rib_h])
-                cube([rib_t, fd_y1 - fd_y0, rib_h + eps]);
-            for (i = [0:3]) translate([col_x(i) - od_w / 2, od_y0, top_z]) display_posts();
-            for (b = concat(fader_btns, gen_btns)) translate([b.x, b.y, top_z]) button_cradle();
+            // alignment lip inside the walls, vertical
+            intersection() {
+                difference() {
+                    translate([wall + fit, wall + fit, 0])
+                        rrect([W - 2 * (wall + fit), Dp - 2 * (wall + fit)], corner_r - wall, big);
+                    translate([wall + fit + lip_t, wall + fit + lip_t, -eps])
+                        rrect([W - 2 * (wall + fit + lip_t), Dp - 2 * (wall + fit + lip_t)], 1, big + 1);
+                    for (b = all_bosses) translate([plan(b).x, plan(b).y, -eps]) cylinder(d = boss_d + 1, h = big + 1);
+                }
+                below_panel(lip_h, 0.1);
+            }
+            tilt() {
+                // stiffening ribs between fader bodies
+                for (i = [0:4]) translate([x0 + i * pitch - rib_t / 2, fd_y0, top_z - rib_h])
+                    cube([rib_t, fd_y1 - fd_y0, rib_h + eps]);
+                for (i = [0:3]) translate([col_x(i) - od_w / 2, od_y0, top_z]) display_posts();
+                for (b = concat(fader_btns, gen_btns)) translate([b.x, b.y, top_z]) button_cradle();
+            }
         }
-        for (i = [0:3]) translate([col_x(i), fd_cy, top_z + fd_dz]) fader_cut();
-        for (i = [0:3]) translate([col_x(i) - od_w / 2, od_y0, top_z]) display_cut();
-        for (b = concat(fader_btns, gen_btns)) translate([b.x, b.y, top_z]) button_cut();
-        for (b = all_bosses) translate([b.x, b.y, H]) csk_m3(panel_t + 1);
-        for (i = [0:3], h = od_holes) translate([col_x(i) - od_w / 2 + h.x, od_y0 + h.y, top_z - od_glass_t - 1])
-            cylinder(d = od_screw_d, h = od_glass_t + panel_t + 2);
+        tilt() {
+            for (i = [0:3]) translate([col_x(i), fd_cy, top_z + fd_dz]) fader_cut();
+            for (i = [0:3]) translate([col_x(i) - od_w / 2, od_y0, top_z]) display_cut();
+            for (b = concat(fader_btns, gen_btns)) translate([b.x, b.y, top_z]) button_cut();
+            for (b = all_bosses) translate([b.x, b.y, H]) csk_m3(panel_t + 1);
+            for (i = [0:3], h = od_holes) translate([col_x(i) - od_w / 2 + h.x, od_y0 + h.y, top_z - od_glass_t - 1])
+                cylinder(d = od_screw_d, h = od_glass_t + panel_t + 2);
+        }
     }
 }
 
@@ -346,33 +389,39 @@ module panel() {
 module base() {
     difference() {
         union() {
-            difference() {
-                rrect([W, D], corner_r, top_z);
-                translate([wall, wall, floor_t])
-                    rrect([W - 2 * wall, D - 2 * wall], corner_r - wall, h_in + 1);
+          intersection() {
+            union() {
+                difference() {
+                    rrect([W, Dp], corner_r, big);
+                    translate([wall, wall, floor_t])
+                        rrect([W - 2 * wall, Dp - 2 * wall], corner_r - wall, big);
+                }
+                // bosses, joined to the front/back wall
+                for (b = bosses) let(p = plan(b)) hull() {
+                    translate([p.x, p.y, 0]) cylinder(d = boss_d, h = big);
+                    translate([p.x - boss_d / 2, p.y < Dp / 2 ? 0 : Dp - eps, 0]) cube([boss_d, eps, big]);
+                }
+                // hung bosses with a 45 deg support underneath
+                for (b = hung_bosses) let(p = plan(b)) hull() {
+                    translate([p.x, p.y, floor_t + hung_z]) cylinder(d = boss_d, h = big - floor_t - hung_z);
+                    translate([p.x - boss_d / 2, Dp - eps, floor_t + hung_z - (Dp - p.y + boss_d / 2)])
+                        cube([boss_d, eps, big - floor_t - hung_z + Dp - p.y + boss_d / 2]);
+                }
             }
-            // bosses, joined to the front/back wall
-            for (b = bosses) hull() {
-                translate([b.x, b.y, 0]) cylinder(d = boss_d, h = top_z);
-                translate([b.x - boss_d / 2, b.y < D / 2 ? 0 : D - eps, 0]) cube([boss_d, eps, top_z]);
-            }
-            // hung bosses with a 45 deg support underneath
-            for (b = hung_bosses) hull() {
-                translate([b.x, b.y, floor_t + hung_z]) cylinder(d = boss_d, h = top_z - floor_t - hung_z);
-                translate([b.x - boss_d / 2, D - eps, floor_t + hung_z - (D - b.y + boss_d / 2)])
-                    cube([boss_d, eps, top_z - floor_t - hung_z + D - b.y + boss_d / 2]);
-            }
+            below_panel();
+          }
             for (h = pcb_holes) translate([pcb_pos.x + h.x, pcb_pos.y + h.y, 0])
                 cylinder(d = pcb_standoff_d, h = floor_t + pcb_standoff_h);
             if (pd_board) for (h = pd_holes) translate([pd_pos.x + h.x, pd_pos.y + h.y, 0])
                 cylinder(d = pd_standoff_d, h = floor_t + pd_standoff_h);
         }
-        for (b = all_bosses) translate([b.x, b.y, top_z - insert_h]) cylinder(d = insert_d, h = insert_h + eps);
+        // inserts square to the panel, on the screw axis
+        tilt() for (b = all_bosses) translate([b.x, b.y, top_z - insert_h]) cylinder(d = insert_d, h = insert_h + 1);
         for (h = pcb_holes) translate([pcb_pos.x + h.x, pcb_pos.y + h.y, floor_t + pcb_standoff_h - insert_h])
             cylinder(d = insert_d, h = insert_h + eps);
         if (pd_board) for (h = pd_holes) translate([pd_pos.x + h.x, pd_pos.y + h.y, floor_t + pd_standoff_h - insert_h])
             cylinder(d = pd_insert_d, h = insert_h + eps);
-        for (u = usb_cuts) translate([u.x, D + eps, floor_t]) rotate([90, 0, 0])
+        for (u = usb_cuts) translate([u.x, Dp + eps, floor_t]) rotate([90, 0, 0])
             linear_extrude(wall + 2 * eps + 1) hull()
                 for (z = [u[1], u[2]]) translate([0, z])
                     offset(2) offset(-2) square(usb_cut, center = true);
@@ -412,11 +461,15 @@ module ghost_button(b_label) {
 }
 
 module ghosts() {
-    for (i = [0:3]) translate([col_x(i), fd_cy, top_z + fd_dz]) ghost_fader();
-    for (i = [0:3]) translate([col_x(i) - od_w / 2, od_y0, top_z]) ghost_display();
-    btns = concat(fader_btns, gen_btns);
-    labels = concat(fader_caps, gen_caps);
-    for (i = [0:len(btns) - 1]) translate([btns[i].x, btns[i].y, top_z]) ghost_button(labels[i]);
+    tilt() {
+        for (i = [0:3]) translate([col_x(i), fd_cy, top_z + fd_dz]) ghost_fader();
+        for (i = [0:3]) translate([col_x(i) - od_w / 2, od_y0, top_z]) ghost_display();
+        btns = concat(fader_btns, gen_btns);
+        labels = concat(fader_caps, gen_caps);
+        for (i = [0:len(btns) - 1]) translate([btns[i].x, btns[i].y, top_z]) ghost_button(labels[i]);
+    }
+    color("orange", 0.5) for (x = [89, 119], y = [7.5, 21])
+        translate([pcb_pos.x + x - 21.3 / 2, pcb_pos.y + y - 11 / 2, floor_t + pcb_standoff_h + 1.6]) cube([21.3, 11, 23]);
     color("green", 0.5) translate([pcb_pos.x, pcb_pos.y, floor_t + pcb_standoff_h]) cube([pcb_size.x, pcb_size.y, 1.6]);
     if (pd_board) color("black") translate([pd_pos.x, pd_pos.y, floor_t + pd_standoff_h]) {
         cube([pd_size.x, pd_size.y, 1.57]);
@@ -425,13 +478,18 @@ module ghosts() {
 }
 
 // ================================================================= output
-echo(str("case outer: ", W, " x ", D, " x ", H, " mm"));
-echo(str("fader underside clearance to floor: ", top_z + fd_dz - fd_body_d - floor_t, " mm"));
+H_front = top_z + panel_t / cos(slant);
+H_back  = under_z(Dp) + panel_t / cos(slant);
+echo(str("case outer: ", W, " x ", Dp, " mm, ", H_front, " mm high at the front, ", H_back, " at the back"));
+echo(str("display window centre, panel top above table: ", under_z(plan([0, od_y0 + od_d / 2]).y) + panel_t, " mm"));
+echo(str("fader body underside -> supercap top: ", under_z(tall_y) + fd_v / cos(slant) - tall_z, " mm"));
+echo(str("fader front end underside -> floor top: ", under_z(fd_y0 * cos(slant)) + fd_v / cos(slant) - floor_t, " mm"));
+assert(under_z(Dp - wall - boss_d) - floor_t > hung_z + 10, "back too low for the hung boss");
 assert(fd_panel_t >= (m3_csk_d - m3_hole) / 2, "fd_panel_t below M3 countersink depth: heads stand proud");
 
 if (part == "panel") {
     // print face down
-    translate([0, D, H]) rotate([180, 0, 0]) panel();
+    translate([0, D, H]) rotate([180, 0, 0]) untilt() panel();
 } else if (part == "clips") {
     // button retaining bars: a test set (n dots = n-th size from thinnest), or 6 of clip_t
     if (clip_t == 0) for (i = [0:len(tact_bar_ts) - 1]) {
