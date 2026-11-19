@@ -25,6 +25,7 @@ this document is the single-board version.
 | Rail check | Divider into spare ADC CH4 — catches silent 5 V fallback, 0 GPIO |
 | Assembly | Fully hand-solderable, no hot air / reflow required |
 | Build order | Socket breakouts first, prove the board, then solder SSOP — **no respin** |
+| Touch sense (v3) | 4x AT42QT1011 on the fader T terminals, outputs summed into spare ADC CH5 — 0 GPIO. See [Touch Sense](#touch-sense-v3) |
 
 ---
 
@@ -308,8 +309,9 @@ Run the bus at ~1 MHz (safe for the MCP3208 at 3.3 V; the SSD1306 tolerates it
 easily). A full 128x64 frame is 1 KB, ~8 ms per redraw — redraw on change only,
 never every loop, and PID timing is unaffected.
 
-**Touch sense is not in this budget.** The T terminal is unused; move
-completion comes from the PID state machine (deadband + settle timer).
+**Touch sense costs no GPIO either** (v3): four touch ICs feed a summing
+ladder into spare MCP3208 CH5 — see [Touch Sense](#touch-sense-v3). Up to v2
+the T terminal is unused and hand detection is position-only.
 
 ### Pin assignment is constrained, not free
 
@@ -434,7 +436,7 @@ the faders — see [Ratiometric reference](#ratiometric-reference--do-not-skip-t
 | General buttons (2) | MCP3208 CH6 ladder |
 | Per-fader buttons (4) | MCP3208 CH7 ladder |
 | VM rail check | MCP3208 CH4 divider |
-| MCP3208 CH5 | spare |
+| MCP3208 CH5 | spare; v3: touch-sense ladder (4 faders) |
 | Display RES | `DISP_RES` — shared RC power-on reset, no GPIO |
 
 ---
@@ -869,6 +871,117 @@ Both footprints can therefore use standard 2.54 mm / 17.78 mm geometry.
 
 ---
 
+## Touch Sense (v3)
+
+### Why
+
+The firmware cannot tell a hand on the knob from anything else. It infers it
+from position alone:
+
+- A commanded move into a hand is only abandoned after the stall guard
+  (`STALL_WINDOW_MS`, 300 ms at full power) — the hand fights full motor
+  torque until then.
+- A crease pull held against gives up after `CREASE_STALL_MS` (400 ms).
+  Dragging out of one is detected from motion away from the centre, so it
+  needs ~0.3% of travel before the pull lightens.
+- The host guesses "human vs our own SET:" from timing (loopback guard,
+  settle band), which is where most of its edge-case code lives.
+
+Touch answers "is a hand on it" directly, before anything moves: the motor
+can let go the instant the knob is grabbed, mid-move or mid-pull.
+
+### Why not motor current
+
+Current sensing was the other candidate. The TB6612FNG has no sense output,
+so it means a shunt + amplifier (INA181) per channel or a driver with a
+current mirror (DRV8874 `IPROPI`, one per motor), plus **4 ADC channels** —
+only CH5 is free, so a second MCP3208 and a GPIO for its CS on top.
+
+And it answers a weaker question: current rises only once the motor is
+already working against the hand, which position (stall guard, motion away
+from a crease) already sees within tens of ms. It says nothing about a hand
+resting on an idle fader, and nothing at all before the motor runs.
+
+### The T terminal
+
+The RSA0N11M9 has a touch terminal (**T**) connected to the metal slider
+lever. A conductive knob on the lever makes the whole knob a sense
+electrode. **The current printed caps (`cad/caps.stl`) are not conductive** —
+v3 needs metal knobs, conductive filament, or conductive paint on the
+gripping faces with a path down to the lever.
+
+### Circuit: AT42QT1011 per fader, summed into CH5
+
+One single-key touch IC per fader (Microchip AT42QT1011, SOT-23-6 — hand-
+solderable like everything else here). Each gives a digital touched / not
+touched output with its own self-calibration. The four outputs drive a
+binary-weighted resistor network into **CH5**, the last spare ADC input, so
+all four states come from one ADC read and **no GPIO**:
+
+```
+QT1 OUT (fader 1) --[2.2k]---------+
+QT2 OUT (fader 2) --[4.7k]---------+
+QT3 OUT (fader 3) --[10k]----------+
+QT4 OUT (fader 4) --[10k]--[10k]---+----+----> CH5
+                                        |
+                                     [10 nF]
+                                        |
+                                       GND
+```
+
+Weights 2.2k : 4.7k : 10k : 20k (two 10k in series) are all values already in
+the BOM. The 16 combinations land at least **200 mV (~250 counts) apart** —
+0.000, 0.202, 0.404, 0.606, 0.859, 1.061 ... 3.300 V — far wider than the
+button ladders' worst case relative to 1% resistor tolerance. Output
+impedance is ~1.2 kΩ, fine for the MCP3208 sample-and-hold; the 10 nF (also in
+the BOM) is an anti-alias / glitch filter, ~12 µs time constant, no added lag.
+
+**Power the QT1011s from the same 3.3 V net as MCP3208 VREF**, so the ladder
+is ratiometric like the faders: a high output is VREF, whatever 3.3 V reads.
+
+Per IC, besides the 100 nF decoupling: a sample capacitor Cs (sets
+sensitivity) and a series resistor on the SNS line, values per the datasheet
+and tuned to the knob — see Open Items.
+
+### Touch wiring
+
+T becomes a sixth conductor per fader. It is a high-impedance sense line:
+**keep it with the wiper, never in the motor bundle** — the 20 kHz motor PWM
+would read as constant touch. Put the QT1011 near the fader header so the SNS
+trace is short.
+
+`J_Fn_GEN` grows from 1x03 to 1x04 (wiper, 3.3 V, GND, T). That collides with
+the PD board's 1x04 — the "differing pin counts" protection no longer holds.
+Either move to JST-XH (keyed, see [Wiring](#wiring--254-mm-headers-not-soldered-wire))
+or give T its own 1x01 next to `J_Fn_GEN`.
+
+### Alternative: MPR121 on I2C
+
+One MPR121 handles 12 electrodes with per-channel thresholds and baseline
+filters — more tunable than the QT1011's fixed algorithm. But: QFN only (a
+breakout module, socketed, keeps hand assembly), it takes GP0/GP1 (the I2C
+pair reserved below; a later mux can share the bus, address 0x5A vs 0x70),
+and it adds an I2C driver and bus traffic to the control loop. Check its
+lifecycle status before choosing it — NXP has been winding down that family.
+Pick it if the QT1011's response time or auto-recalibration on long holds
+proves a problem on the bench.
+
+### Firmware and host
+
+- Firmware reads CH5 every loop pass (one ADC read, like a wiper), decodes
+  the four bits, debounces, and reports edges: `TOUCH:idx,0|1`.
+- Touched while `MOVING` / `SETTLING`: motor off at once, `IDLE` — the hand
+  wins without the stall guard.
+- Bumps and crease pulls keep running while touched; that is the feel.
+  Release inside a crease zone is a clean "let go" signal for the snap,
+  replacing the motion-based leave detection and the 400 ms hold give-up.
+- Host: `POS:` while touched is the hand, while untouched it is the motor.
+  The loopback guard and settle band can key off that instead of timing.
+- Untouched-but-moving (a knob without contact, a QT1011 that
+  recalibrated mid-hold) must still work: keep the position-based fallbacks.
+
+---
+
 ## Future: I2C Expansion (TCA9548A / PCA9548A)
 
 Not needed for this design — recorded because the 2 spare GPIO make it
@@ -1127,6 +1240,12 @@ motor. No hardware impact.
   Faders are case-mounted, so the PCB outline is otherwise unconstrained.
 - Pick a reverse-polarity P-FET (Vds >= 20 V, Id >= 5 A, SOT-223/DPAK) if
   fitting one — not yet in the basket.
+- Touch sense (v3): pick Cs and the SNS series resistor for the QT1011 against
+  the real knob, and confirm on the bench: response time (the motor must let
+  go fast enough to matter), output drive type (the ladder needs push-pull;
+  add pull-ups otherwise), behaviour on a long hold (auto-recalibration
+  dropping a held touch), and immunity to the motor PWM. Decide conductive
+  knob material.
 - Bring-up order for the firmware: verify `RAIL:ok` before trusting any PID
   behaviour, then check each fader calibrates to a full-span `adc_min`/`adc_max`
   before tuning. A short span means the sweep is stalling early.
