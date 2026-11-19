@@ -15,6 +15,11 @@
           (builtins.attrNames (builtins.readDir ./faders/extensions)));
 
       python = pkgs: pkgs.python3.withPackages (ps: [ ps.pyserial ]);
+
+      # Firefox extension for the media plugin's page speed, signed by
+      # addons.mozilla.org (unlisted): release Firefox installs nothing else.
+      extensionId = "media-speed@motorized-faders";
+      extensionVersion = (builtins.fromJSON (builtins.readFile ./browser/manifest.json)).version;
     in
     {
       packages = forAllSystems (pkgs: {
@@ -41,6 +46,11 @@
           '';
           meta.mainProgram = "motorized-faders";
         };
+
+        firefox-extension = pkgs.runCommand "motorized-faders-firefox-${extensionVersion}" { } ''
+          mkdir -p $out
+          cp ${./browser/signed + "/media-speed-${extensionVersion}.xpi"} $out/${extensionId}.xpi
+        '';
       });
 
       apps = forAllSystems (pkgs: {
@@ -137,6 +147,17 @@
               '';
             };
 
+            firefoxExtension = lib.mkOption {
+              type = lib.types.bool;
+              default = false;
+              description = ''
+                Install the signed Firefox extension (browser/) through
+                Firefox policies, so fader 3 of the media plugin sets the
+                speed of web page video and audio. Needs
+                programs.firefox.enable.
+              '';
+            };
+
             verbose = lib.mkOption {
               type = lib.types.bool;
               default = false;
@@ -150,6 +171,13 @@
               message = "services.motorized-faders: no such plugin ${name} "
                 + "(available: ${lib.concatStringsSep ", " builtinPlugins})";
             }) usedPlugins;
+
+            programs.firefox.policies.ExtensionSettings = lib.mkIf cfg.firefoxExtension {
+              ${extensionId} = {
+                installation_mode = "force_installed";
+                install_url = "file://${self.packages.${pkgs.stdenv.hostPlatform.system}.firefox-extension}/${extensionId}.xpi";
+              };
+            };
 
             # motorized-faders-fx: filter_param's saved values.
             environment.systemPackages = [ cfg.package ];

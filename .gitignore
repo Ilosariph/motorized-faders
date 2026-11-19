@@ -37,3 +37,7 @@ gerbers/
 
 # Third-party CAD models, local only
 cad/*.step
+
+# web-ext sign output; signed releases go to browser/signed/
+web-ext-artifacts/
+browser/.amo-upload-uuid

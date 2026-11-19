@@ -323,9 +323,15 @@ opens on `127.0.0.1:47391` (extension origins only; web pages are refused),
 reports the speed of the page playing and sets it when fader 3 moves. Works on
 any `<video>` / `<audio>` (YouTube, Jellyfin web, Twitch ...); on Spotify web,
 which resets the speed every track, it also holds the speed against the page.
-Try it from `about:debugging` → This Firefox → Load Temporary Add-on →
-`browser/manifest.json`; for good, it needs signing (`web-ext sign --channel
-unlisted`), since release Firefox only installs signed add-ons.
+The signed build is `browser/signed/media-speed-<version>.xpi`: open it in
+Firefox to install, or on NixOS set `services.motorized-faders.firefoxExtension
+= true` (installed through Firefox policies). Unsigned changes can be tried
+from `about:debugging` → This Firefox → Load Temporary Add-on →
+`browser/manifest.json`. A new release: raise `version` in
+`browser/manifest.json`, run `web-ext sign --channel unlisted --source-dir
+browser` with AMO API credentials, and copy the `.xpi` from
+`web-ext-artifacts/` to `browser/signed/media-speed-<version>.xpi` (the flake
+picks it by the manifest's version).
 `"browser": false` closes the port, `"browser_port"` moves it (the extension
 has 47391 built in).
 
