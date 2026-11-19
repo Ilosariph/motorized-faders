@@ -22,7 +22,12 @@ faders. Default layout, one role per fader:
 Faders with only a button role park at the bottom, and so does the speed
 fader for a player that reports no rate. A player that reports one but
 refuses to have it set (Firefox) shows "fixed": the fader follows the
-player and springs back when moved. G1 / G2 combinations keep
+player and springs back when moved.
+
+Browsers: the extension in `browser/` connects to a WebSocket on
+127.0.0.1:47391 (`faders/browser_bridge.py`) and sets the speed from inside
+the page. While it is connected and the page has media, a browser player's
+speed goes through it instead of MPRIS / the media session. G1 / G2 combinations keep
 their usual meaning, so layer switching works as on any layer.
 
 Which player: the one playing. It stays selected while it plays; when it
@@ -56,7 +61,9 @@ Config entry shape (faders/config.json), every key optional:
         "creases": true,
         "speed": true,
         "speed_min": 0.25,
-        "speed_max": 3.0
+        "speed_max": 3.0,
+        "browser": true,
+        "browser_port": 47391
     }
 
 `layout` has one entry per fader: "volume", "previous", "play_pause", "next"
@@ -68,6 +75,7 @@ name; list order breaks ties when nothing is playing.
 `speed`: false keeps the play / pause fader a plain button.
 `speed_min` / `speed_max`: the speed fader's range, 0.25 / 3 by default (no upper limit).
 1x sits a quarter up when the range spans it. Firefox mutes above 4x.
+`browser`: false runs no WebSocket for the browser extension.
 """
 
 import asyncio
@@ -81,6 +89,7 @@ import time
 from collections import deque
 from dataclasses import dataclass
 
+from ..browser_bridge import DEFAULT_PORT as BROWSER_PORT, BrowserBridge
 from ..core import Extension, with_page
 
 # Layer name when the config does not group plugins into layers itself.
@@ -477,14 +486,55 @@ def make_backend():
     return WindowsBackend() if sys.platform == "win32" else LinuxBackend()
 
 
+# Substrings of browser player names; their speed goes through the extension.
+BROWSERS = ("firefox", "librewolf", "floorp", "waterfox", "zen", "chrom",
+            "brave", "vivaldi", "edge", "opera")
+
+
+def is_browser(player_id):
+    name = (windows_name if sys.platform == "win32" else linux_name)(player_id)
+    return any(b in name.lower() or b in player_id.lower() for b in BROWSERS)
+
+
+class BridgedBackend:
+    """A backend whose browser players get their speed from the extension,
+    when it is connected and the page has media. Everything else passes
+    through."""
+
+    def __init__(self, backend, bridge):
+        self._backend = backend
+        self._bridge = bridge
+
+    def __getattr__(self, name):
+        return getattr(self._backend, name)
+
+    def rate(self, player_id):
+        if is_browser(player_id):
+            rate = self._bridge.rate()
+            if rate is not None:
+                return rate
+        return self._backend.rate(player_id)
+
+    def set_rate(self, player_id, rate):
+        if is_browser(player_id) and self._bridge.set_rate(rate):
+            return True
+        return self._backend.set_rate(player_id, rate)
+
+
 # ---------------------------------------------------------------------------
 # Extension
 # ---------------------------------------------------------------------------
 
 def register(host, cfg):
+    backend = make_backend()
+    bridge = None
+    if cfg.get("browser", True):
+        bridge = BrowserBridge(port=int(cfg.get("browser_port", BROWSER_PORT)))
+        backend = BridgedBackend(backend, bridge)
     ext = MediaExtension(
         host=host,
-        backend=make_backend(),
+        backend=backend,
+        bridge=bridge,
         layout=cfg.get("layout", DEFAULT_LAYOUT),
         players=cfg.get("players", ()),
         ignore=cfg.get("ignore", ()),
@@ -501,7 +551,7 @@ class MediaExtension(Extension):
 
     def __init__(self, host, backend, layout=DEFAULT_LAYOUT, players=(), ignore=(),
                  creases=True, speed=True, speed_min=SPEED_MIN, speed_max=SPEED_MAX,
-                 start=True):
+                 bridge=None, start=True):
         layout = list(layout)
         unknown = [r for r in layout if r is not None and r != VOLUME and r not in ACTIONS]
         if unknown:
@@ -554,6 +604,11 @@ class MediaExtension(Extension):
         self._stop = threading.Event()
         self._wake = threading.Event()
         self._thread = None
+        # Set when the browser extension reports: poll soon.
+        self._poll_soon = False
+        self._bridge = bridge
+        if bridge is not None:
+            bridge.on_change = self.rates_changed
 
         if creases and self._vol_idx is not None:
             host.set_creases(self._vol_idx, [
@@ -567,6 +622,8 @@ class MediaExtension(Extension):
         self._drive_speed()
         self._push_screens()
         if start:
+            if bridge is not None:
+                bridge.start()
             self._thread = threading.Thread(target=self._run, daemon=True)
             self._thread.start()
 
@@ -844,6 +901,14 @@ class MediaExtension(Extension):
                 self._drive()
             self._drive_speed()
 
+    def rates_changed(self):
+        """The browser extension connected, left or reported: a browser's
+        speed may be settable now, and may have changed."""
+        with self._lock:
+            self._fixed_rate.clear()
+            self._poll_soon = True
+        self._wake.set()
+
     def _run(self):
         try:
             self._backend.open()
@@ -859,7 +924,7 @@ class MediaExtension(Extension):
                 self._error = "backend error"
             self._push_screens()
             return
-        next_poll = 0.0
+        next_poll = last_poll = 0.0
         failing = False
         while not self._stop.is_set():
             self._wake.clear()
@@ -868,9 +933,14 @@ class MediaExtension(Extension):
                     next_poll = min(next_poll, time.monotonic() + POLL_AFTER_COMMAND_S)
                 if self._page_delta:
                     next_poll = 0.0
+                with self._lock:
+                    soon, self._poll_soon = self._poll_soon, False
+                if soon:
+                    next_poll = min(next_poll, last_poll + POLL_AFTER_COMMAND_S)
                 if time.monotonic() >= next_poll:
                     self.poll()
-                    next_poll = time.monotonic() + POLL_INTERVAL_S
+                    last_poll = time.monotonic()
+                    next_poll = last_poll + POLL_INTERVAL_S
                 failing = False
             except Exception:
                 next_poll = time.monotonic() + POLL_INTERVAL_S
@@ -883,4 +953,6 @@ class MediaExtension(Extension):
     def stop(self):
         self._stop.set()
         self._wake.set()
+        if self._bridge is not None:
+            self._bridge.stop()
 

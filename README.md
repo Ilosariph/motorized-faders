@@ -317,6 +317,18 @@ restricts to those names, in priority order, and `ignore` excludes some:
 }
 ```
 
+Browsers refuse to have the speed set from outside. The Firefox extension in
+`browser/` does it from inside the page: it connects to a WebSocket the host
+opens on `127.0.0.1:47391` (extension origins only; web pages are refused),
+reports the speed of the page playing and sets it when fader 3 moves. Works on
+any `<video>` / `<audio>` (YouTube, Jellyfin web, Twitch ...); on Spotify web,
+which resets the speed every track, it also holds the speed against the page.
+Try it from `about:debugging` → This Firefox → Load Temporary Add-on →
+`browser/manifest.json`; for good, it needs signing (`web-ext sign --channel
+unlisted`), since release Firefox only installs signed add-ons.
+`"browser": false` closes the port, `"browser_port"` moves it (the extension
+has 47391 built in).
+
 Linux needs `playerctl` and `pactl` (the Nix package brings both). Windows needs
 two packages next to `pyserial`:
 
@@ -383,6 +395,8 @@ python3 tests/run_all.py
 | `faders/extensions/home_assistant.py` | HA lights (brightness, on/off) and covers (position, tilt), paged |
 | `faders/extensions/voicemeeter.py` | Binds a fader to a Voicemeeter strip or bus (Windows) |
 | `faders/extensions/filter_param.py` | PipeWire filter-chain plugin controls (compressor, gate ...), saved across restarts |
+| `faders/browser_bridge.py` | WebSocket for the browser extension: page playback speed for `media` |
+| `browser/` | Firefox extension: sets the speed of web page media for the faders |
 | `faders/extensions/media.py` | Current media player: per-app volume, mute, speed, play/pause, next, previous (Linux, Windows) |
 | `tests/` | Test suites — run `python3 tests/run_all.py`, no hardware required |
 | `docs/upload.md` | How to flash firmware to the Pico (Thonny + mpremote) |
