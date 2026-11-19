@@ -294,12 +294,19 @@ Windows media session.
 |---|---|---|---|
 | 1 | Volume of the player's own stream | Mute | Player, volume |
 | 2 | - | Previous | |
-| 3 | - | Play / pause | Title, status |
+| 3 | Playback speed, 0.25x - 3x by default (1x a quarter up, firm detent; light every 0.5x above) | Play / pause | Title, status, speed |
 | 4 | - | Next | |
 
 The player playing is selected and stays selected while paused, until another
 starts. Several playing at once → one page each (hold `G2` + `F1`/`F4`, `x/y`
-on the last screen); the selected one keeps its page while paused. Volume changed in the app moves the fader. `layout` rearranges the
+on the last screen); the selected one keeps its page while paused. Volume and
+speed changed in the app move their faders. Speed uses MPRIS `Rate` (Linux) or
+the session's playback rate (Windows): Plezy, mpv and VLC take it; Firefox and
+Chrome only report it ("fixed" on the screen, the fader springs back); a
+player reporting none parks the fader. `"speed_min"` / `"speed_max"` set its
+range (default 0.25 / 3, no upper limit; Firefox mutes audio above 4x).
+Detents follow the range; 1x stays a quarter up when the range spans it.
+`"speed": false` makes fader 3 a plain play / pause button again. `layout` rearranges the
 roles (`null` leaves a fader to another plugin on the layer), `players`
 restricts to those names, in priority order, and `ignore` excludes some:
 
@@ -376,7 +383,7 @@ python3 tests/run_all.py
 | `faders/extensions/home_assistant.py` | HA lights (brightness, on/off) and covers (position, tilt), paged |
 | `faders/extensions/voicemeeter.py` | Binds a fader to a Voicemeeter strip or bus (Windows) |
 | `faders/extensions/filter_param.py` | PipeWire filter-chain plugin controls (compressor, gate ...), saved across restarts |
-| `faders/extensions/media.py` | Current media player: per-app volume, mute, play/pause, next, previous (Linux, Windows) |
+| `faders/extensions/media.py` | Current media player: per-app volume, mute, speed, play/pause, next, previous (Linux, Windows) |
 | `tests/` | Test suites — run `python3 tests/run_all.py`, no hardware required |
 | `docs/upload.md` | How to flash firmware to the Pico (Thonny + mpremote) |
 | `docs/pid_tuning.md` | How to tune the PID controller |

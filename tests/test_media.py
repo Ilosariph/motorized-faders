@@ -30,6 +30,10 @@ class FakeBackend:
         self.commands = []
         self.volumes = []
         self.mutes = []
+        # Player id -> playback rate; ids in `fixed` refuse a new one.
+        self.rates = {}
+        self.fixed = set()
+        self.rate_writes = []
 
     def open(self):
         pass
@@ -53,6 +57,16 @@ class FakeBackend:
     def set_mute(self, player_id, muted):
         self.mutes.append((player_id, muted))
         self.levels[player_id] = (self.levels[player_id][0], muted)
+
+    def rate(self, player_id):
+        return self.rates.get(player_id)
+
+    def set_rate(self, player_id, rate):
+        self.rate_writes.append((player_id, rate))
+        if player_id in self.fixed:
+            return False
+        self.rates[player_id] = rate
+        return True
 
 
 SPOTIFY = Player("spotify", "Spotify", media.PLAYING, "Night Witches", "Sabaton")
@@ -390,6 +404,151 @@ def test_reconnect_and_custom_layout():
     check(host._display[0] is None, "unclaimed screen left alone")
 
 
+def test_speed_mapping():
+    print("Speed mapping")
+    check(media.speed_to_pos(0.25, 0.25, 3.5) == 0.0 and media.speed_to_pos(3.5, 0.25, 3.5) == 100.0, "ends")
+    check(media.speed_to_pos(1.0, 0.25, 3.5) == 25.0, "1x a quarter up")
+    check(media.speed_to_pos(2.0, 0.25, 3.5) == 55.0, "2x")
+    check(media.speed_to_pos(16.0, 0.25, 3.5) == 100.0 and media.speed_to_pos(0.1, 0.25, 3.5) == 0.0, "clamped")
+    for rate in (0.25, 0.5, 0.75, 1.0, 1.25, 1.5, 2.0, 2.65, 3.0, 3.5):
+        back = media.pos_to_speed(media.speed_to_pos(rate, 0.25, 3.5), 0.25, 3.5)
+        check(back == rate, f"{rate} round trip (got {back})")
+    check(media.pos_to_speed(26.5, 0.25, 3.5) == 1.05, "0.05x steps")
+    check([media.speed_text(r) for r in (1.0, 1.5, 1.25)] == ["1x", "1.5x", "1.25x"],
+          "speed text")
+
+
+def test_speed():
+    print("Speed")
+    host, layer, ext, backend = make(speed_min=0.25, speed_max=3.5)
+    check(host._pending[2] == 0.0, "no rate yet: speed fader parked")
+    check([c[:2] for c in layer.creases[2]] == [(25.0, 80.0), (40.0, 55.0), (55.0, 55.0),
+                                                 (70.0, 55.0), (85.0, 55.0)],
+          f"creases: 1x firm, 1.5x 2x 2.5x 3x (got {layer.creases[2]})")
+    backend.rates["spotify"] = 1.5
+    ext.poll()
+    check(host._pending[2] == 40.0, f"speed fader follows the rate (got {host._pending[2]})")
+    check(host._display[2] == ("Night Witches", "> 1.5x"), f"screen (got {host._display[2]})")
+
+    idle(host)
+    host._handle_line("POS:60,0,55,0")
+    ext.apply()
+    check(backend.rate_writes == [("spotify", 2.0)], f"rate written (got {backend.rate_writes})")
+    check(host._display[2][1] == "> 2x", "screen follows the drag")
+    check(len(backend.volumes) <= 1, "speed fader writes no volume")
+
+    # A poll overlapping the drag still reads the old rate.
+    backend.rates["spotify"] = 1.5
+    host._pending = [None] * 4
+    ext.poll()
+    check(host._pending[2] is None and ext._rate == 2.0, "stale rate after the hand ignored")
+
+    ext._speed_hand_t = -1e9
+    backend.rates["spotify"] = 1.25
+    ext.poll()
+    check(host._pending[2] == media.speed_to_pos(1.25, 0.25, 3.5), "rate changed in the app moves the fader")
+
+    host._handle_line("BTN:F3")
+    ext.apply()
+    check(backend.commands == [("spotify", "play_pause")], "button still plays / pauses")
+    check(not any(ln.startswith("MUTE:3") for ln in host._ser.lines()), "and does not mute")
+
+    SPOTIFY.status = media.PAUSED
+    try:
+        ext.poll()
+        check(host._display[2][1] == "|| 1.25x", f"paused mark (got {host._display[2]})")
+    finally:
+        SPOTIFY.status = media.PLAYING
+
+    backend.list = [PLEZY]
+    host._pending = [None] * 4
+    ext.poll()
+    check(host._pending[2] == 0.0 and host._display[2] == ("Episode", "Paused"),
+          f"player without a rate: parked, plain status (got {host._display[2]})")
+    idle(host)
+    backend.rate_writes.clear()
+    host._handle_line("POS:30,0,70,0")
+    ext.apply()
+    check(backend.rate_writes == [], "nothing to write without a rate")
+
+
+def test_speed_range():
+    print("Speed range")
+    check(media.speed_to_pos(0.5, 0.5, 2.0) == 0.0 and media.speed_to_pos(1.0, 0.5, 2.0) == 25.0
+          and media.speed_to_pos(2.0, 0.5, 2.0) == 100.0, "custom range: ends, 1x a quarter up")
+    check(media.speed_to_pos(1.5, 1.0, 2.0) == 50.0 and media.pos_to_speed(50.0, 1.0, 2.0) == 1.5,
+          "range not spanning 1x: linear")
+    check(media.pos_to_speed(100.0, 0.3, 2.33) == 2.33 and media.pos_to_speed(0.0, 0.33, 2.0) == 0.33,
+          "ends off the 0.05x grid stay in range")
+    check(media.speed_creases(0.25, 3.5) == [(1.0, True), (1.5, False), (2.0, False),
+                                             (2.5, False), (3.0, False)], "default detents")
+    check(media.speed_creases(1.0, 2.0) == [(1.5, False)], "1x at the end: no firm detent")
+    check(media.speed_creases(1.6, 3.0) == [(2.0, False), (2.5, False)], "only inside the range")
+
+    check((media.SPEED_MIN, media.SPEED_MAX) == (0.25, 3.0), "default range 0.25x - 3x")
+    check(media.speed_to_pos(3.0) == 100.0 and media.speed_to_pos(1.0) == 25.0, "default curve")
+    check(media.pos_to_speed(100.0, 0.25, 5.0) == 5.0 and media.speed_to_pos(5.0, 0.25, 5.0) == 100.0,
+          "5x reachable when configured")
+    host, layer, ext, backend = make(speed_max=5.0)
+    check(ext._speed_hi == 5.0, "speed_max 5 accepted")
+
+    host, layer, ext, backend = make(speed_min=0.5, speed_max=2.0)
+    check([c[:2] for c in layer.creases[2]] == [(25.0, 80.0), (62.5, 55.0)],
+          f"creases follow the range (got {layer.creases[2]})")
+    backend.rates["spotify"] = 1.5
+    ext.poll()
+    check(host._pending[2] == 62.5, f"fader placed on the range (got {host._pending[2]})")
+    idle(host)
+    host._handle_line("POS:60,0,100,0")
+    ext.apply()
+    check(backend.rate_writes == [("spotify", 2.0)], f"top is the max (got {backend.rate_writes})")
+    for lo, hi in ((2.0, 1.0), (0.0, 2.0), (1.0, 1.0)):
+        try:
+            make(speed_min=lo, speed_max=hi)
+            check(False, f"range {lo}-{hi} rejected")
+        except ValueError:
+            check(True, "")
+
+
+def test_speed_fixed():
+    print("Speed fixed")
+    host, layer, ext, backend = make(speed_min=0.25, speed_max=3.5)
+    backend.rates["spotify"] = 2.5
+    backend.fixed.add("spotify")
+    ext.poll()
+    idle(host)
+    host._handle_line("POS:60,0,30,0")
+    ext.apply()
+    check(backend.rate_writes == [("spotify", 1.15)], f"tried once (got {backend.rate_writes})")
+    check(host._display[2][1] == "> 1.15x fixed", f"shown as fixed (got {host._display[2]})")
+    host._handle_line("POS:60,0,40,0")
+    ext.apply()
+    check(len(backend.rate_writes) == 1, "not tried again")
+    host._pending = [None] * 4
+    ext.poll()
+    check(host._pending[2] is None, "no spring back while the hand is on it")
+    ext._speed_hand_t = -1e9
+    ext.poll()
+    check(host._pending[2] == media.speed_to_pos(2.5, 0.25, 3.5) and host._display[2][1] == "> 2.5x fixed",
+          f"springs back to the player's rate (got {host._pending[2]}, {host._display[2]})")
+    host._pending = [None] * 4
+    ext.poll()
+    check(host._pending[2] is None, "only once")
+
+
+def test_speed_off():
+    host, layer, ext, backend = make(speed=False)
+    backend.rates["spotify"] = 1.5
+    ext.poll()
+    check(host._pending[2] == 0.0 and host._display[2] == ("Night Witches", "Playing"),
+          f"speed false: plain play / pause (got {host._pending[2]}, {host._display[2]})")
+    check(layer.creases[2] is None, "no speed creases")
+    idle(host)
+    host._handle_line("POS:60,0,62.5,0")
+    ext.apply()
+    check(backend.rate_writes == [], "nothing written")
+
+
 def test_backend_unavailable():
     print("Backend unavailable")
     backend = FakeBackend()
@@ -471,12 +630,17 @@ def linux_backend():
                                              "application.process.id": "65517"}},
                {"index": 899, "properties": {}}]
     pids = {"spotify": "55601", "com_edde746_plezy": "65517"}
+    rates = {"com_edde746_plezy": "d 1.5\n", "firefox": "d 2.5\n", "spotify": "garbage\n"}
     calls = []
 
     def output(*argv):
         calls.append(argv)
         if argv[0] == media.PLAYERCTL and "metadata" in argv:
             return metadata
+        if argv[0] == media.BUSCTL and argv[2] == "get-property":
+            return rates.get(argv[3].removeprefix(media._MPRIS_PREFIX))
+        if argv[0] == media.BUSCTL and argv[2] == "set-property":
+            return None if "firefox" in argv[3] else ""
         if argv[0] == media.BUSCTL:
             return f"u {pids[argv[-1].removeprefix(media._MPRIS_PREFIX)]}\n"
         if argv[:4] == (media.PACTL, "-f", "json", "list"):
@@ -513,6 +677,14 @@ def test_linux_backend():
     del sinks[1]
     check(backend.audio("spotify") == (None, False), "no stream")
 
+    check(backend.rate("com_edde746_plezy") == 1.5, "rate read")
+    check(backend.rate("spotify") is None and backend.rate("gone") is None, "no rate")
+    check(backend.set_rate("com_edde746_plezy", 1.25) is True, "rate set")
+    check((media.BUSCTL, "--user", "set-property", "org.mpris.MediaPlayer2.com_edde746_plezy",
+           "/org/mpris/MediaPlayer2", "org.mpris.MediaPlayer2.Player", "Rate", "d", "1.25")
+          in calls, "set through busctl")
+    check(backend.set_rate("firefox", 1.25) is False, "refused")
+
 
 def test_linux_backend_failures():
     backend = media.LinuxBackend()
@@ -542,9 +714,18 @@ class FakeSession:
         self.status = status
         self.title = title
         self.calls = []
+        self.rate = None
+        self.rate_enabled = False
 
     def get_playback_info(self):
-        return types.SimpleNamespace(playback_status=self.status)
+        return types.SimpleNamespace(
+            playback_status=self.status, playback_rate=self.rate,
+            controls=types.SimpleNamespace(is_playback_rate_enabled=self.rate_enabled))
+
+    def try_change_playback_rate_async(self, rate):
+        self.calls.append(("rate", rate))
+        self.rate = rate
+        return Op(True)
 
     def try_get_media_properties_async(self):
         return Op(types.SimpleNamespace(title=self.title, artist="Artist"))
@@ -628,6 +809,15 @@ def test_windows_backend():
             backend.command("Spotify.exe", action)
         check(spotify.calls == ["toggle", "next", "previous"], f"commands (got {spotify.calls})")
         backend.command("Gone.exe", "next")
+
+        spotify.calls.clear()
+        check(backend.rate("Spotify.exe") is None, "no rate")
+        check(backend.set_rate("Spotify.exe", 1.5) is False and spotify.calls == [],
+              "rate change not enabled: refused")
+        spotify.rate, spotify.rate_enabled = 1.0, True
+        check(backend.rate("Spotify.exe") == 1.0, "rate read")
+        check(backend.set_rate("Spotify.exe", 1.5) is True and spotify.rate == 1.5, "rate set")
+        check(backend.set_rate("Gone.exe", 1.5) is False, "unknown session")
     finally:
         for name in installed:
             sys.modules.pop(name, None)
@@ -659,6 +849,11 @@ def main():
         test_mute_from_button,
         test_no_stream,
         test_reconnect_and_custom_layout,
+        test_speed_mapping,
+        test_speed,
+        test_speed_range,
+        test_speed_fixed,
+        test_speed_off,
         test_backend_unavailable,
         test_worker_thread,
         test_names,

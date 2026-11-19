@@ -5,15 +5,24 @@ Puts whichever media player is in use (Spotify, Plezy, a browser ...) on the
 faders. Default layout, one role per fader:
     fader 1   volume of the player's audio; the button mutes it
     fader 2   button: previous track
-    fader 3   button: play / pause; the screen shows the title
+    fader 3   playback speed; the button plays / pauses, the screen shows
+              the title, status and speed
     fader 4   button: next track
 
   - fader move (human)      -> that application's own stream volume
   - volume changed in app   -> fader follows
   - volume-fader button     -> mutes the stream; muted elsewhere parks the fader
-  - haptic creases          -> every 25% on the volume fader
+  - haptic creases          -> every 25% on the volume fader; 1x (firm),
+                               every 0.5x above on the speed fader
+  - speed fader (human)     -> the player's playback rate, 0.25x - 3x by default, in
+                               0.05x steps; the lower quarter of the travel
+                               is 0.25x - 1x, the rest 1x - 3x
+  - speed changed in app    -> fader follows
 
-Faders with only a button role park at the bottom. G1 / G2 combinations keep
+Faders with only a button role park at the bottom, and so does the speed
+fader for a player that reports no rate. A player that reports one but
+refuses to have it set (Firefox) shows "fixed": the fader follows the
+player and springs back when moved. G1 / G2 combinations keep
 their usual meaning, so layer switching works as on any layer.
 
 Which player: the one playing. It stays selected while it plays; when it
@@ -29,12 +38,14 @@ which many players ignore or do not expose (Firefox, for one). That is also
 the one model both systems share.
 
 Backends, chosen by platform, same interface:
-  Linux     MPRIS through `playerctl`, streams through `pactl`. A stream
+  Linux     MPRIS through `playerctl`, speed through the MPRIS `Rate`
+            property (`busctl`), streams through `pactl`. A stream
             belongs to a player when its process id matches the owner of the
             player's D-Bus name (`busctl`), or else when the application name
             contains the player's name.
   Windows   Media sessions through WinRT (GlobalSystemMediaTransportControls),
-            streams through WASAPI audio sessions on the default output.
+            speed through the session's playback rate, streams through
+            WASAPI audio sessions on the default output.
             Needs: pip install "winrt-Windows.Media.Control[all]" pycaw
 
 Config entry shape (faders/config.json), every key optional:
@@ -42,7 +53,10 @@ Config entry shape (faders/config.json), every key optional:
         "layout": ["volume", "previous", "play_pause", "next"],
         "players": ["spotify", "plezy"],
         "ignore": ["firefox"],
-        "creases": true
+        "creases": true,
+        "speed": true,
+        "speed_min": 0.25,
+        "speed_max": 3.0
     }
 
 `layout` has one entry per fader: "volume", "previous", "play_pause", "next"
@@ -51,6 +65,9 @@ or null for a fader left to another extension on the same layer. At most one
 `players`: only these, matched as case-insensitive substrings of the player's
 name; list order breaks ties when nothing is playing.
 `ignore`: never these.
+`speed`: false keeps the play / pause fader a plain button.
+`speed_min` / `speed_max`: the speed fader's range, 0.25 / 3 by default (no upper limit).
+1x sits a quarter up when the range spans it. Firefox mutes above 4x.
 """
 
 import asyncio
@@ -95,10 +112,76 @@ HAND_WINDOW_S = 1.0
 # (power %, pulse ms), as in pulse_sink.
 CREASE_STEP = 25
 CREASE_NORMAL = (55.0, 10)
+CREASE_FIRM = (80.0, 15)
+
+# Speed fader: the minimum at the bottom, 1x at SPEED_UNITY_POS, the maximum
+# at the top, linear in between. Most listening happens between 1x and 2x, so
+# that stretch gets most of the travel. Defaults; `speed_min` / `speed_max`
+# in the config override them. A range that does not straddle 1x is linear
+# over the whole travel.
+SPEED_MIN = 0.25
+SPEED_MAX = 3.0
+SPEED_UNITY_POS = 25.0
+SPEED_STEP = 0.05
+# Light detents every SPEED_CREASE_STEP above 1x (firm at 1x itself).
+SPEED_CREASE_STEP = 0.5
+# Rate differences below this are rounding, not a change.
+SPEED_EPSILON = 0.01
 
 COMMAND_TIMEOUT_S = 2.0
 
 log = logging.getLogger("faders.media")
+
+
+def _speed_points(lo, hi):
+    """(position, rate) corners of the fader's speed curve."""
+    if lo < 1.0 < hi:
+        return ((0.0, lo), (SPEED_UNITY_POS, 1.0), (100.0, hi))
+    return ((0.0, lo), (100.0, hi))
+
+
+def speed_to_pos(rate, lo=SPEED_MIN, hi=SPEED_MAX):
+    """Fader position (0-100) for a playback rate."""
+    rate = min(hi, max(lo, rate))
+    points = _speed_points(lo, hi)
+    for (p0, r0), (p1, r1) in zip(points, points[1:]):
+        if rate <= r1:
+            return p0 + (rate - r0) / (r1 - r0) * (p1 - p0)
+    return 100.0
+
+
+def pos_to_speed(pos, lo=SPEED_MIN, hi=SPEED_MAX):
+    """Playback rate for a fader position, in SPEED_STEP steps; the ends are
+    the range's own ends, on the grid or not."""
+    if pos <= 0.0:
+        return lo
+    if pos >= 100.0:
+        return hi
+    points = _speed_points(lo, hi)
+    rate = hi
+    for (p0, r0), (p1, r1) in zip(points, points[1:]):
+        if pos <= p1:
+            rate = r0 + (pos - p0) / (p1 - p0) * (r1 - r0)
+            break
+    rate = round(round(rate / SPEED_STEP) * SPEED_STEP, 2)
+    return min(hi, max(lo, rate))
+
+
+def speed_creases(lo=SPEED_MIN, hi=SPEED_MAX):
+    """(rate, firm) detents: 1x firm, then every SPEED_CREASE_STEP above it,
+    both ends left out."""
+    found = [(1.0, True)] if lo < 1.0 < hi else []
+    rate = 1.0 + SPEED_CREASE_STEP
+    while rate < hi - 1e-9:
+        if rate > lo + 1e-9:
+            found.append((rate, False))
+        rate += SPEED_CREASE_STEP
+    return found
+
+
+def speed_text(rate):
+    """1.0 -> "1x", 1.25 -> "1.25x"."""
+    return f"{rate:.2f}".rstrip("0").rstrip(".") + "x"
 
 
 class BackendError(Exception):
@@ -127,6 +210,8 @@ _SEP = "\x1f"
 _PLAYER_FORMAT = _SEP.join(
     ("{{playerInstance}}", "{{status}}", "{{artist}}", "{{title}}"))
 _MPRIS_PREFIX = "org.mpris.MediaPlayer2."
+_MPRIS_PATH = "/org/mpris/MediaPlayer2"
+_MPRIS_PLAYER = "org.mpris.MediaPlayer2.Player"
 _PLAYERCTL_COMMANDS = {"play_pause": "play-pause", "next": "next",
                        "previous": "previous"}
 
@@ -174,6 +259,28 @@ class LinuxBackend:
 
     def command(self, player_id, action):
         self._output(PLAYERCTL, "-p", player_id, _PLAYERCTL_COMMANDS[action])
+
+    def _rate_argv(self, player_id, verb):
+        return (BUSCTL, "--user", verb, _MPRIS_PREFIX + player_id, _MPRIS_PATH,
+                _MPRIS_PLAYER, "Rate")
+
+    def rate(self, player_id):
+        """Playback rate, None when the player has none."""
+        out = self._output(*self._rate_argv(player_id, "get-property"))
+        # Reply looks like: d 1.5
+        parts = (out or "").split()
+        if len(parts) != 2 or parts[0] != "d":
+            return None
+        try:
+            return float(parts[1])
+        except ValueError:
+            return None
+
+    def set_rate(self, player_id, rate):
+        """False when the player refuses (Firefox: "Rate setting is not
+        supported")."""
+        return self._output(*self._rate_argv(player_id, "set-property"),
+                            "d", f"{rate:.2f}") is not None
 
     def _pid(self, player_id):
         if self._pids.get(player_id) is None:
@@ -316,6 +423,22 @@ class WindowsBackend:
                      "previous": session.try_skip_previous_async}[action]()
         asyncio.run(_result(operation))
 
+    def rate(self, player_id):
+        session = self._sessions.get(player_id)
+        if session is None:
+            return None
+        rate = session.get_playback_info().playback_rate
+        return None if rate is None else float(rate)
+
+    def set_rate(self, player_id, rate):
+        session = self._sessions.get(player_id)
+        if session is None:
+            return False
+        controls = session.get_playback_info().controls
+        if not controls.is_playback_rate_enabled:
+            return False
+        return bool(asyncio.run(_result(session.try_change_playback_rate_async(rate))))
+
     def _audio_sessions(self, player_id):
         """The player's WASAPI sessions, matched on the process name."""
         name = windows_name(player_id).lower()
@@ -366,6 +489,9 @@ def register(host, cfg):
         players=cfg.get("players", ()),
         ignore=cfg.get("ignore", ()),
         creases=bool(cfg.get("creases", True)),
+        speed=bool(cfg.get("speed", True)),
+        speed_min=float(cfg.get("speed_min", SPEED_MIN)),
+        speed_max=float(cfg.get("speed_max", SPEED_MAX)),
     )
     host.register(ext)
 
@@ -374,13 +500,17 @@ class MediaExtension(Extension):
     PAGED = True
 
     def __init__(self, host, backend, layout=DEFAULT_LAYOUT, players=(), ignore=(),
-                 creases=True, start=True):
+                 creases=True, speed=True, speed_min=SPEED_MIN, speed_max=SPEED_MAX,
+                 start=True):
         layout = list(layout)
         unknown = [r for r in layout if r is not None and r != VOLUME and r not in ACTIONS]
         if unknown:
             raise ValueError(f"media: unknown layout role {unknown[0]!r}")
         if layout.count(VOLUME) > 1:
             raise ValueError("media: only one fader can be \"volume\"")
+        if not 0 < speed_min < speed_max:
+            raise ValueError(f"media: need 0 < speed_min < speed_max "
+                             f"(got {speed_min}, {speed_max})")
         if len(layout) > host.num_faders:
             raise ValueError(f"media: layout has {len(layout)} entries for "
                              f"{host.num_faders} faders")
@@ -388,6 +518,10 @@ class MediaExtension(Extension):
         self._backend = backend
         self._layout = layout + [None] * (host.num_faders - len(layout))
         self._vol_idx = self._layout.index(VOLUME) if VOLUME in self._layout else None
+        # The play / pause fader sets the speed; its button stays play / pause.
+        self._speed_lo, self._speed_hi = speed_min, speed_max
+        self._speed_idx = (self._layout.index("play_pause")
+                           if speed and "play_pause" in self._layout else None)
         # The page indicator goes on the last screen this extension draws.
         self._page_idx = max((i for i, r in enumerate(self._layout) if r), default=None)
         self._wanted = [p.lower() for p in players]
@@ -403,11 +537,19 @@ class MediaExtension(Extension):
         self._muted = False
         self._error = None
         self._hand_t = -1e9
+        # Playback rate of the shown player, None when it has none; ids of
+        # players that refused a rate; the speed fader's last hand move, and
+        # whether it was moved on a player whose rate cannot be set.
+        self._rate = None
+        self._fixed_rate = set()
+        self._speed_hand_t = -1e9
+        self._speed_moved = False
         # What the hand asked for, carried out on the worker thread. Volume
         # and mute keep only the latest value.
         self._commands = deque()
         self._pending_volume = None
         self._pending_mute = None
+        self._pending_rate = None
 
         self._stop = threading.Event()
         self._wake = threading.Event()
@@ -417,7 +559,12 @@ class MediaExtension(Extension):
             host.set_creases(self._vol_idx, [
                 (float(v), *CREASE_NORMAL)
                 for v in range(CREASE_STEP, 100, CREASE_STEP)])
+        if creases and self._speed_idx is not None:
+            host.set_creases(self._speed_idx, [
+                (self._to_pos(r), *(CREASE_FIRM if firm else CREASE_NORMAL))
+                for r, firm in speed_creases(speed_min, speed_max)])
         self._park_button_faders()
+        self._drive_speed()
         self._push_screens()
         if start:
             self._thread = threading.Thread(target=self._run, daemon=True)
@@ -470,8 +617,19 @@ class MediaExtension(Extension):
 
     def _park_button_faders(self):
         for idx, role in enumerate(self._layout):
-            if role in ACTIONS:
+            if role in ACTIONS and idx != self._speed_idx:
                 self.host.set_fader(idx, 0.0)
+
+    def _to_pos(self, rate):
+        return speed_to_pos(rate, self._speed_lo, self._speed_hi)
+
+    def _drive_speed(self):
+        """Speed fader to the player's rate, the bottom without one. Lock held."""
+        if self._speed_idx is None:
+            return
+        self._speed_moved = False
+        self.host.set_fader(self._speed_idx,
+                            0.0 if self._rate is None else self._to_pos(self._rate))
 
     def _drive(self):
         """Volume fader to the player's level and mute. Lock held."""
@@ -500,7 +658,11 @@ class MediaExtension(Extension):
             return "Next", ">|"
         if player is None:
             return "-", ""
-        return player.title or player.name, player.status
+        if self._speed_idx is None or self._rate is None:
+            return player.title or player.name, player.status
+        mark = {PLAYING: ">", PAUSED: "||"}.get(player.status, "[]")
+        fixed = " fixed" if player.id in self._fixed_rate else ""
+        return player.title or player.name, f"{mark} {speed_text(self._rate)}{fixed}"
 
     def _push_screens(self):
         with self._lock:
@@ -524,9 +686,11 @@ class MediaExtension(Extension):
         with self._lock:
             delta, self._page_delta = self._page_delta, 0
             player = self._select(players, delta)
-        volume, muted = None, False
+        volume, muted, rate = None, False, None
         if player is not None and self._vol_idx is not None:
             volume, muted = self._backend.audio(player.id)
+        if player is not None and self._speed_idx is not None:
+            rate = self._backend.rate(player.id)
         with self._lock:
             changed = (player.id if player else None) != (
                 self._player.id if self._player else None)
@@ -535,8 +699,12 @@ class MediaExtension(Extension):
                 log.info("player: %s", player.name if player else "none")
                 self._volume, self._muted = volume, muted
                 self._drive()
-            elif volume is not None:
-                self._follow(volume, muted)
+                self._rate = rate
+                self._drive_speed()
+            else:
+                if volume is not None:
+                    self._follow(volume, muted)
+                self._follow_rate(rate)
             self._push_screens()
 
     def _follow(self, volume, muted):
@@ -556,6 +724,21 @@ class MediaExtension(Extension):
         else:
             # Parked: only where unmute returns to changes.
             self.host.set_mute(self._vol_idx, True, self._volume)
+
+    def _follow_rate(self, rate):
+        """Apply a speed change made in the application. Lock held."""
+        if self._speed_idx is None:
+            return
+        if time.monotonic() - self._speed_hand_t < HAND_WINDOW_S:
+            return
+        same = (rate is None) == (self._rate is None) and (
+            rate is None or abs(rate - self._rate) < SPEED_EPSILON)
+        # A drag on a player whose rate is fixed springs back once the hand
+        # has let go.
+        if same and not self._speed_moved:
+            return
+        self._rate = rate
+        self._drive_speed()
 
     # ----- hand -> player --------------------------------------------------
 
@@ -578,6 +761,9 @@ class MediaExtension(Extension):
         self._wake.set()
 
     def on_position(self, fader_idx, value):
+        if fader_idx == self._speed_idx and fader_idx is not None:
+            self._on_speed(value)
+            return
         if fader_idx != self._vol_idx:
             return
         with self._lock:
@@ -590,6 +776,22 @@ class MediaExtension(Extension):
             self._volume = value
             self._pending_volume = value
             self._hand_t = time.monotonic()
+            self._push_screens()
+        self._wake.set()
+
+    def _on_speed(self, value):
+        with self._lock:
+            if self._player is None or self._rate is None:
+                return
+            self._speed_hand_t = time.monotonic()
+            if self._player.id in self._fixed_rate:
+                self._speed_moved = True
+                return
+            rate = pos_to_speed(value, self._speed_lo, self._speed_hi)
+            if abs(rate - self._rate) < SPEED_EPSILON:
+                return
+            self._rate = rate
+            self._pending_rate = rate
             self._push_screens()
         self._wake.set()
 
@@ -612,6 +814,7 @@ class MediaExtension(Extension):
             commands, self._commands = self._commands, deque()
             volume, self._pending_volume = self._pending_volume, None
             mute, self._pending_mute = self._pending_mute, None
+            rate, self._pending_rate = self._pending_rate, None
         if player is None:
             return False
         for action in commands:
@@ -622,6 +825,13 @@ class MediaExtension(Extension):
         if mute is not None:
             log.info("%s %s", player.name, "muted" if mute else "unmuted")
             self._backend.set_mute(player.id, mute)
+        if rate is not None and not self._backend.set_rate(player.id, rate):
+            log.info("%s: speed cannot be set", player.name)
+            with self._lock:
+                self._fixed_rate.add(player.id)
+                # Springs back to the player's rate on a poll after the hand.
+                self._speed_moved = True
+                self._push_screens()
         return bool(commands)
 
     # ----- host hooks and worker -------------------------------------------
@@ -632,6 +842,7 @@ class MediaExtension(Extension):
         with self._lock:
             if self._player is not None:
                 self._drive()
+            self._drive_speed()
 
     def _run(self):
         try:
