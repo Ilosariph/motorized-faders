@@ -1153,7 +1153,7 @@ def main():
                     _emit("BTN:{}".format(pressed))
             # G2 held: screens mark the other A/B slot. Local, so it shows
             # without a host round trip.
-            peek = general_buttons.held == "G2"
+            peek = any(l.held == "G2" for l in button_ladders)
             for screen in screens:
                 if screen is not None:
                     screen.set_peek(peek)
