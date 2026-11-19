@@ -6,7 +6,7 @@ Binds one fader to one sink:
   - sink volume change (pavu)  -> `host.set_fader(idx, NN)` to move the motor
   - fader button (mute)        -> `pactl set-sink-mute <sink> 0|1`
   - sink mute change (pavu)    -> `host.set_mute(idx, muted)`
-  - haptic creases             -> every 25% of sink volume, stronger at
+  - haptic bumps             -> every 25% of sink volume, stronger at
                                   100% on a sink that goes past it (where
                                   boost begins)
 
@@ -25,7 +25,7 @@ Config entry shape (faders/config.json):
 fader 100% maps to `max`. Useful for taming a fader to e.g. 0-80% so you
 can't accidentally pin a sink to clipping.
 
-`creases` (default true) turns the detents off when false.
+`bumps` (default true) turns the detents off when false.
 
 `"source": "<name>"` in place of `sink` binds an input instead, e.g. a mic:
 same volume, mute and display, through pactl's -source- commands.
@@ -77,12 +77,12 @@ SELF_ECHO_WINDOW_S = 0.25
 
 log = logging.getLogger("faders.pulse_sink")
 
-# Creases, in sink-volume %: (power %, pulse ms) at full strength. The Pico
+# Bumps, in sink-volume %: (power %, pulse ms) at full strength. The Pico
 # scales both down for a slow drag. Strength is mostly pulse length; the
 # power just has to beat the fader's stiction.
-CREASE_STEP = 25
-CREASE_NORMAL = (55.0, 10)   # every 25%
-CREASE_BIG = (70.0, 18)      # 100%, only when the sink can go past it
+BUMP_STEP = 25
+BUMP_NORMAL = (55.0, 10)   # every 25%
+BUMP_BIG = (70.0, 18)      # 100%, only when the sink can go past it
 
 # pactl subscribe event line. Example:
 #   Event 'change' on sink #42
@@ -111,14 +111,14 @@ def register(host, cfg):
         vol_min=float(cfg.get("min", 0)),
         vol_max=float(cfg.get("max", 100)),
         label=cfg.get("label"),
-        creases=bool(cfg.get("creases", True)),
+        bumps=bool(cfg.get("bumps", True)),
     )
     host.register(ext)
 
 
 class PulseSinkExtension(Extension):
     def __init__(self, host, fader_idx, sink, vol_min, vol_max, label=None,
-                 creases=True, kind="sink"):
+                 bumps=True, kind="sink"):
         self.host = host
         self.fader_idx = fader_idx
         self.sink = sink
@@ -150,10 +150,10 @@ class PulseSinkExtension(Extension):
                      sink, self._sink_index, vol_min, vol_max)
 
         # Fader position and mute are seeded in on_connect, once the Pico is
-        # there to receive them; display text and creases the host replays.
+        # there to receive them; display text and bumps the host replays.
         self._push_display(self._read_sink_volume())
-        if creases:
-            host.set_creases(fader_idx, self.crease_layout())
+        if bumps:
+            host.set_bumps(fader_idx, self.bump_layout())
 
         self._stop = threading.Event()
         self._sub_proc = None
@@ -173,19 +173,19 @@ class PulseSinkExtension(Extension):
         raw = (sink_pct - self.vol_min) / span * 100.0
         return max(0.0, min(100.0, raw))
 
-    def crease_layout(self):
+    def bump_layout(self):
         """
-        (fader %, power, ms) for each crease. Positions are in sink volume,
+        (fader %, power, ms) for each bump. Positions are in sink volume,
         so they line up with the volume the display shows; the travel ends
         are end stops already and get none.
         """
         layout = []
-        first = (int(self.vol_min) // CREASE_STEP + 1) * CREASE_STEP
-        for vol in range(first, int(self.vol_max), CREASE_STEP):
+        first = (int(self.vol_min) // BUMP_STEP + 1) * BUMP_STEP
+        for vol in range(first, int(self.vol_max), BUMP_STEP):
             if vol == 100:
-                power, ms = CREASE_BIG
+                power, ms = BUMP_BIG
             else:
-                power, ms = CREASE_NORMAL
+                power, ms = BUMP_NORMAL
             layout.append((self._sink_to_fader(vol), power, ms))
         return layout
 

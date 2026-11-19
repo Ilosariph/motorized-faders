@@ -157,7 +157,7 @@ def test_follows_pipewire_and_writes():
             check("DISP:1,Apps thr,-18.0 dB" in sent, f"value shown (got {sent})")
             check(abs(rig.host._pending[0] - 55.0) < 0.1,
                   f"fader moves to -18 dB (got {rig.host._pending})")
-            check("CREASES:1,55.0:55:12" in sent, f"crease at the original (got {sent})")
+            check("BUMPS:1,55.0:55:12" in sent, f"bump at the original (got {sent})")
             check(rig.host._display[3][1].endswith("1/2"), "page shown on the last screen")
             check(rig.writes() == [], "nothing written for values read")
 

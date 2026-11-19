@@ -11,7 +11,7 @@ Puts the people in your current Discord voice channel on the faders:
                                    last screen also shows the page, "1/3"
   - G2 + F1 / F4 held           -> previous / next page of four users
                                    (tapped: A/B swap, as on any layer)
-  - haptic creases              -> every 50% of volume, stronger at 100%
+  - haptic bumps              -> every 50% of volume, stronger at 100%
 
 Yourself are left out: Discord has no local volume for your own voice. Users
 keep the order they joined in, so a fader does not change hands when someone
@@ -46,7 +46,7 @@ file paths may start with `~`.
 Volumes here are the percentages Discord's slider shows. RPC speaks
 amplitude instead (UI 60% is RPC 24); `ui_to_rpc` / `rpc_to_ui` convert at
 the socket boundary.
-`creases` (default true) turns the detents off when false.
+`bumps` (default true) turns the detents off when false.
 """
 
 import json
@@ -97,10 +97,10 @@ WRITE_MIN_INTERVAL_S = 0.05
 # those for this long after a write, or the fader chases its own history.
 SELF_ECHO_WINDOW_S = 0.5
 
-# Creases, in Discord volume %: (power %, pulse ms), as in pulse_sink.
-CREASE_STEP = 50
-CREASE_NORMAL = (55.0, 10)
-CREASE_BIG = (70.0, 18)      # 100%: the user's own level, unboosted
+# Bumps, in Discord volume %: (power %, pulse ms), as in pulse_sink.
+BUMP_STEP = 50
+BUMP_NORMAL = (55.0, 10)
+BUMP_BIG = (70.0, 18)      # 100%: the user's own level, unboosted
 
 # Slider % <-> RPC amplitude %, fitted to the desktop client: below 100% the
 # slider is a power curve (UI 30/60 -> RPC 4/24), above it every further 100%
@@ -138,7 +138,7 @@ def register(host, cfg):
         redirect_uri=str(cfg.get("redirect_uri", "http://localhost")),
         token_file=cfg.get("token_file"),
         max_volume=float(cfg.get("max_volume", 200)),
-        creases=bool(cfg.get("creases", True)),
+        bumps=bool(cfg.get("bumps", True)),
     )
     host.register(ext)
 
@@ -372,13 +372,13 @@ class DiscordVoiceExtension(Extension):
     PAGED = True
 
     def __init__(self, host, client_id, client_secret, redirect_uri="http://localhost",
-                 token_file=None, max_volume=200.0, creases=True, start=True):
+                 token_file=None, max_volume=200.0, bumps=True, start=True):
         self.host = host
         self.client_id = client_id
         self.client_secret = client_secret
         self.redirect_uri = redirect_uri
         self.max_volume = max_volume
-        self._creases = creases
+        self._bumps = bumps
         if token_file is None:
             state = os.environ.get("XDG_STATE_HOME") or os.path.expanduser("~/.local/state")
             token_file = os.path.join(state, "motorized-faders", "discord_token.json")
@@ -417,10 +417,10 @@ class DiscordVoiceExtension(Extension):
     def _to_volume(self, fader_pct):
         return fader_pct / 100.0 * self.max_volume
 
-    def crease_layout(self):
+    def bump_layout(self):
         layout = []
-        for vol in range(CREASE_STEP, int(self.max_volume), CREASE_STEP):
-            power, ms = CREASE_BIG if vol == 100 else CREASE_NORMAL
+        for vol in range(BUMP_STEP, int(self.max_volume), BUMP_STEP):
+            power, ms = BUMP_BIG if vol == 100 else BUMP_NORMAL
             layout.append((self._to_fader(vol), power, ms))
         return layout
 
@@ -463,14 +463,14 @@ class DiscordVoiceExtension(Extension):
     def _drive(self, idx, user):
         """Move fader `idx` to `user`'s level and mute. Caller holds the lock."""
         if user is None:
-            self.host.set_creases(idx, [])
+            self.host.set_bumps(idx, [])
             if self.host.is_muted(idx):
                 self.host.set_mute(idx, False, 0.0)
             else:
                 self.host.set_fader(idx, 0.0)
             return
         level = self._to_fader(user.volume)
-        self.host.set_creases(idx, self.crease_layout() if self._creases else [])
+        self.host.set_bumps(idx, self.bump_layout() if self._bumps else [])
         if user.mute:
             self.host.set_mute(idx, True, level)
         elif self.host.is_muted(idx):

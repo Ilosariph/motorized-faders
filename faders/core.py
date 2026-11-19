@@ -17,13 +17,15 @@ Talks the Pico protocol from `pico/main.py`:
                                        position, shown while G2 held;
                                        empty clears)
                    MENU:idx,label,name (menu card until the next DISP:)
-                   CREASES:idx,pos:power:ms,...  (haptic detents)
+                   BUMPS:idx,pos:power:ms,...  (haptic detents)
+                   CREASES:idx,pos:width:power,...  (pull zones)
 
 Extensions subclass `Extension`. The host calls `on_position(idx, value)` when a
 fader physically moves (touched by a human). Extensions call
 `host.set_fader(idx, value)` to drive the motor, `host.set_mute(idx, muted)` to
 mute it, `host.set_display(idx, line1, line2)` to label its screen, and
-`host.set_creases(idx, creases)` to give it haptic detents.
+`host.set_bumps(idx, bumps)` to give it haptic detents, and
+`host.set_creases(idx, creases)` for zones that pull it to a position.
 
 Per-fader plugins (one instance per fader) can hold more entries than there
 are faders: `register_slots` puts them on pages through a `PagedGroup`, whose
@@ -32,7 +34,7 @@ page is shown.
 
 Layers: the four faders are shared by several plugin sets. Each `Layer` holds
 its own extensions and its own idea of every fader's level, mute, screen text,
-A/B badge and creases. Extensions get their layer as `host`, with the same API;
+A/B badge, bumps and creases. Extensions get their layer as `host`, with the same API;
 only the active layer's writes reach the Pico, the rest are stored and applied
 when that layer becomes active. Input (positions, buttons, mutes) goes to the
 active layer only.
@@ -106,12 +108,46 @@ MUTE_PARK_ZONE_PCT = 3.0
 # layer switch.
 SETTLE_BAND_PCT = 2.0
 
+# Widest crease zone either side of its centre, as the Pico accepts it.
+CREASE_MAX_WIDTH = 50.0
+
 log = logging.getLogger("faders")
 
 
 # Display text budget. The Pico truncates to fit its own font, but trimming
 # here keeps the serial line short and the two ends in agreement.
 DISPLAY_LINE_MAX = 21
+
+
+def _norm_bumps(bumps):
+    return [(float(p), float(w), int(ms)) for p, w, ms in bumps]
+
+
+def _norm_creases(creases):
+    out = []
+    for p, width, power in creases:
+        p, width, power = float(p), float(width), float(power)
+        if not (0 <= p <= 100 and 0 < width <= CREASE_MAX_WIDTH
+                and 0 < power <= 100):
+            raise ValueError(f"crease out of range: {(p, width, power)}")
+        out.append((p, width, power))
+    return sorted(out)
+
+
+def _check_layout(bumps, creases):
+    """
+    Creases pull toward their centre and bumps push back as they are
+    crossed: inside a crease zone the two would fight. Zones may not overlap
+    each other or hold a bump position.
+    """
+    creases = creases or []
+    for (p1, w1, _), (p2, w2, _) in zip(creases, creases[1:]):
+        if p1 + w1 > p2 - w2 + 1e-6:
+            raise ValueError(f"creases at {p1:g} and {p2:g} overlap")
+    for p, width, _ in creases:
+        for bump, _, _ in bumps or []:
+            if abs(bump - p) < width - 1e-6:
+                raise ValueError(f"bump at {bump:g} inside crease at {p:g}")
 
 
 def _sanitize(text):
@@ -165,7 +201,7 @@ class Extension:
         """
         Called each time the Pico's port opens: at startup and after a
         replug. A replugged Pico has rebooted, so it holds no setpoints and
-        no mute state; re-assert both here. Display text and creases set
+        no mute state; re-assert both here. Display text, bumps and creases set
         through the host are replayed by the host itself.
         """
 
@@ -223,6 +259,7 @@ class Layer:
         self.setpoint = [None] * n
         self.muted = [False] * n
         self.display = [None] * n
+        self.bumps = [None] * n
         self.creases = [None] * n
         # A/B position swap (G2 + fader button): the position stored for the
         # slot that is *not* active. None until the first swap marks one.
@@ -278,6 +315,9 @@ class Layer:
 
     def set_display(self, idx, line1, line2=""):
         self._host._layer_set_display(self, idx, line1, line2)
+
+    def set_bumps(self, idx, bumps):
+        self._host._layer_set_bumps(self, idx, bumps)
 
     def set_creases(self, idx, creases):
         self._host._layer_set_creases(self, idx, creases)
@@ -407,6 +447,7 @@ class PagedGroup(Extension):
         view = self._shown(idx)
         layer = self.host
         if view is None:
+            layer.set_bumps(idx, [])
             layer.set_creases(idx, [])
             self._show(idx, "-", "")
             if layer.is_muted(idx):
@@ -414,6 +455,9 @@ class PagedGroup(Extension):
             else:
                 layer.set_fader(idx, 0.0)
             return
+        # Old page's creases go first: they may overlap the new page's bumps.
+        layer.set_creases(idx, [])
+        layer.set_bumps(idx, view.bumps or [])
         layer.set_creases(idx, view.creases or [])
         self._show(idx, *(view.display or ("", "")))
         if view.muted:
@@ -497,6 +541,7 @@ class _PageView:
         self.level = None
         self.muted = False
         self.display = None
+        self.bumps = None
         self.creases = None
 
     @property
@@ -539,9 +584,18 @@ class _PageView:
             if self._visible():
                 self._group._show(self.idx, *self.display)
 
-    def set_creases(self, idx, creases):
-        creases = [(float(p), float(w), int(ms)) for p, w, ms in creases]
+    def set_bumps(self, idx, bumps):
+        bumps = _norm_bumps(bumps)
         with self._group._lock:
+            _check_layout(bumps, self.creases)
+            self.bumps = bumps
+            if self._visible():
+                self._group.host.set_bumps(self.idx, bumps)
+
+    def set_creases(self, idx, creases):
+        creases = _norm_creases(creases)
+        with self._group._lock:
+            _check_layout(self.bumps, creases)
             self.creases = creases
             if self._visible():
                 self._group.host.set_creases(self.idx, creases)
@@ -582,10 +636,11 @@ class FaderHost:
         # Mute state the Pico holds, mirrored from its MUTE: confirmations
         # rather than assumed from the commands we send.
         self._muted = [False] * num_faders
-        # Display text, badge and creases the Pico holds, so unchanged values
+        # Display text, badge and bumps the Pico holds, so unchanged values
         # are not re-sent and a rebooted Pico can be given them back.
         self._display = [None] * num_faders
         self._slots = [None] * num_faders
+        self._bumps = [None] * num_faders
         self._creases = [None] * num_faders
         # Buttons currently held down, from BTN:/BTNUP: edges.
         self._held = set()
@@ -743,6 +798,7 @@ class FaderHost:
                 text = layer.display[idx]
                 slot = layer.ab_slot[idx]
                 other = layer.ab_other[idx]
+                bumps = layer.bumps[idx]
                 creases = layer.creases[idx]
                 muted = layer.muted[idx]
                 level = layer.setpoint[idx]
@@ -754,6 +810,7 @@ class FaderHost:
                 self._show(idx, *(text or ("", "")))
             self._show_slot(idx, slot or "", other)
             if moved:
+                self._push_bumps(idx, bumps or [])
                 self._push_creases(idx, creases or [])
             if muted:
                 if moved or not pico_muted:
@@ -807,11 +864,23 @@ class FaderHost:
         """
         self._layer_set_display(self._default_layer(), idx, line1, line2)
 
-    def set_creases(self, idx, creases):
+    def set_bumps(self, idx, bumps):
         """
-        Haptic detents: `creases` is a list of (position %, power %, ms).
+        Haptic detents: `bumps` is a list of (position %, power %, ms).
         Dragging the fader by hand across a position fires a pulse of that
         power and length against the hand. An empty list clears them.
+        """
+        self._layer_set_bumps(self._default_layer(), idx, bumps)
+
+    def set_creases(self, idx, creases):
+        """
+        Pull zones: `creases` is a list of (position %, width %, power %).
+        Moved by hand to within `width` of a position, the fader is pulled
+        there at `power`, so it settles on it when let go. A value set by a
+        commanded move is never pulled. An empty list clears them.
+
+        Crease zones may not overlap each other or contain a bump position:
+        ValueError. Clear the other layout first when switching between them.
         """
         self._layer_set_creases(self._default_layer(), idx, creases)
 
@@ -912,11 +981,31 @@ class FaderHost:
             self._slots[idx] = slot
         self._send(f"SLOT:{idx + 1},{slot}")
 
+    def _layer_set_bumps(self, layer, idx, bumps):
+        if not 0 <= idx < self.num_faders:
+            return
+        bumps = _norm_bumps(bumps)
+        with self._lock:
+            _check_layout(bumps, layer.creases[idx])
+            layer.bumps[idx] = bumps
+            live = self._is_live(layer)
+        if live:
+            self._push_bumps(idx, bumps)
+
+    def _push_bumps(self, idx, bumps):
+        with self._lock:
+            if self._bumps[idx] == bumps or (
+                    self._bumps[idx] is None and not bumps):
+                return
+            self._bumps[idx] = bumps
+        self._send_bumps(idx, bumps)
+
     def _layer_set_creases(self, layer, idx, creases):
         if not 0 <= idx < self.num_faders:
             return
-        creases = [(float(p), float(w), int(ms)) for p, w, ms in creases]
+        creases = _norm_creases(creases)
         with self._lock:
+            _check_layout(layer.bumps[idx], creases)
             layer.creases[idx] = creases
             live = self._is_live(layer)
         if live:
@@ -931,8 +1020,13 @@ class FaderHost:
         self._send_creases(idx, creases)
 
     def _send_creases(self, idx, creases):
-        entries = "".join(f",{p:.1f}:{w:.0f}:{ms}" for p, w, ms in creases)
+        entries = "".join(f",{p:.1f}:{w:.2f}:{power:.0f}"
+                          for p, w, power in creases)
         self._send(f"CREASES:{idx + 1}{entries}")
+
+    def _send_bumps(self, idx, bumps):
+        entries = "".join(f",{p:.1f}:{w:.0f}:{ms}" for p, w, ms in bumps)
+        self._send(f"BUMPS:{idx + 1}{entries}")
 
     def _layer_swap_ab(self, layer, idx):
         """
@@ -1152,8 +1246,8 @@ class FaderHost:
 
     def _resend_after_boot(self):
         """
-        A rebooted Pico has default screens, blank badges and no creases;
-        the host still knows all three.
+        A rebooted Pico has default screens, blank badges, no bumps and no
+        creases; the host still knows them all.
         """
         # Terminate whatever partial line the Pico is holding: opening the
         # port or a reboot leaves a fragment in its input buffer, which would
@@ -1162,6 +1256,7 @@ class FaderHost:
         with self._lock:
             display = list(self._display)
             slots = list(self._slots)
+            bumps = list(self._bumps)
             creases = list(self._creases)
         for idx, text in enumerate(display):
             if text is not None and len(text) == 3:
@@ -1171,6 +1266,9 @@ class FaderHost:
         for idx, slot in enumerate(slots):
             if slot:
                 self._send(f"SLOT:{idx + 1},{slot}")
+        for idx, layout in enumerate(bumps):
+            if layout is not None:
+                self._send_bumps(idx, layout)
         for idx, layout in enumerate(creases):
             if layout is not None:
                 self._send_creases(idx, layout)

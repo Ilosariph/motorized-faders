@@ -155,7 +155,7 @@ fader. A/B works either way (tap `G2` + `Fn`). Same for `voicemeeter`.
 #### Layers and buttons
 
 Plugins are grouped into **layers** that take turns owning the four faders.
-Each layer remembers its own fader levels, mutes, screens and creases.
+Each layer remembers its own fader levels, mutes, screens, bumps and creases.
 Without a `layers` key every plugin is its own layer (`pulse_sink` → "Audio",
 `discord_voice` → "Discord", `home_assistant` → "Home", `voicemeeter` →
 "Voicemeeter", `filter_param` → "FX", `media` → "Media"); to choose, list them:
@@ -306,6 +306,9 @@ Chrome only report it ("fixed" on the screen, the fader springs back); a
 player reporting none parks the fader. `"speed_min"` / `"speed_max"` set its
 range (default 0.25 / 3, no upper limit; Firefox mutes audio above 4x).
 Detents follow the range; 1x stays a quarter up when the range spans it.
+`"speed_increment": 0.25` swaps the speed bumps for creases: let go near a
+multiple of 0.25x and the fader is pulled onto it (`"speed_crease_width"` in %
+of travel, `"speed_crease_power"` in motor %).
 `"speed": false` makes fader 3 a plain play / pause button again. `layout` rearranges the
 roles (`null` leaves a fader to another plugin on the layer), `players`
 restricts to those names, in priority order, and `ignore` excludes some:
@@ -344,7 +347,7 @@ pip install "winrt-Windows.Media.Control[all]" pycaw
 
 The host survives the Pico being unplugged: it waits for the port to come
 back (it may return as a different `ttyACM` node), then replays display text,
-A/B badges and creases, and extensions re-seed fader positions and mute via
+A/B badges, bumps and creases, and extensions re-seed fader positions and mute via
 their `on_connect` hook. Starting without the Pico attached waits the same way.
 
 ### NixOS

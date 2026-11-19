@@ -10,7 +10,7 @@ Binds faders to controls of LV2 / LADSPA plugins running inside PipeWire
                                    every fader on that plugin parks while it
                                    is bypassed, and unmuting turns it back on
   - display                     -> label, value in real units ("-18.0 dB")
-  - crease                      -> one detent at the original value, so the
+  - bump                      -> one detent at the original value, so the
                                    configured setting can be found by feel
 
 PipeWire exposes every plugin control as a node Prop named
@@ -53,7 +53,7 @@ Per entry:
     unit      display suffix (default " dB" for db, else none)
     decimals  display decimals (default: 1 for dB and below 10, else 0)
     label     line 1 of the screen (default: the control name)
-    creases   false turns the original-value detent off
+    bumps   false turns the original-value detent off
 More entries than faders page like pulse_sink (G2 + F1 / F4 held, `fader`
 4-7 is page 2 ...). Give this plugin a layer of its own: a layer has one set
 of pages, and two paged plugins on one layer would page over each other.
@@ -93,7 +93,7 @@ RESTART_DELAY_S = 2.0
 # Save the state file this long after the last change.
 SAVE_DELAY_S = 1.0
 # The detent at the original value: (power %, pulse ms).
-CREASE_ORIGINAL = (55.0, 12)
+BUMP_ORIGINAL = (55.0, 12)
 
 log = logging.getLogger("faders.filter_param")
 
@@ -497,7 +497,7 @@ def register(host, cfg, params):
         unit=cfg.get("unit", " dB" if scale == "db" else ""),
         decimals=cfg.get("decimals"),
         label=cfg.get("label"),
-        creases=bool(cfg.get("creases", True)),
+        bumps=bool(cfg.get("bumps", True)),
     )
     host.register(ext)
     return ext
@@ -505,7 +505,7 @@ def register(host, cfg, params):
 
 class FilterParamExtension(Extension):
     def __init__(self, host, params, fader_idx, key, scale, unit="",
-                 decimals=None, label=None, creases=True):
+                 decimals=None, label=None, bumps=True):
         if ":" not in key:
             raise ValueError(f"param {key!r} is not <filter>:<control>")
         self.host = host
@@ -517,7 +517,7 @@ class FilterParamExtension(Extension):
         self.unit = unit
         self.decimals = decimals
         self.label = label or key
-        self.creases = creases
+        self.bumps = bumps
         self._tag = f"fader {fader_idx + 1} [{self.label}]"
 
         self._lock = threading.Lock()
@@ -525,14 +525,14 @@ class FilterParamExtension(Extension):
         self._fader = None         # where the fader is, as far as we know
         self._last_written = None  # last value this fader wrote
         self._last_write_t = 0.0
-        self._crease_at = None
+        self._bump_at = None
 
         params.watch(key, self._on_value)
         if self.enabled_key != key:
             params.watch(self.enabled_key, self._on_enabled)
         self._push_display()
 
-    # ----- display / creases ---------------------------------------------
+    # ----- display / bumps ---------------------------------------------
 
     def format(self, value):
         x = self.scale.shown(value)
@@ -551,19 +551,19 @@ class FilterParamExtension(Extension):
             line2 = "--" if value is None else self.format(value)
         self.host.set_display(self.fader_idx, self.label, line2)
 
-    def _update_creases(self):
-        if not self.creases:
+    def _update_bumps(self):
+        if not self.bumps:
             return
         original = self.params.original(self.key)
         if original is None:
             return
         at = round(self.scale.to_fader(original), 1)
-        if at == self._crease_at:
+        if at == self._bump_at:
             return
-        self._crease_at = at
+        self._bump_at = at
         # The travel ends are end stops already.
-        layout = [] if at <= 1.0 or at >= 99.0 else [(at, *CREASE_ORIGINAL)]
-        self.host.set_creases(self.fader_idx, layout)
+        layout = [] if at <= 1.0 or at >= 99.0 else [(at, *BUMP_ORIGINAL)]
+        self.host.set_bumps(self.fader_idx, layout)
 
     # ----- (re)connect -----------------------------------------------------
 
@@ -581,7 +581,7 @@ class FilterParamExtension(Extension):
             self.host.set_mute(self.fader_idx, True, level)
         elif level is not None:
             self.host.set_fader(self.fader_idx, level)
-        self._update_creases()
+        self._update_bumps()
         self._push_display(value)
 
     # ----- fader -> PipeWire ---------------------------------------------
@@ -623,7 +623,7 @@ class FilterParamExtension(Extension):
     # ----- PipeWire -> fader ---------------------------------------------
 
     def _on_value(self, value):
-        self._update_creases()
+        self._update_bumps()
         if value is None:
             self._push_display()
             return

@@ -119,9 +119,9 @@ def test_light_initial_state_and_screens():
     check("MUTE:2,1" in host._ser.lines(), f"off light parks its fader (got {host._ser.lines()})")
     check(host._display[1][1] == "off", "off shown")
     check(host._display[2] == ("Hall", "on"), f"label wins, on/off light (got {host._display[2]})")
-    check(layer.creases[0] == [(25.0, 55.0, 10), (50.0, 55.0, 10), (75.0, 55.0, 10)],
-          f"brightness creases (got {layer.creases[0]})")
-    check(layer.creases[2] == [], "no creases on an on/off light")
+    check(layer.bumps[0] == [(25.0, 55.0, 10), (50.0, 55.0, 10), (75.0, 55.0, 10)],
+          f"brightness bumps (got {layer.bumps[0]})")
+    check(layer.bumps[2] == [], "no bumps on an on/off light")
     check(host._display[3] == ("-", ""), "empty fader blank")
     check(not ext.PAGED and not layer.paged, "one page: not paged")
 
@@ -211,7 +211,7 @@ def test_cover_position_and_tilt():
     check(host._pending[:2] == [60.0, 50.0], f"both faders from one entity (got {host._pending})")
     check(host._display[0] == ("Blinds", "open 60%") and host._display[1] == ("Slats", "tilt 50%"),
           f"screens (got {host._display[:2]})")
-    check(layer.creases[1] == [(50.0, 70.0, 18)], "tilt crease at 50%")
+    check(layer.bumps[1] == [(50.0, 70.0, 18)], "tilt bump at 50%")
 
     touch(host, 0, 30.0)
     touch(host, 0, 20.0)
@@ -295,7 +295,7 @@ def test_switch():
     host, layer, ext = make([("switch.printer", None, "3D")], {"switch.printer": {"s": "on", "a": {}}})
     check(host._display[0] == ("3D", "on") and host._pending[0] == 100.0,
           f"switch on -> fader top (got {host._display[0]}, {host._pending[0]})")
-    check(layer.creases[0] == [], "no creases on a switch")
+    check(layer.bumps[0] == [], "no bumps on a switch")
     press(host, 0, True)
     check(ext._client.calls() == [("switch.printer", "turn_off", {})], f"mute -> switch.turn_off (got {ext._client.calls()})")
     press(host, 0, False)

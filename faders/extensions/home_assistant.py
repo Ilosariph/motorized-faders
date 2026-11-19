@@ -18,7 +18,7 @@ Entries fill the faders in order; more than fit become pages of four, stepped
 with G2 + F1 / F4 held and shown as "1/2" on the last screen. A `null` entry
 leaves its fader empty, e.g. to start a blind's pair on a new page.
 
-Screens show the label on line 1 and the state on line 2. Creases: every 25%
+Screens show the label on line 1 and the state on line 2. Bumps: every 25%
 for brightness and position, one at 50% tilt (slats level on most blinds).
 Lights that only switch and covers that only open/close get none: their
 fader is on/off, split at the bottom / at half travel.
@@ -44,7 +44,7 @@ Config entry shape (faders/config.json):
 then (a Nix-generated config sits in the world-readable store, so prefer the
 file there). `url` may be https; certificates are verified unless
 `"verify_ssl": false`. `label` defaults to the entity's friendly name.
-`creases` (default true, per fader) turns the detents off when false.
+`bumps` (default true, per fader) turns the detents off when false.
 `switch.*` / `input_boolean.*` entities work like a light that only
 switches: fader bottom = off, anywhere above = on, button toggles.
 `follow` (default true, per fader): false ignores the values HA reports and
@@ -110,7 +110,7 @@ def register(host, cfg):
         try:
             slots.append(None if f is None else
                          Binding(str(f["entity"]), f.get("attribute"), f.get("label"),
-                                 bool(f.get("creases", True)), bool(f.get("follow", True))))
+                                 bool(f.get("bumps", True)), bool(f.get("follow", True))))
         except ValueError as e:
             # One bad entry leaves its fader empty rather than stopping the host.
             log.error("%s; fader left empty", e)
@@ -403,7 +403,7 @@ class Binding:
         "tilt": (0.5, True, 3.0),
     }
 
-    def __init__(self, entity, attribute=None, label=None, creases=True, follow=True):
+    def __init__(self, entity, attribute=None, label=None, bumps=True, follow=True):
         self.entity = entity
         self.domain = domain = entity.split(".", 1)[0]
         # Light that dims / cover that takes a position (else only on/off,
@@ -421,7 +421,7 @@ class Binding:
             raise ValueError(f"{entity}: only light, cover and "
                              f"{'/'.join(SWITCH_DOMAINS)} entities are supported")
         self.label = label
-        self.creases = creases
+        self.bumps = bumps
         self.follow = follow
         self.name = label or entity
         self.available = False
@@ -443,8 +443,8 @@ class Binding:
         self.timer = None
         self.resync = None
 
-    def crease_layout(self):
-        if not self.creases or not self.settable:
+    def bump_layout(self):
+        if not self.bumps or not self.settable:
             return []
         if self.kind == "tilt":
             return [(50.0, 70.0, 18)]
@@ -590,13 +590,13 @@ class HomeAssistantExtension(Extension):
     def _drive(self, idx, b):
         """Put fader `idx` where `b`'s entity is. Caller holds the lock."""
         if b is None:
-            self.host.set_creases(idx, [])
+            self.host.set_bumps(idx, [])
             if self.host.is_muted(idx):
                 self.host.set_mute(idx, False, 0.0)
             else:
                 self.host.set_fader(idx, 0.0)
             return
-        self.host.set_creases(idx, b.crease_layout())
+        self.host.set_bumps(idx, b.bump_layout())
         if not b.available or b.value is None:
             b.muted = self.host.is_muted(idx)
             return

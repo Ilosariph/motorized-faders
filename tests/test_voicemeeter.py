@@ -1,5 +1,5 @@
 """
-voicemeeter tests — gain/mute both ways, labels, creases and Voicemeeter
+voicemeeter tests — gain/mute both ways, labels, bumps and Voicemeeter
 coming and going, against a fake Remote API.
 
 Run with: python3 tests/test_voicemeeter.py
@@ -114,15 +114,15 @@ def test_waits_for_voicemeeter_then_syncs():
     check(host._display[0] == ("Mic", "no VM"), "Voicemeeter quitting shown")
 
 
-def test_creases():
+def test_bumps():
     host, layer, client, remote, exts = make(
         [{"fader": 0, "strip": 0}, {"fader": 1, "strip": 1, "max": 0}])
-    positions = [round(p, 1) for p, _, _ in layer.creases[0]]
+    positions = [round(p, 1) for p, _, _ in layer.bumps[0]]
     check(positions == [16.7, 33.3, 50.0, 66.7, 83.3],
           f"every 12 dB on -60..+12 (got {positions})")
-    check(layer.creases[0][-1][1:] == vm.CREASE_BIG, "0 dB crease is strong")
-    check(all(c[1:] == vm.CREASE_NORMAL for c in layer.creases[1]),
-          "no strong crease when 0 dB is the end stop")
+    check(layer.bumps[0][-1][1:] == vm.BUMP_BIG, "0 dB bump is strong")
+    check(all(c[1:] == vm.BUMP_NORMAL for c in layer.bumps[1]),
+          "no strong bump when 0 dB is the end stop")
 
 
 def test_fader_writes_gain_and_mute():
@@ -322,7 +322,7 @@ def test_g2_mode_setting():
 def main():
     tests = [
         test_waits_for_voicemeeter_then_syncs,
-        test_creases,
+        test_bumps,
         test_fader_writes_gain_and_mute,
         test_voicemeeter_changes_move_the_fader,
         test_no_dll_keeps_host_running,

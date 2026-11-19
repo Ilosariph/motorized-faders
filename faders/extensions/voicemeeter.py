@@ -7,7 +7,7 @@ Binds one fader to one Voicemeeter input strip or output bus:
   - fader button (mute)         -> `Strip[n].Mute` / `Bus[n].Mute`
   - mute changed in Voicemeeter -> `host.set_mute(idx, muted)`
   - screens                     -> strip/bus label on line 1, gain on line 2
-  - haptic creases              -> every 12 dB, stronger at 0 dB on a fader
+  - haptic bumps              -> every 12 dB, stronger at 0 dB on a fader
                                    that goes past it (where boost begins)
 
 Works with Voicemeeter, Banana and Potato. Talks to it through the Remote API
@@ -34,7 +34,7 @@ slider range). Fader 0% maps to `min`, fader 100% maps to `max`; set
 (right-click a strip label), else a short default such as "In 1", "VAIO" or
 "A1".
 
-`creases` (default true) turns the detents off when false.
+`bumps` (default true) turns the detents off when false.
 
 More strips/buses than faders: `fader` 4-7 is page 2, 8-11 page 3 and so on,
 stepped with G2 + F1 / F4 held and shown as "1/2" on the last screen (entries
@@ -82,10 +82,10 @@ POLL_INTERVAL_S = 0.05
 # Gain reads within this window after a write are not taken as remote moves.
 SELF_ECHO_WINDOW_S = 0.3
 
-# Creases, in dB: (power %, pulse ms) at full strength.
-CREASE_STEP_DB = 12
-CREASE_NORMAL = (55.0, 10)   # every 12 dB
-CREASE_BIG = (70.0, 18)      # 0 dB, only when the fader can go past it
+# Bumps, in dB: (power %, pulse ms) at full strength.
+BUMP_STEP_DB = 12
+BUMP_NORMAL = (55.0, 10)   # every 12 dB
+BUMP_BIG = (70.0, 18)      # 0 dB, only when the fader can go past it
 
 log = logging.getLogger("faders.voicemeeter")
 
@@ -121,7 +121,7 @@ def register(host, cfg):
         gain_min=float(cfg.get("min", GAIN_MIN_DB)),
         gain_max=float(cfg.get("max", GAIN_MAX_DB)),
         label=cfg.get("label"),
-        creases=bool(cfg.get("creases", True)),
+        bumps=bool(cfg.get("bumps", True)),
         client=_shared_client(cfg.get("dll")),
     )
     host.register(ext)
@@ -339,7 +339,7 @@ class _NoClient:
 
 class VoicemeeterExtension(Extension):
     def __init__(self, host, fader_idx, kind, index, gain_min=GAIN_MIN_DB,
-                 gain_max=GAIN_MAX_DB, label=None, creases=True, client=None):
+                 gain_max=GAIN_MAX_DB, label=None, bumps=True, client=None):
         self.host = host
         self.fader_idx = fader_idx
         self.kind = kind
@@ -357,8 +357,8 @@ class VoicemeeterExtension(Extension):
         self._last_self_write_t = 0.0
         self._tag = f"fader {fader_idx + 1} [{self.param}]"
 
-        if creases:
-            host.set_creases(fader_idx, self.crease_layout())
+        if bumps:
+            host.set_bumps(fader_idx, self.bump_layout())
         self._push_display(None)
         client.add(self)
         if client.connected:
@@ -375,14 +375,14 @@ class VoicemeeterExtension(Extension):
             return 0.0
         return max(0.0, min(100.0, (gain - self.gain_min) / span * 100.0))
 
-    def crease_layout(self):
+    def bump_layout(self):
         """(fader %, power, ms) at every 12 dB strictly inside the range."""
         layout = []
-        db = (int(self.gain_min) // CREASE_STEP_DB + 1) * CREASE_STEP_DB
+        db = (int(self.gain_min) // BUMP_STEP_DB + 1) * BUMP_STEP_DB
         while db < self.gain_max:
-            power, ms = CREASE_BIG if db == 0 else CREASE_NORMAL
+            power, ms = BUMP_BIG if db == 0 else BUMP_NORMAL
             layout.append((self._gain_to_fader(db), power, ms))
-            db += CREASE_STEP_DB
+            db += BUMP_STEP_DB
         return layout
 
     # ----- display ---------------------------------------------------------

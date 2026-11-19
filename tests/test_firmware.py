@@ -881,12 +881,12 @@ def test_rail_divider_values_match_doc():
 # Display gating
 # ---------------------------------------------------------------------------
 
-def test_creases_pulse_against_a_hand_drag():
-    print("Creases")
+def test_bumps_pulse_against_a_hand_drag():
+    print("Bumps")
     rig = Rig()
     rig.calibrate_all()
     fader, motor, sim = rig.faders[0], rig.motors[0], rig.sims[0]
-    fader.set_creases([(50.0, 50.0, 20)])
+    fader.set_bumps([(50.0, 50.0, 20)])
 
     def drag(path):
         """Move the fader by 'hand' along path, one 5 ms tick per point.
@@ -913,32 +913,32 @@ def test_creases_pulse_against_a_hand_drag():
     check(pulses(up) == [-1], f"dragging up across 50 pushes down once (got {pulses(up)})")
     on = sum(1 for d in up if d)
     check(3 <= on <= 5, f"pulse lasts ~20 ms (got {on * 5} ms)")
-    check(fader.state == "IDLE", "a crease pulse does not engage the PID")
+    check(fader.state == "IDLE", "a bump pulse does not engage the PID")
 
     down = drag([60.0 - i * 0.5 for i in range(41)] + [40.0] * 20)
     check(pulses(down) == [1], f"dragging down across 50 pushes up once (got {pulses(down)})")
 
-    # Resting on the crease with ADC flicker must never buzz.
+    # Resting on the bump with ADC flicker must never buzz.
     drag([50.0] * 10)
     rest = drag([50.0 + (0.3 if i % 2 else -0.3) for i in range(100)])
-    check(pulses(rest) == [], f"flicker on a crease fires nothing (got {pulses(rest)})")
+    check(pulses(rest) == [], f"flicker on a bump fires nothing (got {pulses(rest)})")
 
-    # The pulse knocking the fader back over the crease must not re-fire.
+    # The pulse knocking the fader back over the bump must not re-fire.
     drag([40.0] * 60)  # the jump from 50 crosses too; wait out its refractory
     bounce = drag([40.0 + i for i in range(12)] + [49.0, 51.0, 49.0, 51.0] + [55.0] * 30)
     check(pulses(bounce) == [-1], f"bounce inside the refractory window is ignored (got {pulses(bounce)})")
 
-    # A commanded move crosses creases without pulses getting in the way.
+    # A commanded move crosses bumps without pulses getting in the way.
     fader.engage(30.0)
     rig.run_for(3000)
     check(abs(fader.read_position() - 30.0) <= 2.5,
-          f"PID move still lands with creases set (got {fader.read_position():.1f})")
+          f"PID move still lands with bumps set (got {fader.read_position():.1f})")
     check(fader.state == "IDLE", "and releases")
     still = drag([fader.read_position()] * 40)
     check(pulses(still) == [], "no stray pulse when the move hands back to IDLE")
 
     # Speed scaling: a flick gets the full pulse, a slow drag a lighter one.
-    fader.set_creases([(50.0, 80.0, 40)])
+    fader.set_bumps([(50.0, 80.0, 40)])
 
     def pulse(path):
         """(ms, peak duty) of the pulse a drag along path fires."""
@@ -962,28 +962,145 @@ def test_creases_pulse_against_a_hand_drag():
     check(slow_duty < 0.6 * fast_duty,
           f"slow drag: much lighter pulse (got {slow_duty} vs {fast_duty})")
 
-    # Two creases close together: a fast drag feels both, not just the first.
-    fader.set_creases([(50.0, 60.0, 10), (54.0, 60.0, 10)])
+    # Two bumps close together: a fast drag feels both, not just the first.
+    fader.set_bumps([(50.0, 60.0, 10), (54.0, 60.0, 10)])
     drag([40.0] * 60)
     both = drag([40.0 + i * 2.0 for i in range(11)] + [60.0] * 30)
     check(pulses(both) == [-1, -1],
-          f"fast drag across two close creases fires both (got {pulses(both)})")
+          f"fast drag across two close bumps fires both (got {pulses(both)})")
 
-    fader.set_creases([])
+    fader.set_bumps([])
     none = drag([40.0 + i * 0.5 for i in range(41)])
-    check(pulses(none) == [], "cleared creases fire nothing")
+    check(pulses(none) == [], "cleared bumps fire nothing")
 
 
 def fw_pwm_max(rig):
     return rig.fw.PWM_MAX
 
 
+def test_bumps_command():
+    rig = Rig()
+    fw = rig.fw
+    screens = [None] * fw.NUM_FADERS
+    fw._handle_command("BUMPS:2,66.7:80:40,10:45:12", rig.faders, screens)
+    check(rig.faders[1].bumps == ((10.0, 45.0, 12), (66.7, 80.0, 40)),
+          f"BUMPS parsed and sorted (got {rig.faders[1].bumps})")
+    check(rig.faders[0].bumps == (), "other faders untouched")
+    fw._handle_command("BUMPS:2", rig.faders, screens)
+    check(rig.faders[1].bumps == (), "BUMPS with no entries clears")
+
+    out = []
+    original = fw._emit
+    fw._emit = out.append
+    try:
+        for bad in ("BUMPS:2,50:0:10", "BUMPS:2,50:50:999", "BUMPS:2,150:50:10",
+                    "BUMPS:2,50:50", "BUMPS:9,50:50:10"):
+            fw._handle_command(bad, rig.faders, screens)
+    finally:
+        fw._emit = original
+    check(len(out) == 5 and all(l.startswith("DBG:") for l in out),
+          f"bad BUMPS lines are parse errors, not crashes (got {out})")
+    check(rig.faders[1].bumps == (), "a rejected line changes nothing")
+
+
+def test_creases_pull_a_hand_moved_fader_in():
+    print("Creases")
+    rig = Rig()
+    rig.calibrate_all()
+    fader, motor, sim = rig.faders[0], rig.motors[0], rig.sims[0]
+    fader.set_creases([(25.0, 8.0, 60.0), (50.0, 8.0, 60.0)])
+
+    def hand(points):
+        """Hand holds the fader at each point for one 5 ms tick."""
+        for p in points:
+            sim.position = p
+            rig.tick(5)
+
+    def drive():
+        return (motor.in1.value() - motor.in2.value()) if motor.pwm.duty_u16() else 0
+
+    # Where creases were set the fader stays, even off-centre.
+    hand([46.0] * 10)
+    rig.run_for(300)
+    check(close(fader.read_position(), 46.0), "no pull before the hand moves it")
+
+    # Hand moves it 2.5% and lets go inside the 50% crease: pulled in.
+    hand([46.0 - i * 0.25 for i in range(11)])
+    rig.run_for(600)
+    check(abs(fader.read_position() - 50.0) <= 1.2,
+          f"let go in the zone, it settles at the crease (got {fader.read_position():.1f})")
+    check(not fader.pulling and drive() == 0, "motor off once there")
+    check(fader.state == "IDLE", "a pull does not engage the PID")
+
+    # Released from the other side, a little further out.
+    hand([50.0 + i * 0.5 for i in range(14)])
+    rig.run_for(600)
+    check(abs(fader.read_position() - 50.0) <= 1.2,
+          f"pulled down from above too (got {fader.read_position():.1f})")
+
+    # Resting at the centre with ADC flicker never drives the motor.
+    seen = []
+    for i in range(100):
+        sim.position = 50.0 + (0.4 if i % 2 else -0.4)
+        rig.tick(5)
+        seen.append(drive())
+    check(not any(seen), "flicker at the centre fires nothing")
+
+    # Between zones: no pull.
+    hand([40.0 - i * 0.5 for i in range(10)])
+    rig.run_for(400)
+    check(close(fader.read_position(), 35.5), f"outside every zone it stays (got {fader.read_position():.1f})")
+
+    # Held against the pull: it gives up after CREASE_STALL_MS.
+    seen = []
+    for _ in range(200):
+        sim.position = 30.0
+        rig.tick(5)
+        seen.append(drive())
+    check(seen[5] == -1, "pulls toward 25 while held at 30")
+    check(not any(seen[-50:]), "lets go of a held fader")
+    # Moving on re-arms it.
+    hand([30.0 - i * 0.5 for i in range(6)])
+    rig.run_for(600)
+    check(abs(fader.read_position() - 25.0) <= 1.2,
+          f"pull re-arms once the hand moves (got {fader.read_position():.1f})")
+
+    # Dragged out, the pull is lighter than when the hand stops.
+    hand([25.0] * 40)
+    hand([25.0 + i * 0.25 for i in range(17)])  # out to 29 at 50 %/s
+    leaving_duty = motor.pwm.duty_u16()
+    check(drive() == -1 and leaving_duty < 0.4 * 0.6 * rig.fw.PWM_MAX,
+          f"dragging out: light pull (got duty {leaving_duty})")
+    hand([29.0] * 40)
+    check(drive() == -1 and motor.pwm.duty_u16() > 0.55 * rig.fw.PWM_MAX,
+          f"hand stops: full pull again (got duty {motor.pwm.duty_u16()})")
+    rig.run_for(600)
+    check(abs(fader.read_position() - 25.0) <= 1.2,
+          f"and let go, it falls back in (got {fader.read_position():.1f})")
+
+    # A commanded move into a zone, off-centre, stays where it was sent.
+    fader.engage(53.0)
+    rig.run_for(2500)
+    check(fader.state == "IDLE", "commanded move released")
+    rig.run_for(500)
+    check(abs(fader.read_position() - 53.0) <= 2.0,
+          f"commanded value off-centre is not pulled (got {fader.read_position():.1f})")
+
+    # Clearing stops a running pull.
+    hand([fader.read_position() + i * 0.5 for i in range(6)])
+    check(fader.pulling, "pulling again after a hand move")
+    fader.set_creases([])
+    check(not fader.pulling and drive() == 0, "cleared creases stop the motor")
+    rig.run_for(200)
+    check(drive() == 0, "and pull nothing")
+
+
 def test_creases_command():
     rig = Rig()
     fw = rig.fw
     screens = [None] * fw.NUM_FADERS
-    fw._handle_command("CREASES:2,66.7:80:40,10:45:12", rig.faders, screens)
-    check(rig.faders[1].creases == ((10.0, 45.0, 12), (66.7, 80.0, 40)),
+    fw._handle_command("CREASES:2,60:5:50,20:4.5:70", rig.faders, screens)
+    check(rig.faders[1].creases == ((20.0, 4.5, 70.0), (60.0, 5.0, 50.0)),
           f"CREASES parsed and sorted (got {rig.faders[1].creases})")
     check(rig.faders[0].creases == (), "other faders untouched")
     fw._handle_command("CREASES:2", rig.faders, screens)
@@ -993,12 +1110,12 @@ def test_creases_command():
     original = fw._emit
     fw._emit = out.append
     try:
-        for bad in ("CREASES:2,50:0:10", "CREASES:2,50:50:999", "CREASES:2,150:50:10",
-                    "CREASES:2,50:50", "CREASES:9,50:50:10"):
+        for bad in ("CREASES:2,50:0:10", "CREASES:2,50:5:0", "CREASES:2,150:5:10",
+                    "CREASES:2,50:60:10", "CREASES:2,50:5", "CREASES:9,50:5:10"):
             fw._handle_command(bad, rig.faders, screens)
     finally:
         fw._emit = original
-    check(len(out) == 5 and all(l.startswith("DBG:") for l in out),
+    check(len(out) == 6 and all(l.startswith("DBG:") for l in out),
           f"bad CREASES lines are parse errors, not crashes (got {out})")
     check(rig.faders[1].creases == (), "a rejected line changes nothing")
 
@@ -1253,7 +1370,9 @@ def main():
         test_simultaneous_press_reads_lowest,
         test_vm_rail_check,
         test_rail_divider_values_match_doc,
-        test_creases_pulse_against_a_hand_drag,
+        test_bumps_pulse_against_a_hand_drag,
+        test_bumps_command,
+        test_creases_pull_a_hand_moved_fader_in,
         test_creases_command,
         test_slot_command,
         test_muted_screen_shows_restore_position,

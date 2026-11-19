@@ -343,7 +343,7 @@ def test_inactive_layer_writes_are_stored_not_sent():
     chat.set_fader(0, 80.0)
     chat.set_display(0, "Alice", "vol 160%")
     chat.set_mute(1, True, 40.0)
-    chat.set_creases(0, [(50, 70, 18)])
+    chat.set_bumps(0, [(50, 70, 18)])
     check(host._ser.lines() == [] and host._pending == [None] * 4,
           f"inactive layer reaches nothing (got {host._ser.lines()})")
     check(chat.is_muted(1) and not audio.is_muted(1),
@@ -367,7 +367,7 @@ def test_layer_switch_applies_on_g1_release():
     host._handle_line("BTN:F4")
     sent = host._ser.lines()
     check("MENU:2,selected,Chat" in sent, f"target layer named at once (got {sent})")
-    check(not any(ln.startswith(("MUTE:", "CREASES:")) for ln in sent)
+    check(not any(ln.startswith(("MUTE:", "BUMPS:")) for ln in sent)
           and host._pending == [None] * 4, "no motion while G1 is held")
     check(not audio.is_active() and not chat.is_active(), "no layer live mid-switch")
 
@@ -486,14 +486,14 @@ def test_switch_replays_mute_with_level():
     check(a.mutes == [(0, True)], "confirmation reaches the live layer")
     chat.set_fader(0, 80.0)
     chat.set_mute(1, True, 40.0)
-    chat.set_creases(0, [(50, 70, 18)])
+    chat.set_bumps(0, [(50, 70, 18)])
     host._ser.written.clear()
 
     host.step_layer(1)
     sent = host._ser.lines()
     check("MUTE:1,0,80.0" in sent, f"unmuted on Chat: unmute straight to its level (got {sent})")
     check("MUTE:2,1,40.0" in sent, "muted on Chat: park, restore its level")
-    check("CREASES:1,50.0:70:18" in sent, "Chat creases applied")
+    check("BUMPS:1,50.0:70:18" in sent, "Chat bumps applied")
 
     # The Pico's confirmations of the replay are not user actions.
     host._handle_line("MUTE:1,0")
@@ -506,7 +506,7 @@ def test_switch_replays_mute_with_level():
     sent = host._ser.lines()
     check("MUTE:1,1,60.0" in sent and "MUTE:2,0" in sent,
           f"back on Audio: mute and level restored (got {sent})")
-    check("CREASES:1" in sent, "creases cleared for a layer without them")
+    check("BUMPS:1" in sent, "bumps cleared for a layer without them")
     check(b.activations == ["on", "off"], "on_deactivate on the way out")
 
 
@@ -558,36 +558,102 @@ def test_g2_pages_on_a_paged_layer():
     check(not any(host.is_muted(i) for i in range(4)), "nothing muted")
 
 
-def test_creases_sent_and_replayed():
-    print("Creases")
+def test_bumps_sent_and_replayed():
+    print("Bumps")
     host, ext = make_host()
-    host.set_creases(1, [(66.666, 80, 40), (10, 45, 12)])
-    check(host._ser.lines() == ["CREASES:2,66.7:80:40,10.0:45:12"],
-          f"set_creases sends one CREASES: line (got {host._ser.lines()})")
+    host.set_bumps(1, [(66.666, 80, 40), (10, 45, 12)])
+    check(host._ser.lines() == ["BUMPS:2,66.7:80:40,10.0:45:12"],
+          f"set_bumps sends one BUMPS: line (got {host._ser.lines()})")
 
     host.set_display(0, "Music", "vol 50%")
     host._ser.written.clear()
     host._handle_line("CAL:done")
     sent = host._ser.lines()
-    check("CREASES:2,66.7:80:40,10.0:45:12" in sent, "creases replayed after reboot")
+    check("BUMPS:2,66.7:80:40,10.0:45:12" in sent, "bumps replayed after reboot")
     check("DISP:1,Music,vol 50%" in sent, "display text replayed after reboot")
 
+    host.set_bumps(1, [])
+    check(host._ser.lines()[-1] == "BUMPS:2", "empty list clears")
+
+
+def test_creases_sent_and_replayed():
+    print("Creases")
+    host, ext = make_host()
+    host.set_creases(1, [(60, 4.5, 50), (20, 5, 70)])
+    check(host._ser.lines() == ["CREASES:2,20.0:5.00:70,60.0:4.50:50"],
+          f"set_creases sends one sorted CREASES: line (got {host._ser.lines()})")
+    host._ser.written.clear()
+    host._handle_line("CAL:done")
+    check("CREASES:2,20.0:5.00:70,60.0:4.50:50" in host._ser.lines(),
+          "creases replayed after reboot")
     host.set_creases(1, [])
     check(host._ser.lines()[-1] == "CREASES:2", "empty list clears")
+
+    # Bumps and creases share a fader only where they do not overlap.
+    host.set_bumps(0, [(50, 55, 10)])
+    for bad, why in (([(52, 5, 50)], "bump inside a crease zone"),
+                     ([(20, 6, 50), (30, 6, 50)], "two zones overlapping"),
+                     ([(20, 0, 50)], "zero width"),
+                     ([(20, 5, 0)], "zero power")):
+        try:
+            host.set_creases(0, bad)
+            check(False, f"{why} is rejected")
+        except ValueError:
+            pass
+    check(host.active_layer.creases[0] in (None, []), "a rejected layout is not kept")
+    host.set_creases(0, [(20, 5, 50), (30, 5, 50), (45, 5, 50)])
+    check(host._ser.lines()[-1] == "CREASES:1,20.0:5.00:50,30.0:5.00:50,45.0:5.00:50",
+          "zones may touch each other and a bump")
+    try:
+        host.set_bumps(0, [(31, 55, 10)])
+        check(False, "a bump into an existing crease zone is rejected")
+    except ValueError:
+        pass
+    check(host.active_layer.bumps[0] == [(50.0, 55.0, 10)], "old bumps kept")
+
+
+def test_creases_follow_layer_and_page():
+    host, audio, chat, a, b = make_layered_host()
+    chat.set_creases(0, [(40, 5, 60)])
+    check(not any(l.startswith("CREASES:") for l in host._ser.lines()),
+          "inactive layer's creases held back")
+    host._ser.written.clear()
+    host.step_layer(1)
+    check("CREASES:1,40.0:5.00:60" in host._ser.lines(), "applied on switch")
+    host._ser.written.clear()
+    host.step_layer(1)
+    check("CREASES:1" in host._ser.lines(), "cleared for a layer without them")
+
+    from faders.core import PagedGroup
+    host = FaderHost(port="/dev/null", num_faders=4)
+    host._ser = FakeSerial()
+    layer = host.add_layer("Paged")
+    group = PagedGroup(layer, 2)
+    views = [group.view(slot) for slot in (0, 4)]
+    views[0].set_creases(0, [(50, 5, 60)])
+    views[1].set_bumps(0, [(52, 55, 10)])
+    check(host._creases[0] == [(50.0, 5.0, 60.0)] and host._bumps[0] is None,
+          "page 1's creases live, page 2's bumps held")
+    group.on_page(1)
+    check(host._bumps[0] == [(52.0, 55.0, 10)] and host._creases[0] == [],
+          f"page 2: its bumps, page 1's creases gone (got {host._bumps[0]}, {host._creases[0]})")
+    group.on_page(-1)
+    check(host._creases[0] == [(50.0, 5.0, 60.0)] and host._bumps[0] == [],
+          "back on page 1")
 
 
 def test_sends_before_connect_are_replayed():
     # Extensions register before run() opens the port.
     host = FaderHost(port="/dev/null", num_faders=4)
     host.set_display(2, "Comms", "")
-    host.set_creases(2, [(50, 45, 12)])
+    host.set_bumps(2, [(50, 45, 12)])
     host._ser = FakeSerial()
     host._resend_after_boot()
     check(host._ser.written[0] == "\n",
           "a bare newline goes first, flushing the Pico's partial line")
     sent = host._ser.lines()
-    check("DISP:3,Comms," in sent and "CREASES:3,50.0:45:12" in sent,
-          f"pre-connect display and creases sent on connect (got {sent})")
+    check("DISP:3,Comms," in sent and "BUMPS:3,50.0:45:12" in sent,
+          f"pre-connect display and bumps sent on connect (got {sent})")
 
 
 def test_stuck_loopback_guard_is_released():
@@ -670,7 +736,7 @@ def test_replug_reconnects_and_restores():
     host.register(ext)
     host._connect = fake_connect
     host.set_display(1, "Apps", "vol 40%")
-    host.set_creases(1, [(50, 45, 12)])
+    host.set_bumps(1, [(50, 45, 12)])
     runner = threading.Thread(target=host.run, daemon=True)
     try:
         runner.start()
@@ -687,8 +753,8 @@ def test_replug_reconnects_and_restores():
         check(first.closed, "dead port closed")
         check(ext.connects == 2, "on_connect again after the replug")
         sent = second.lines()
-        check("DISP:2,Apps,vol 40%" in sent and "CREASES:2,50.0:45:12" in sent,
-              f"display and creases replayed to the rebooted Pico (got {sent})")
+        check("DISP:2,Apps,vol 40%" in sent and "BUMPS:2,50.0:45:12" in sent,
+              f"display and bumps replayed to the rebooted Pico (got {sent})")
         check(not host.is_muted(1), "mute mirror reset: a rebooted Pico is unmuted")
         check(host._self_driven == [False] * 4, "loopback guards released")
     finally:
@@ -874,20 +940,20 @@ def test_pulse_sink_display_and_mute():
         ps.register(host, {"fader": 0, "sink": "sink-music", "label": "Music"})
         ext = host._extensions[-1]
 
-        layout = host._creases[0]
+        layout = host._bumps[0]
         check([round(p) for p, _, _ in layout] == [25, 50, 75],
-              f"0-100 sink: creases every 25% (got {[round(p, 1) for p, _, _ in layout]})")
-        check(all(c[1:] == ps.CREASE_NORMAL for c in layout),
-              "no boost crease on a sink that stops at 100%")
+              f"0-100 sink: bumps every 25% (got {[round(p, 1) for p, _, _ in layout]})")
+        check(all(c[1:] == ps.BUMP_NORMAL for c in layout),
+              "no boost bump on a sink that stops at 100%")
 
         boost = ps.PulseSinkExtension.__new__(ps.PulseSinkExtension)
         boost.vol_min, boost.vol_max = 0.0, 150.0
-        layout = boost.crease_layout()
+        layout = boost.bump_layout()
         check([round(p, 1) for p, _, _ in layout] == [16.7, 33.3, 50.0, 66.7, 83.3],
               f"0-150 sink: volume 25..125 in steps of 25 (got {[round(p, 1) for p, _, _ in layout]})")
-        big = [p for p, w, ms in layout if (w, ms) == ps.CREASE_BIG]
+        big = [p for p, w, ms in layout if (w, ms) == ps.BUMP_BIG]
         check(len(big) == 1 and abs(big[0] - 66.67) < 0.1,
-              f"0-150 sink: big crease where 100% volume sits (got {big})")
+              f"0-150 sink: big bump where 100% volume sits (got {big})")
 
         sent = host._ser.lines()
         check(any(ln.startswith("DISP:1,Music,vol 69%") for ln in sent),
@@ -1115,7 +1181,9 @@ def main():
         test_switch_replays_mute_with_level,
         test_hand_level_kept_per_layer,
         test_g2_pages_on_a_paged_layer,
+        test_bumps_sent_and_replayed,
         test_creases_sent_and_replayed,
+        test_creases_follow_layer_and_page,
         test_sends_before_connect_are_replayed,
         test_stuck_loopback_guard_is_released,
         test_concurrent_sends_stay_whole_lines,

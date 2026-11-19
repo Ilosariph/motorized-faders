@@ -53,7 +53,8 @@ prefix ignores it.
 | `DISP:idx,line1,line2` | Display text for fader `idx` (1-based) |
 | `SLOT:idx,A\|B` | A/B slot badge for fader `idx`; empty clears it |
 | `MENU:idx,label,name` | Menu card on fader `idx`'s screen (no bar), until the next `DISP:` |
-| `CREASES:idx,pos:power:ms,...` | Haptic detents for fader `idx`, see below. No entries clears |
+| `BUMPS:idx,pos:power:ms,...` | Haptic detents for fader `idx`, see below. No entries clears |
+| `CREASES:idx,pos:width:power,...` | Pull zones for fader `idx`, see below. No entries clears |
 | `TUNE:kp,ki,kd,minmove,deadband,deadband_exit` | Live PID gains, empty slot keeps value, echoed as `DBG:tune ... loop=Nms`, lost on reset. See [pid_tuning.md](pid_tuning.md) |
 
 Only these prefixes are parsed as input. Everything else on stdin is
@@ -65,33 +66,65 @@ The host strips commas and newlines anyway (`faders/core.py::_sanitize`).
 
 ---
 
-## Virtual creases
+## Virtual bumps
 
 Haptic detents with no touch sensor. While a fader is `IDLE` the motor is off,
-so any movement is the user's hand; crossing a crease fires one short pulse
+so any movement is the user's hand; crossing a bump fires one short pulse
 of `power` % for `ms` against that motion. A bump to feel, never a pull
-toward the crease, and nothing happens during a commanded move.
+toward the bump, and nothing happens during a commanded move.
 
 - The crossing test runs on an anchor that only moves once the fader is
-  `CREASE_HYST_PCT` (0.8%) away, so ADC flicker while resting on a crease
+  `BUMP_HYST_PCT` (0.8%) away, so ADC flicker while resting on a bump
   never fires.
-- Pulses scale with drag speed: full strength at `CREASE_FULL_SPEED`
-  (150 %/s) and above. Power scales down to `CREASE_MIN_POWER` (40%) for a
-  slow drag; length only to `CREASE_MIN_LENGTH_SCALE` (90%), since pulses
-  must stay short enough not to run into the next crease on a fast drag.
-- The pulse shoves the fader back over the crease; re-crossing that same
-  crease within `CREASE_REFRACTORY_MS` (120 ms) of the pulse ending is
-  ignored, or it buzzes. Other creases stay live during that window.
+- Pulses scale with drag speed: full strength at `BUMP_FULL_SPEED`
+  (150 %/s) and above. Power scales down to `BUMP_MIN_POWER` (40%) for a
+  slow drag; length only to `BUMP_MIN_LENGTH_SCALE` (90%), since pulses
+  must stay short enough not to run into the next bump on a fast drag.
+- The pulse shoves the fader back over the bump; re-crossing that same
+  bump within `BUMP_REFRACTORY_MS` (120 ms) of the pulse ending is
+  ignored, or it buzzes. Other bumps stay live during that window.
 - Display redraws are skipped while a pulse runs: a stalled loop would
   stretch the pulse, and its length is the bump's strength.
-- The Pico forgets creases on reboot. `FaderHost.set_creases()` caches them
+- The Pico forgets bumps on reboot. `FaderHost.set_bumps()` caches them
   and replays them on connect and after every `CAL:done`.
 
 `pulse_sink` places them in sink-volume terms: every 25%, stronger at
 100% on a sink whose `max` goes past it (on 0-150,
-that is 66.7% of travel). `"creases": false` in its config entry turns them
-off. Strengths are `CREASE_NORMAL` / `CREASE_BIG` in
+that is 66.7% of travel). `"bumps": false` in its config entry turns them
+off. Strengths are `BUMP_NORMAL` / `BUMP_BIG` in
 `faders/extensions/pulse_sink.py`.
+
+---
+
+## Virtual creases
+
+Pull zones. While a fader is `IDLE`, one moved by hand to within `width` %
+of a crease's `pos` is driven toward it at `power` %, so it settles there
+when let go. Bumps mark a point you cross; creases are valleys the fader
+falls into. Both can be set on one fader, as long as no bump sits inside a
+crease zone and zones do not overlap (`FaderHost.set_creases()` /
+`set_bumps()` raise `ValueError`).
+
+- Pulling stops within `CREASE_DEADBAND_PCT` (0.5%) of the centre, or as
+  the fader crosses it, with a `CREASE_BRAKE_MS` (40 ms) short brake so it
+  does not coast on. It starts again only past `CREASE_EXIT_PCT` (1.2%),
+  so resting on a crease never buzzes.
+- Leaving is lighter than falling in: the pull only draws toward the
+  centre, so a step of `CREASE_LEAVE_PCT` (0.3%) away from it is the hand.
+  For `CREASE_LEAVE_MS` (150 ms) after each such step the pull runs at
+  `CREASE_LEAVE_SCALE` (30%); once the hand stops, full power again.
+- Within `CREASE_TAPER_PCT` (1.5%) of the centre the pull eases off to
+  `CREASE_MIN_POWER` (35%), still enough to move a free carriage.
+- Only the hand arms a crease: after a commanded move or new creases, the
+  fader must be moved `CREASE_ARM_PCT` (2%) first. A value set from
+  outside (a page's own playback speed) stays put even off-centre.
+- Held against the pull with no `CREASE_PROGRESS_PCT` (0.5%) of motion
+  for `CREASE_STALL_MS` (400 ms), the pull gives up; moving the fader
+  re-arms it. No stall current through a held fader.
+- Display redraws are skipped while pulling, as during a bump pulse.
+- Forgotten on reboot; the host replays them like bumps.
+
+`media` uses them on the speed fader with `"speed_increment"`.
 
 ---
 

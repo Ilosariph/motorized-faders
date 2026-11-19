@@ -111,8 +111,8 @@ def test_layout_and_screens():
     check(host._display[2] == ("Night Witches", "Playing"), f"title (got {host._display[2]})")
     check(host._display[3] == ("Next", ">|"), "next screen")
     check(host._pending[0] == 60.0, f"volume fader follows the player (got {host._pending[0]})")
-    check([c[0] for c in layer.creases[0]] == [25.0, 50.0, 75.0], "creases on the volume fader")
-    check(layer.creases[1] is None, "none on button faders")
+    check([c[0] for c in layer.bumps[0]] == [25.0, 50.0, 75.0], "bumps on the volume fader")
+    check(layer.bumps[1] is None, "none on button faders")
 
     for bad in (["volume", "volume"], ["nope"], [None] * 5):
         try:
@@ -422,9 +422,9 @@ def test_speed():
     print("Speed")
     host, layer, ext, backend = make(speed_min=0.25, speed_max=3.5)
     check(host._pending[2] == 0.0, "no rate yet: speed fader parked")
-    check([c[:2] for c in layer.creases[2]] == [(25.0, 80.0), (40.0, 55.0), (55.0, 55.0),
+    check([c[:2] for c in layer.bumps[2]] == [(25.0, 80.0), (40.0, 55.0), (55.0, 55.0),
                                                  (70.0, 55.0), (85.0, 55.0)],
-          f"creases: 1x firm, 1.5x 2x 2.5x 3x (got {layer.creases[2]})")
+          f"bumps: 1x firm, 1.5x 2x 2.5x 3x (got {layer.bumps[2]})")
     backend.rates["spotify"] = 1.5
     ext.poll()
     check(host._pending[2] == 40.0, f"speed fader follows the rate (got {host._pending[2]})")
@@ -480,10 +480,10 @@ def test_speed_range():
           "range not spanning 1x: linear")
     check(media.pos_to_speed(100.0, 0.3, 2.33) == 2.33 and media.pos_to_speed(0.0, 0.33, 2.0) == 0.33,
           "ends off the 0.05x grid stay in range")
-    check(media.speed_creases(0.25, 3.5) == [(1.0, True), (1.5, False), (2.0, False),
+    check(media.speed_bumps(0.25, 3.5) == [(1.0, True), (1.5, False), (2.0, False),
                                              (2.5, False), (3.0, False)], "default detents")
-    check(media.speed_creases(1.0, 2.0) == [(1.5, False)], "1x at the end: no firm detent")
-    check(media.speed_creases(1.6, 3.0) == [(2.0, False), (2.5, False)], "only inside the range")
+    check(media.speed_bumps(1.0, 2.0) == [(1.5, False)], "1x at the end: no firm detent")
+    check(media.speed_bumps(1.6, 3.0) == [(2.0, False), (2.5, False)], "only inside the range")
 
     check((media.SPEED_MIN, media.SPEED_MAX) == (0.25, 3.0), "default range 0.25x - 3x")
     check(media.speed_to_pos(3.0) == 100.0 and media.speed_to_pos(1.0) == 25.0, "default curve")
@@ -493,8 +493,8 @@ def test_speed_range():
     check(ext._speed_hi == 5.0, "speed_max 5 accepted")
 
     host, layer, ext, backend = make(speed_min=0.5, speed_max=2.0)
-    check([c[:2] for c in layer.creases[2]] == [(25.0, 80.0), (62.5, 55.0)],
-          f"creases follow the range (got {layer.creases[2]})")
+    check([c[:2] for c in layer.bumps[2]] == [(25.0, 80.0), (62.5, 55.0)],
+          f"bumps follow the range (got {layer.bumps[2]})")
     backend.rates["spotify"] = 1.5
     ext.poll()
     check(host._pending[2] == 62.5, f"fader placed on the range (got {host._pending[2]})")
@@ -506,6 +506,52 @@ def test_speed_range():
         try:
             make(speed_min=lo, speed_max=hi)
             check(False, f"range {lo}-{hi} rejected")
+        except ValueError:
+            check(True, "")
+
+
+def test_speed_creases():
+    print("Speed creases")
+    check(media.speed_crease_rates(0.25, 0.25, 3.0) ==
+          [0.5, 0.75, 1.0, 1.25, 1.5, 1.75, 2.0, 2.25, 2.5, 2.75], "multiples inside the range")
+    check(media.speed_crease_rates(0.3, 0.25, 1.0) == [0.3, 0.6, 0.9], "odd step, ends left out")
+    layout = media.speed_creases(0.25, 0.25, 3.0)
+    gap = 25.0 / 3
+    check(all(abs(w - gap * media.SPEED_CREASE_WIDTH_FRAC) < 1e-9 for _, _, w, _ in layout),
+          "default width: a share of the narrowest gap")
+    check([pw for r, _, _, pw in layout if r == 1.0] == [70.0] and
+          all(pw == 50.0 for r, _, _, pw in layout if r != 1.0), "1x pulls harder")
+    wide = media.speed_creases(0.25, 0.25, 3.0, width=20)
+    check(all(abs(w - gap / 2) < 1e-9 for _, _, w, _ in wide), "width capped at half the gap")
+
+    host, layer, ext, backend = make(speed_min=0.25, speed_max=3.0, speed_increment=0.25,
+                                     speed_crease_width=3, speed_crease_power=60)
+    check(layer.bumps[2] is None, "no speed bumps with creases")
+    check([round(p, 3) for p, _, _ in layer.creases[2]] ==
+          [round(media.speed_to_pos(r), 3) for r in media.speed_crease_rates(0.25)],
+          f"a crease at every 0.25x (got {layer.creases[2]})")
+    check(layer.creases[2][2] == (25.0, 3.0, 84.0) and layer.creases[2][3][1:] == (3.0, 60.0),
+          f"configured width and power (got {layer.creases[2][2:4]})")
+    check("CREASES:3,8.3:3.00:60," in "\n".join(host._ser.lines()), "sent to the Pico")
+
+    backend.rates["spotify"] = 1.0
+    ext.poll()
+    idle(host)
+    # Resting a little off a crease (where the pull stopped): its multiple.
+    pos = media.speed_to_pos(1.25) + 1.1
+    host._handle_line(f"POS:60,0,{pos:.1f},0")
+    ext.apply()
+    check(backend.rate_writes == [("spotify", 1.25)], f"inside a crease: its speed (got {backend.rate_writes})")
+    # Between creases the 0.05x grid still applies.
+    host._handle_line(f"POS:60,0,{media.speed_to_pos(1.4):.1f},0")
+    ext.apply()
+    check(backend.rate_writes[-1] == ("spotify", 1.4), f"between creases: fine steps (got {backend.rate_writes})")
+
+    for bad in ({"speed_increment": 0}, {"speed_crease_power": 0},
+                {"speed_crease_width": -1}):
+        try:
+            make(**bad)
+            check(False, f"{bad} rejected")
         except ValueError:
             check(True, "")
 
@@ -542,7 +588,7 @@ def test_speed_off():
     ext.poll()
     check(host._pending[2] == 0.0 and host._display[2] == ("Night Witches", "Playing"),
           f"speed false: plain play / pause (got {host._pending[2]}, {host._display[2]})")
-    check(layer.creases[2] is None, "no speed creases")
+    check(layer.bumps[2] is None, "no speed bumps")
     idle(host)
     host._handle_line("POS:60,0,62.5,0")
     ext.apply()
@@ -852,6 +898,7 @@ def main():
         test_speed_mapping,
         test_speed,
         test_speed_range,
+        test_speed_creases,
         test_speed_fixed,
         test_speed_off,
         test_backend_unavailable,

@@ -94,9 +94,9 @@ def test_users_bound_in_join_order_without_self():
     sent = host._ser.lines()
     check("MUTE:3,1,25.0" in sent, f"muted user parks with restore level (got {sent})")
     check(host._pending[3] == 0.0, "empty fader parks at 0")
-    check(layer.creases[0] == [(25.0, 55.0, 10), (50.0, 70.0, 18), (75.0, 55.0, 10)],
-          f"creases at 50/100/150% (got {layer.creases[0]})")
-    check(layer.creases[3] in ([], None), "no creases on an empty fader")
+    check(layer.bumps[0] == [(25.0, 55.0, 10), (50.0, 70.0, 18), (75.0, 55.0, 10)],
+          f"bumps at 50/100/150% (got {layer.bumps[0]})")
+    check(layer.bumps[3] in ([], None), "no bumps on an empty fader")
 
 
 def test_fader_writes_volume_and_mute_only():

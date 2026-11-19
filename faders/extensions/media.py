@@ -12,8 +12,10 @@ faders. Default layout, one role per fader:
   - fader move (human)      -> that application's own stream volume
   - volume changed in app   -> fader follows
   - volume-fader button     -> mutes the stream; muted elsewhere parks the fader
-  - haptic creases          -> every 25% on the volume fader; 1x (firm),
+  - haptic bumps            -> every 25% on the volume fader; 1x (firm),
                                every 0.5x above on the speed fader
+  - speed creases           -> with `speed_increment`, the speed fader is
+                               pulled to every multiple of it instead
   - speed fader (human)     -> the player's playback rate, 0.25x - 3x by default, in
                                0.05x steps; the lower quarter of the travel
                                is 0.25x - 1x, the rest 1x - 3x
@@ -58,10 +60,13 @@ Config entry shape (faders/config.json), every key optional:
         "layout": ["volume", "previous", "play_pause", "next"],
         "players": ["spotify", "plezy"],
         "ignore": ["firefox"],
-        "creases": true,
+        "bumps": true,
         "speed": true,
         "speed_min": 0.25,
         "speed_max": 3.0,
+        "speed_increment": 0.25,
+        "speed_crease_width": 3.0,
+        "speed_crease_power": 50,
         "browser": true,
         "browser_port": 47391
     }
@@ -75,6 +80,13 @@ name; list order breaks ties when nothing is playing.
 `speed`: false keeps the play / pause fader a plain button.
 `speed_min` / `speed_max`: the speed fader's range, 0.25 / 3 by default (no upper limit).
 1x sits a quarter up when the range spans it. Firefox mutes above 4x.
+`speed_increment`: creases instead of bumps on the speed fader: let go near a
+multiple of it (0.25 -> 0.5x, 0.75x, 1x, 1.25x ...) and the fader is pulled
+there, and that speed is set. Off (bumps) by default. The range ends get none.
+`speed_crease_width`: how far either side of a multiple the pull reaches, in %
+of fader travel; by default SPEED_CREASE_WIDTH_FRAC of the gap between
+neighbours, and never more than half of it.
+`speed_crease_power`: pull strength, motor power %; 1x gets SPEED_CREASE_FIRM.
 `browser`: false runs no WebSocket for the browser extension.
 """
 
@@ -119,9 +131,9 @@ WRITE_MIN_INTERVAL_S = 0.03
 HAND_WINDOW_S = 1.0
 
 # (power %, pulse ms), as in pulse_sink.
-CREASE_STEP = 25
-CREASE_NORMAL = (55.0, 10)
-CREASE_FIRM = (80.0, 15)
+BUMP_STEP = 25
+BUMP_NORMAL = (55.0, 10)
+BUMP_FIRM = (80.0, 15)
 
 # Speed fader: the minimum at the bottom, 1x at SPEED_UNITY_POS, the maximum
 # at the top, linear in between. Most listening happens between 1x and 2x, so
@@ -132,8 +144,13 @@ SPEED_MIN = 0.25
 SPEED_MAX = 3.0
 SPEED_UNITY_POS = 25.0
 SPEED_STEP = 0.05
-# Light detents every SPEED_CREASE_STEP above 1x (firm at 1x itself).
-SPEED_CREASE_STEP = 0.5
+# Light detents every SPEED_BUMP_STEP above 1x (firm at 1x itself).
+SPEED_BUMP_STEP = 0.5
+# Creases (`speed_increment`): pull power % and how much of the narrowest gap
+# between neighbouring creases each zone reaches either side by default.
+SPEED_CREASE_POWER = 50.0
+SPEED_CREASE_FIRM = 1.4      # 1x pulls this much harder, up to 100%
+SPEED_CREASE_WIDTH_FRAC = 0.35
 # Rate differences below this are rounding, not a change.
 SPEED_EPSILON = 0.01
 
@@ -176,16 +193,44 @@ def pos_to_speed(pos, lo=SPEED_MIN, hi=SPEED_MAX):
     return min(hi, max(lo, rate))
 
 
-def speed_creases(lo=SPEED_MIN, hi=SPEED_MAX):
-    """(rate, firm) detents: 1x firm, then every SPEED_CREASE_STEP above it,
+def speed_bumps(lo=SPEED_MIN, hi=SPEED_MAX):
+    """(rate, firm) detents: 1x firm, then every SPEED_BUMP_STEP above it,
     both ends left out."""
     found = [(1.0, True)] if lo < 1.0 < hi else []
-    rate = 1.0 + SPEED_CREASE_STEP
+    rate = 1.0 + SPEED_BUMP_STEP
     while rate < hi - 1e-9:
         if rate > lo + 1e-9:
             found.append((rate, False))
-        rate += SPEED_CREASE_STEP
+        rate += SPEED_BUMP_STEP
     return found
+
+
+def speed_crease_rates(step, lo=SPEED_MIN, hi=SPEED_MAX):
+    """Multiples of `step` strictly inside the range."""
+    rates = []
+    n = int(lo / step) + 1
+    while n * step < hi - 1e-9:
+        rate = round(n * step, 6)
+        if rate > lo + 1e-9:
+            rates.append(rate)
+        n += 1
+    return rates
+
+
+def speed_creases(step, lo=SPEED_MIN, hi=SPEED_MAX, width=None,
+                  power=SPEED_CREASE_POWER):
+    """(rate, fader %, width %, power %) for each crease. Zones never
+    overlap: width is capped at half the narrowest gap."""
+    rates = speed_crease_rates(step, lo, hi)
+    if not rates:
+        return []
+    points = [speed_to_pos(r, lo, hi) for r in rates]
+    gap = min([b - a for a, b in zip(points, points[1:])] or [100.0])
+    width = gap * SPEED_CREASE_WIDTH_FRAC if width is None else float(width)
+    width = min(width, gap / 2.0)
+    return [(r, p, width,
+             min(100.0, power * SPEED_CREASE_FIRM) if abs(r - 1.0) < 1e-9 else power)
+            for r, p in zip(rates, points)]
 
 
 def speed_text(rate):
@@ -538,10 +583,13 @@ def register(host, cfg):
         layout=cfg.get("layout", DEFAULT_LAYOUT),
         players=cfg.get("players", ()),
         ignore=cfg.get("ignore", ()),
-        creases=bool(cfg.get("creases", True)),
+        bumps=bool(cfg.get("bumps", True)),
         speed=bool(cfg.get("speed", True)),
         speed_min=float(cfg.get("speed_min", SPEED_MIN)),
         speed_max=float(cfg.get("speed_max", SPEED_MAX)),
+        speed_increment=cfg.get("speed_increment"),
+        speed_crease_width=cfg.get("speed_crease_width"),
+        speed_crease_power=float(cfg.get("speed_crease_power", SPEED_CREASE_POWER)),
     )
     host.register(ext)
 
@@ -550,8 +598,9 @@ class MediaExtension(Extension):
     PAGED = True
 
     def __init__(self, host, backend, layout=DEFAULT_LAYOUT, players=(), ignore=(),
-                 creases=True, speed=True, speed_min=SPEED_MIN, speed_max=SPEED_MAX,
-                 bridge=None, start=True):
+                 bumps=True, speed=True, speed_min=SPEED_MIN, speed_max=SPEED_MAX,
+                 speed_increment=None, speed_crease_width=None,
+                 speed_crease_power=SPEED_CREASE_POWER, bridge=None, start=True):
         layout = list(layout)
         unknown = [r for r in layout if r is not None and r != VOLUME and r not in ACTIONS]
         if unknown:
@@ -561,6 +610,14 @@ class MediaExtension(Extension):
         if not 0 < speed_min < speed_max:
             raise ValueError(f"media: need 0 < speed_min < speed_max "
                              f"(got {speed_min}, {speed_max})")
+        if speed_increment is not None and not float(speed_increment) > 0:
+            raise ValueError(f"media: need speed_increment > 0 (got {speed_increment})")
+        if not 0 < speed_crease_power <= 100:
+            raise ValueError(f"media: need 0 < speed_crease_power <= 100 "
+                             f"(got {speed_crease_power})")
+        if speed_crease_width is not None and not float(speed_crease_width) > 0:
+            raise ValueError(f"media: need speed_crease_width > 0 "
+                             f"(got {speed_crease_width})")
         if len(layout) > host.num_faders:
             raise ValueError(f"media: layout has {len(layout)} entries for "
                              f"{host.num_faders} faders")
@@ -573,6 +630,12 @@ class MediaExtension(Extension):
         self._speed_idx = (self._layout.index("play_pause")
                            if speed and "play_pause" in self._layout else None)
         # The page indicator goes on the last screen this extension draws.
+        # Creases on the speed fader: (rate, fader %, width %, power %).
+        self._speed_creases = []
+        if self._speed_idx is not None and speed_increment is not None:
+            self._speed_creases = speed_creases(
+                float(speed_increment), speed_min, speed_max,
+                speed_crease_width, speed_crease_power)
         self._page_idx = max((i for i, r in enumerate(self._layout) if r), default=None)
         self._wanted = [p.lower() for p in players]
         self._ignored = [p.lower() for p in ignore]
@@ -610,14 +673,17 @@ class MediaExtension(Extension):
         if bridge is not None:
             bridge.on_change = self.rates_changed
 
-        if creases and self._vol_idx is not None:
-            host.set_creases(self._vol_idx, [
-                (float(v), *CREASE_NORMAL)
-                for v in range(CREASE_STEP, 100, CREASE_STEP)])
-        if creases and self._speed_idx is not None:
+        if bumps and self._vol_idx is not None:
+            host.set_bumps(self._vol_idx, [
+                (float(v), *BUMP_NORMAL)
+                for v in range(BUMP_STEP, 100, BUMP_STEP)])
+        if self._speed_creases:
             host.set_creases(self._speed_idx, [
-                (self._to_pos(r), *(CREASE_FIRM if firm else CREASE_NORMAL))
-                for r, firm in speed_creases(speed_min, speed_max)])
+                (p, width, power) for _, p, width, power in self._speed_creases])
+        elif bumps and self._speed_idx is not None:
+            host.set_bumps(self._speed_idx, [
+                (self._to_pos(r), *(BUMP_FIRM if firm else BUMP_NORMAL))
+                for r, firm in speed_bumps(speed_min, speed_max)])
         self._park_button_faders()
         self._drive_speed()
         self._push_screens()
@@ -845,6 +911,13 @@ class MediaExtension(Extension):
                 self._speed_moved = True
                 return
             rate = pos_to_speed(value, self._speed_lo, self._speed_hi)
+            # Inside a crease the fader is on its way to (or resting just
+            # off) the multiple: that is the speed, not the grid step it
+            # happens to read.
+            for crease_rate, p, width, _ in self._speed_creases:
+                if abs(value - p) <= width:
+                    rate = crease_rate
+                    break
             if abs(rate - self._rate) < SPEED_EPSILON:
                 return
             self._rate = rate
