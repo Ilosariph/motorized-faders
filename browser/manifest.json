@@ -1,7 +1,7 @@
 {
   "manifest_version": 2,
   "name": "Motorized Faders media speed",
-  "version": "0.2.0",
+  "version": "0.3.0",
   "description": "Lets the motorized faders set the playback speed of videos and audio on web pages (YouTube, Spotify, Jellyfin ...). Talks to the faders host and the AgentDeck daemon on 127.0.0.1 only.",
   "homepage_url": "https://github.com/Ilosariph/motorized-faders",
   "browser_specific_settings": {

@@ -1,7 +1,7 @@
 /*
  * Content script, every frame: finds the page's <video> / <audio> elements,
- * reports their state to the background script and sets their speed when the
- * faders ask.
+ * reports their state (speed, position, length) to the background script and
+ * sets their speed or position when a host asks.
  *
  * Elements are found three ways: those in the DOM by the media events that
  * pass through `document` on capture; detached ones (Spotify plays through an
@@ -20,7 +20,7 @@
 
   const LOCK_HOSTS = ["open.spotify.com"];
   const EVENTS = ["play", "playing", "pause", "ratechange", "ended", "emptied",
-                  "loadedmetadata"];
+                  "loadedmetadata", "seeked", "durationchange", "waiting"];
   // Firefox's limits for playbackRate.
   const RATE_MIN = 0.0625;
   const RATE_MAX = 16;
@@ -74,11 +74,17 @@
       hasMedia: Boolean(pick),
       playing: playing.length > 0,
       rate: pick ? pick.playbackRate : null,
+      // Seconds at `at` (ms epoch); hosts advance it by rate while playing.
+      // Firefox's MPRIS reports neither position nor length for pages.
+      position: pick ? pick.currentTime : null,
+      duration: pick && Number.isFinite(pick.duration) ? pick.duration : null,
+      at: Date.now(),
     };
   }
 
   function send(message) {
-    const text = JSON.stringify(message);
+    // `at` changes every time; only the rest decides whether to send.
+    const text = JSON.stringify({ ...message, at: 0 });
     if (text === lastSent) return;
     lastSent = text;
     browser.runtime.sendMessage(message).catch(() => {});
@@ -102,6 +108,14 @@
       el.playbackRate = rate;
     }
     schedule();
+  }
+
+  function seek(position) {
+    const { all, playing } = candidates();
+    const el = playing[0] || all[all.length - 1];
+    if (!el) return;
+    const end = Number.isFinite(el.duration) ? el.duration : Infinity;
+    el.currentTime = Math.min(end, Math.max(0, position));
   }
 
   function patchPage() {
@@ -141,6 +155,8 @@
   browser.runtime.onMessage.addListener((message) => {
     if (message.type === "set_rate" && typeof message.rate === "number") {
       setRate(message.rate);
+    } else if (message.type === "seek" && typeof message.position === "number") {
+      seek(message.position);
     } else if (message.type === "report") {
       lastSent = "";
       schedule();

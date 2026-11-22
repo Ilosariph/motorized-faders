@@ -2,7 +2,8 @@
  * Background script: keeps a WebSocket to each host that controls media speed
  * and tells them the speed of the page they act on: the frame playing that
  * started or changed most recently, else the one with media that changed most
- * recently. Speed requests from any host go to that frame.
+ * recently, with its position and length. Speed and seek requests from any host
+ * go to that frame.
  *
  * Hosts: the faders host (faders/browser_bridge.py) and the AgentDeck daemon
  * (bridge/src/browser-media-bridge.ts). Both speak the same protocol; a host
@@ -13,7 +14,7 @@
 const HOSTS = ["ws://127.0.0.1:47391", "ws://127.0.0.1:47392"];
 const RETRY_MS = 3000;
 
-// "tabId:frameId" -> { tabId, frameId, playing, rate, since }
+// "tabId:frameId" -> { tabId, frameId, playing, rate, position, duration, at, since }
 const frames = new Map();
 // url -> { socket, lastSent } for the hosts connected now
 const hosts = new Map();
@@ -46,6 +47,9 @@ async function report() {
     rate: f ? f.rate : null,
     playing: f ? f.playing : false,
     title,
+    position: f ? f.position : null,
+    duration: f ? f.duration : null,
+    at: f ? f.at : null,
   });
   for (const host of hosts.values()) {
     if (message === host.lastSent) continue;
@@ -67,6 +71,9 @@ browser.runtime.onMessage.addListener((message, sender) => {
       frameId: sender.frameId,
       playing: message.playing,
       rate: message.rate,
+      position: typeof message.position === "number" ? message.position : null,
+      duration: typeof message.duration === "number" ? message.duration : null,
+      at: typeof message.at === "number" ? message.at : Date.now(),
       since: changed ? Date.now() : old.since,
     });
   }
@@ -87,6 +94,13 @@ function setRate(rate) {
                            { frameId: f.frameId }).catch(() => {});
 }
 
+function seek(position) {
+  const f = current();
+  if (!f) return;
+  browser.tabs.sendMessage(f.tabId, { type: "seek", position },
+                           { frameId: f.frameId }).catch(() => {});
+}
+
 function connect(url) {
   const ws = new WebSocket(url);
   ws.onopen = () => {
@@ -102,6 +116,8 @@ function connect(url) {
     }
     if (message.type === "set_rate" && typeof message.rate === "number") {
       setRate(message.rate);
+    } else if (message.type === "seek" && typeof message.position === "number") {
+      seek(message.position);
     }
   };
   ws.onclose = () => {
