@@ -1,19 +1,22 @@
 /*
- * Background script: keeps a WebSocket to the faders host
- * (faders/browser_bridge.py) and tells it the speed of the page the faders
- * act on: the frame playing that started or changed most recently, else the
- * one with media that changed most recently. Speed requests from the host go
- * to that frame.
+ * Background script: keeps a WebSocket to each host that controls media speed
+ * and tells them the speed of the page they act on: the frame playing that
+ * started or changed most recently, else the one with media that changed most
+ * recently. Speed requests from any host go to that frame.
+ *
+ * Hosts: the faders host (faders/browser_bridge.py) and the AgentDeck daemon
+ * (bridge/src/browser-media-bridge.ts). Both speak the same protocol; a host
+ * that is not running is retried quietly.
  */
 "use strict";
 
-const WS_URL = "ws://127.0.0.1:47391";
+const HOSTS = ["ws://127.0.0.1:47391", "ws://127.0.0.1:47392"];
 const RETRY_MS = 3000;
 
 // "tabId:frameId" -> { tabId, frameId, playing, rate, since }
 const frames = new Map();
-let socket = null;
-let lastSent = "";
+// url -> { socket, lastSent } for the hosts connected now
+const hosts = new Map();
 
 function current() {
   let best = null;
@@ -28,7 +31,7 @@ function current() {
 }
 
 async function report() {
-  if (socket === null) return;
+  if (hosts.size === 0) return;
   const f = current();
   let title = "";
   if (f) {
@@ -44,9 +47,11 @@ async function report() {
     playing: f ? f.playing : false,
     title,
   });
-  if (message === lastSent || socket === null) return;
-  lastSent = message;
-  socket.send(message);
+  for (const host of hosts.values()) {
+    if (message === host.lastSent) continue;
+    host.lastSent = message;
+    host.socket.send(message);
+  }
 }
 
 browser.runtime.onMessage.addListener((message, sender) => {
@@ -82,11 +87,10 @@ function setRate(rate) {
                            { frameId: f.frameId }).catch(() => {});
 }
 
-function connect() {
-  const ws = new WebSocket(WS_URL);
+function connect(url) {
+  const ws = new WebSocket(url);
   ws.onopen = () => {
-    socket = ws;
-    lastSent = "";
+    hosts.set(url, { socket: ws, lastSent: "" });
     report();
   };
   ws.onmessage = (event) => {
@@ -101,8 +105,8 @@ function connect() {
     }
   };
   ws.onclose = () => {
-    if (socket === ws) socket = null;
-    setTimeout(connect, RETRY_MS);
+    if (hosts.get(url)?.socket === ws) hosts.delete(url);
+    setTimeout(() => connect(url), RETRY_MS);
   };
 }
 
@@ -116,4 +120,4 @@ browser.runtime.onInstalled.addListener(async () => {
   }
 });
 
-connect();
+for (const url of HOSTS) connect(url);

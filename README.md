@@ -336,7 +336,8 @@ browser` with AMO API credentials, and copy the `.xpi` from
 `web-ext-artifacts/` to `browser/signed/media-speed-<version>.xpi` (the flake
 picks it by the manifest's version).
 `"browser": false` closes the port, `"browser_port"` moves it (the extension
-has 47391 built in).
+has 47391 built in). From 0.2.0 the extension also connects to the AgentDeck
+daemon on `127.0.0.1:47392` (same protocol), so both can set the speed.
 
 Linux needs `playerctl` and `pactl` (the Nix package brings both). Windows needs
 two packages next to `pyserial`:
