@@ -940,8 +940,72 @@ the BOM) is an anti-alias / glitch filter, ~12 µs time constant, no added lag.
 is ratiometric like the faders: a high output is VREF, whatever 3.3 V reads.
 
 Per IC, besides the 100 nF decoupling: a sample capacitor Cs (sets
-sensitivity) and a series resistor on the SNS line, values per the datasheet
-and tuned to the knob — see Open Items.
+sensitivity) and a series resistor Rs on the SNSK line, tuned to the knob —
+see Open Items.
+
+### AT42QT1011 datasheet notes (DS40001947A)
+
+SOT-23-6 pinout: 1 OUT, 2 VSS, 3 SNSK, 4 SNS, 5 VDD, 6 SYNC/MODE.
+
+```
+            VDD (3.3 V, VREF net)
+             |
+          5 VDD ---[100 nF]--- GND   (tight to pins 5/2)
+ 6 SYNC/MODE --- VDD                 (fast mode)
+       3 SNSK --+--[Rs 4.7k]-- T terminal (knob)
+                |
+              [Cs]
+                |
+        4 SNS --+
+        1 OUT ------------------> ladder branch
+```
+
+- **OUT is push-pull, active high** while touched — the ladder needs no
+  pull-ups.
+- **Max on-duration is infinite**: a held touch is never recalibrated away.
+  Recalibration happens only at power-up (or by power-cycling VDD from a GPIO,
+  not needed here). Drift compensation stops while a touch is detected.
+- **Tie SYNC/MODE high (fast mode).** Low = low-power mode, ~80 ms between
+  bursts — far too slow. In fast mode a burst is ~2.45 ms + 1.2 ms gap, and
+  the detect integrator needs 4 consecutive detections, so response is
+  **~15 ms typical** (datasheet max 100 ms, Cs/Cx dependent).
+- **Cs**: 2–50 nF, X7R or PPS, **5 % tolerance recommended** for
+  unit-to-unit consistency. Datasheet characterisation uses 4.7 nF. Larger Cs
+  = more sensitive but slower response. Cs >> Cx (Cx 2–50 pF: knob, lever,
+  T wire).
+- **Rs**: in series on SNSK to the electrode, for ESD/EMC. The datasheet gives
+  no value; 4.7 kΩ (already in the BOM) as the starting point. The electrode
+  connects to SNSK only, never SNS. Traces on SNS/SNSK are themselves touch
+  sensitive — keep them short, thin, away from pours.
+- **Supply**: 1.8–5.5 V, ~380 µA at 3 V in fast mode, ±20 mV ripple max,
+  rise slope ≥ 10 V/s for a clean start.
+- **Weak high level**: VOH min is only **2.3 V at 1 mA**. The QT1 branch
+  (2.2k) sources up to ~0.66 mA into the ladder, so a soft output shifts the
+  ladder levels. Typical CMOS drop at this load is far smaller, but measure
+  the 16 levels on the bench before trusting the computed thresholds.
+- **HeartBeat**: before every burst (~every 3.6 ms) OUT goes **three-state
+  for 15 µs**. A floating branch drops out of the sum for that time — about
+  the ladder's 12 µs filter time constant — so a single CH5 sample can land
+  on a glitch. Firmware: take two reads (or a median of three) and require
+  agreement, plus the normal edge debounce.
+
+### Touch sense sourcing — DigiKey
+
+All verified in stock on digikey.ch (2026-11), cut tape prices:
+
+| Part | DigiKey PN | MPN | Qty | CHF |
+|------|------------|-----|-----|-----|
+| Touch IC, SOT-23-6 | `AT42QT1011-TSHRCT-ND` | AT42QT1011-TSHR | 6 (4 + 2 spare) | 0.64 ea |
+| Cs 4.7 nF 5 % X7R 0805 | `399-C0805C472J5RACTUCT-ND` | C0805C472J5RACTU | 10 | 2.51 |
+| Cs 22 nF 5 % X7R 0805 (tuning) | `399-C0805C223J5RACTUCT-ND` | C0805C223J5RACTU | 10 | 2.70 |
+| 10 nF X7R 0805 (ladder filter, mid Cs) | `1276-1015-1-ND` | CL21B103KBANNNC | 10 | 0.36 |
+| SOT-23-6 → DIP adapter (bench test) | `PA0085-ND` | Chip Quik PA0085 | 2 | 2.23 ea |
+
+Resistors (2.2k, 4.7k, 10k) and 100 nF are existing BOM lines — per board
+1x 2.2k, 5x 4.7k (1 ladder + 4 Rs), 3x 10k, 4x 100 nF. The Samsung
+`CL21B472JBANNNC` (4.7 nF in the same series as the other caps) is obsolete,
+hence KEMET. Bare Conductive paint (`COM-22958`) is obsolete at DigiKey —
+source knob material elsewhere.
 
 ### Touch wiring
 
@@ -963,7 +1027,7 @@ breakout module, socketed, keeps hand assembly), it takes GP0/GP1 (the I2C
 pair reserved below; a later mux can share the bus, address 0x5A vs 0x70),
 and it adds an I2C driver and bus traffic to the control loop. Check its
 lifecycle status before choosing it — NXP has been winding down that family.
-Pick it if the QT1011's response time or auto-recalibration on long holds
+Pick it if the QT1011's response time or its fixed, non-tunable threshold
 proves a problem on the bench.
 
 ### Firmware and host
@@ -977,8 +1041,9 @@ proves a problem on the bench.
   replacing the motion-based leave detection and the 400 ms hold give-up.
 - Host: `POS:` while touched is the hand, while untouched it is the motor.
   The loopback guard and settle band can key off that instead of timing.
-- Untouched-but-moving (a knob without contact, a QT1011 that
-  recalibrated mid-hold) must still work: keep the position-based fallbacks.
+- Untouched-but-moving (a knob without contact, a QT1011 that lost the
+  touch, e.g. a dry fingertip on a weak Cs) must still work: keep the
+  position-based fallbacks.
 
 ---
 
@@ -1240,12 +1305,13 @@ motor. No hardware impact.
   Faders are case-mounted, so the PCB outline is otherwise unconstrained.
 - Pick a reverse-polarity P-FET (Vds >= 20 V, Id >= 5 A, SOT-223/DPAK) if
   fitting one — not yet in the basket.
-- Touch sense (v3): pick Cs and the SNS series resistor for the QT1011 against
-  the real knob, and confirm on the bench: response time (the motor must let
-  go fast enough to matter), output drive type (the ladder needs push-pull;
-  add pull-ups otherwise), behaviour on a long hold (auto-recalibration
-  dropping a held touch), and immunity to the motor PWM. Decide conductive
-  knob material.
+- Touch sense (v3): pick Cs (4.7 / 10 / 22 nF) and Rs (start 4.7k) for the
+  QT1011 against the real knob, and confirm on the bench: response time in
+  fast mode (~15 ms expected; the motor must let go fast enough to matter),
+  the 16 ladder levels under real VOH, HeartBeat glitches on CH5, and
+  immunity to the motor PWM. Output drive (push-pull) and long holds (no
+  max-on timeout) are settled by the datasheet. Decide conductive knob
+  material.
 - Bring-up order for the firmware: verify `RAIL:ok` before trusting any PID
   behaviour, then check each fader calibrates to a full-span `adc_min`/`adc_max`
   before tuning. A short span means the sweep is stalling early.
